@@ -110,18 +110,14 @@ const double rho = 1.0; // kg/m^3
 const double p0 = 101325.0; // Pa
 const double u0 = 0.1; // m/s
 const double v0 = 0.0; // m/s
-const double mu = rho * u0 * max(Lx, Ly) / Re; // Pa*s
+const double nu = u0 * max(Lx, Ly) / Re; // m^2 / s
+const double mu = rho * nu; // Pa*s
 
 // Timing
 double dt = 0.01; // s
 double t = 0.0; // s
 size_t iter = 0;
 const size_t MAX_ITER = 2000;
-
-// Short-hand vars
-const double a = 2 * dt * (1 / dxdx + 1 / dydy);
-const double b = -dt / dxdx;
-const double c = -dt / dydy;
 
 // Coordinate
 Array1D x(Nx, 0.0), y(Ny, 0.0); // m
@@ -130,9 +126,9 @@ Array1D xU(Nx, 0.0), yU(Ny + 1, 0.0);
 Array1D xV(Nx + 1, 0.0), yV(Ny, 0.0);
 
 // Variables
-Array2D p(Nx + 1, Ny + 1, p0); // Pa
-Array2D u(Nx, Ny + 1, u0); // m/s
-Array2D v(Nx + 1, Ny, v0); // m/s
+Array2D p(Nx + 1, Ny + 1, 0.0); // Pa
+Array2D u(Nx, Ny + 1, 0.0); // m/s
+Array2D v(Nx + 1, Ny, 0.0); // m/s
 
 Array2D p_star(Nx + 1, Ny + 1, 0.0);
 Array2D u_star(Nx, Ny + 1, 0.0);
@@ -189,60 +185,147 @@ void init()
 	cout << "u0=" << u0 << endl;
 	cout << "mu=" << mu << endl;
 
-	// Grid
-	for (size_t i = 0; i < Nx; ++i)
-		x[i] = relaxation(xLeft, xRight, 1.0 * i / (Nx - 1));
-	for (size_t j = 0; j < Ny; ++j)
-		y[j] = relaxation(yBottom, yTop, 1.0 * j / (Ny - 1));
+	// Grid of geom
+	for (size_t i = 1; i <= Nx; ++i)
+		x(i) = relaxation(xLeft, xRight, 1.0 * (i - 1) / (Nx - 1));
+	for (size_t j = 1; j <= Ny; ++j)
+		y(j) = relaxation(yBottom, yTop, 1.0 * (j - 1) / (Ny - 1));
 
+	// Grid of p
 	xP(1) = xLeft;
 	for (size_t i = 2; i <= Nx; ++i)
 		xP(i) = relaxation(x(i - 1), x(i), 0.5);
-	xP(Nx+1) = xRight;
+	xP(Nx + 1) = xRight;
+
+	yP(1) = yBottom;
+	for (size_t j = 2; j <= Ny; ++j)
+		yP(j) = relaxation(y(j - 1), y(j), 0.5);
+	yP(Ny + 1) = yTop;
+
+	// Grid of u
+	for (size_t i = 1; i <= Nx; ++i)
+		xU(i) = x(i);
+
+	yU(1) = yBottom;
+	for (size_t j = 2; j <= Ny; ++j)
+		yU(j) = relaxation(y(j - 1), y(j), 0.5);
+	yU(Ny + 1) = yTop;
+
+	// Grid of v
+	xV(1) = xLeft;
+	for (size_t i = 2; i <= Nx; ++i)
+		xV(i) = relaxation(x(i - 1), x(i), 0.5);
+	xV(Nx + 1) = xRight;
+
+	for (size_t j = 1; j <= Ny; ++j)
+		yV(j) = y(j);
+
+	// I.C.
+	for (size_t j = 1; j <= Ny + 1; ++j)
+		for (size_t i = 1; i <= Ny + 1; ++i)
+			p(i, j) = p0;
+
+	for (size_t j = 1; j <= Ny + 1; ++j)
+		for (size_t i = 1; i <= Nx; ++i)
+			u(i, j) = u0;
+
+	for (size_t j = 1; j <= Ny; ++j)
+		for (size_t i = 1; i <= Nx + 1; ++i)
+			v(i, j) = v0;
 
 	// B.C.
 	BC();
 }
 
-void output(const string &fn, const vector<vector<double>> &u, const vector<vector<double>> &v, const vector<vector<double>> &p)
+void write_user(size_t n)
 {
-	ofstream flow(fn);
+	// TODO
+}
 
-	flow << "TITLE = \"2D Lid-Driven Cavity Flow\"" << endl;
-	flow << "VARIABLES = \"X\", \"Y\", \"DENSITY\", \"U\", \"V\", \"P\"" << endl;
-	flow << "ZONE  I = " << Nx << ", J = " << Ny << ", 	F=POINT" << endl;
+void write_tecplot(size_t n)
+{
+	// Output format params
+	static const size_t WIDTH = 18;
+	static const size_t DIGITS = 9;
 
-	for (int j = 0; j < Ny; ++j)
-		for (int i = 0; i < Nx; ++i)
+	/******************************* Interpolate ******************************/
+	Array2D p_interp(Nx, Ny, 0.0);
+	Array2D u_interp(Nx, Ny, 0.0);
+	Array2D v_interp(Nx, Ny, 0.0);
+
+	// p
+	p_interp(1, 1) = p(1, 1);
+	p_interp(Nx, 1) = p(Nx + 1, 1);
+	p_interp(1, Ny) = p(1, Ny + 1);
+	p_interp(Nx, Ny) = p(Nx + 1, Ny + 1);
+	for (size_t i = 2; i <= Nx - 1; ++i)
+	{
+		p_interp(i, 1) = relaxation(p(i, 1), p(i + 1, 1), 0.5);
+		p_interp(i, Ny) = relaxation(p(i, Ny + 1), p(i + 1, Ny + 1), 0.5);
+	}
+	for (size_t j = 2; j <= Ny - 1; ++j)
+	{
+		p_interp(1, j) = relaxation(p(1, j), p(1, j + 1), 0.5);
+		p_interp(Nx, j) = relaxation(p(Nx + 1, j), p(Nx + 1, j + 1), 0.5);
+	}
+	for (size_t j = 2; j <= Ny - 1; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+			p_interp(i, j) = 0.25*(p(i, j) + p(i + 1, j) + p(i, j + 1) + p(i + 1, j + 1));
+
+	// u
+	for (size_t i = 1; i <= Nx; ++i)
+	{
+		u_interp(i, 1) = u(i, 1);
+		u_interp(i, Ny) = u(i, Ny + 1);
+	}
+	for (size_t j = 2; j <= Ny - 1; ++j)
+		for (size_t i = 1; i <= Nx; ++i)
+			u_interp(i, j) = relaxation(u(i, j), u(i, j + 1), 0.5);
+
+	// v
+	for (size_t j = 1; j <= Ny; ++j)
+	{
+		v_interp(1, j) = v(1, j);
+		v_interp(Nx, j) = v(Nx, j);
+	}
+	for (size_t j = 1; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+			v_interp(i, j) = relaxation(v(i, j), v(i + 1, j), 0.5);
+
+	/********************************* Output *********************************/
+	// Create output file
+	ofstream fout("flow" + to_string(n) + ".dat");
+	if (!fout)
+		throw runtime_error("Failed to create data file!");
+
+	// Header
+	fout << R"(TITLE = "2D Lid-Driven Cavity Flow at t=)" << t << R"(s")" << endl;
+	fout << R"(VARIABLES = "X", "Y", "rho", "U", "V", "P")" << endl;
+	fout << "ZONE I=" << Nx << ", J=" << Ny << ", F=POINT" << endl;
+
+	// Flow-field data
+	for (size_t j = 1; j <= Ny; ++j)
+		for (size_t i = 1; i <= Nx; ++i)
 		{
-			flow << setw(16) << scientific << setprecision(6) << x[i];
-			flow << setw(16) << scientific << setprecision(6) << y[j];
-			flow << setw(16) << scientific << setprecision(6) << rho;
-
-			// u
-			if (j == Ny - 1)
-				flow << setw(16) << scientific << setprecision(6) << u0; // B.C.
-			else if (j == 0)
-				flow << setw(16) << scientific << setprecision(6) << 0.0; // B.C.
-			else
-			{
-				if (i == 0 || i == Nx - 1)
-					flow << setw(16) << scientific << setprecision(6) << 0.0; // B.C.
-				else
-					flow << setw(16) << scientific << setprecision(6) << relaxation(u[i - 1][j], u[i][j], 0.5);
-			}
-
-			// v
-			if (i == 0 || i == Nx - 1 || j == 0 || j == Ny - 1)
-				flow << setw(16) << scientific << setprecision(6) << 0.0; // v at 2 horizontal boundary is 0
-			else
-				flow << setw(16) << scientific << setprecision(6) << relaxation(v[i][j - 1], v[i][j], 0.5);
-
-			flow << setw(16) << scientific << setprecision(6) << p[i][j];
-			flow << endl;
+			fout << setw(WIDTH) << setprecision(DIGITS) << x(i);
+			fout << setw(WIDTH) << setprecision(DIGITS) << y(j);
+			fout << setw(WIDTH) << setprecision(DIGITS) << rho;
+			fout << setw(WIDTH) << setprecision(DIGITS) << u(i, j);
+			fout << setw(WIDTH) << setprecision(DIGITS) << v(i, j);
+			fout << setw(WIDTH) << setprecision(DIGITS) << p(i, j);
+			fout << endl;
 		}
 
-	flow.close();
+	// Finalize
+	fout.close();
+}
+
+void output()
+{
+	if (!(iter % 10))
+		write_tecplot(iter);
+
+	write_user(iter);
 }
 
 static void l2g(int loc_i, int loc_j, int &glb_i, int &glb_j)
@@ -501,11 +584,13 @@ void solve(void)
 		ok = checkConvergence();
 	}
 	cout << "Converged!" << endl;
+	write_tecplot(iter);
 }
 
 int main(int argc, char *argv[])
 {
 	init();
+	output();
 	solve();
 
 	return 0;
