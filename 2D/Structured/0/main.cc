@@ -145,6 +145,30 @@ inline T relaxation(const T &a, const T &b, double alpha)
 	return (1 - alpha) *a + alpha * b;
 }
 
+inline double df(double fl, double fc, double fr, double pl, double pc, double pr)
+{
+	return ((fr - fc) / (pr - pc) * (pc - pl) + (fl - fc) / (pl - pc) * (pr - pc)) / (pr - pl);
+}
+
+inline double ddf(double fl, double fc, double fr, double pl, double pc, double pr)
+{
+	return 2.0 / (pr - pl) * ((fr - fc) / (pr - pc) - (fl - fc) / (pl - pc));
+}
+
+inline double interp_f(
+	double f_nw, double x_nw, double y_nw,
+	double f_ne, double x_ne, double y_ne,
+	double f_se, double x_se, double y_se,
+	double f_sw, double x_sw, double y_sw
+)
+{
+	double f = 0.0;
+	
+	// TODO
+
+	return f;
+}
+
 void BC()
 {
 	// u
@@ -328,54 +352,6 @@ void output()
 	write_user(iter);
 }
 
-static void l2g(int loc_i, int loc_j, int &glb_i, int &glb_j)
-{
-	glb_i = loc_i + 1;
-	glb_j = loc_j + 1;
-}
-
-static void g2l(int glb_i, int glb_j, int &loc_i, int &loc_j)
-{
-	loc_i = glb_i - 1;
-	loc_j = glb_j - 1;
-}
-
-static int loc_idx(int loc_i, int loc_j)
-{
-	return loc_j * (Nx - 2) + loc_i;
-}
-
-static bool onBdy(int glb_i, int glb_j)
-{
-	return glb_i == 0 || glb_i == Nx - 1 || glb_j == 0 || glb_j == Ny - 1;
-}
-
-static void idx_around(int glb_i, int glb_j, int *ax, int *ay, int *ai, bool *bdyFlag)
-{
-	ax[0] = glb_i;
-	ay[0] = glb_j;
-
-	ax[1] = glb_i + 1;
-	ay[1] = glb_j;
-
-	ax[2] = glb_i;
-	ay[2] = glb_j + 1;
-
-	ax[3] = glb_i - 1;
-	ay[3] = glb_j;
-
-	ax[4] = glb_i;
-	ay[4] = glb_j - 1;
-
-	for (auto i = 0; i < 5; ++i)
-	{
-		int loc_i, loc_j;
-		g2l(ax[i], ay[i], loc_i, loc_j);
-		ai[i] = loc_idx(loc_i, loc_j);
-		bdyFlag[i] = onBdy(ax[i], ay[i]);
-	}
-}
-
 void solvePoissonEquation()
 {
 	cout << "\tSolve the Possion equation..." << endl;
@@ -471,18 +447,40 @@ void solvePoissonEquation()
 // Explicit time-marching
 void ProjectionMethod()
 {
-	cout << "\tInit star value from previous calculation..." << endl;
-	for (int i = 0; i < Nx; ++i)
-		for (int j = 0; j < Ny; ++j)
-			p_star[i][j] = p[i][j];
+	/******************************* Prediction ******************************/
+	// Derivateives at inner
+	Array2D dudx(Nx, Ny + 1, 0.0), dduddx(Nx, Ny + 1, 0.0);
+	Array2D dudy(Nx, Ny + 1, 0.0), dduddy(Nx, Ny + 1, 0.0);
+	for(size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+		{
+			dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
+			dduddx(i, j) = ddf(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
+			dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
+			dduddy(i, j) = ddf(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
+		}
 
-	for (int i = 0; i < Nx - 1; ++i)
-		for (int j = 0; j < Ny; ++j)
-			u_star[i][j] = u[i][j];
+	Array2D dvdx(Nx + 1, Ny, 0.0), ddvddx(Nx + 1, Ny, 0.0);
+	Array2D dvdy(Nx + 1, Ny, 0.0), ddvddy(Nx + 1, Ny, 0.0);
+	for (size_t j = 2; j <= Ny-1; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+		{
+			dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
+			ddvddx(i, j) = ddf(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
+			dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
+			ddvddy(i, j) = ddf(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
+		}
 
-	for (int i = 0; i < Nx; ++i)
-		for (int j = 0; j < Ny - 1; ++j)
-			v_star[i][j] = v[i][j];
+	// Approximated values
+	Array2D v_bar(Nx, Ny + 1, 0.0);
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+			v_bar(i, j) = interp_f();
+
+	Array2D u_bar(Nx + 1, Ny, 0.0);
+	for (size_t j = 2; j <= Ny - 1; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+			u_bar(i, j) = interp_f();
 
 	cout << "\tCalculate new star value..." << endl;
 	double v_a, v_b, dru2dx, druvdy, dduddx, dduddy, A_star, dpdx;
@@ -541,8 +539,10 @@ void ProjectionMethod()
 			v_star[i][j] += dt * (B_star - dpdy) / rho;
 		}
 
+	/******************************* Poisson ******************************/
 	solvePoissonEquation();
 
+	/******************************* Correction ******************************/
 	for (int i = 1; i < Nx - 1; ++i)
 		for (int j = 1; j < Ny - 1; ++j)
 			p[i][j] += alpha_p * p_prime[i][j];
