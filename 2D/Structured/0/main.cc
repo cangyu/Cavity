@@ -138,6 +138,10 @@ Array2D p_prime(Nx + 1, Ny + 1, 0.0);
 Array2D u_prime(Nx, Ny + 1, 0.0);
 Array2D v_prime(Nx + 1, Ny, 0.0);
 
+inline double distance(double x_src, double y_src, double x_dst, double y_dst)
+{
+	return sqrt(pow(x_dst - x_src, 2) + pow(y_dst - y_src, 2));
+}
 
 template<typename T>
 inline T relaxation(const T &a, const T &b, double alpha)
@@ -155,16 +159,34 @@ inline double ddf(double fl, double fc, double fr, double pl, double pc, double 
 	return 2.0 / (pr - pl) * ((fr - fc) / (pr - pc) - (fl - fc) / (pl - pc));
 }
 
+// Shepard Interpolation
 inline double interp_f(
 	double f_nw, double x_nw, double y_nw,
 	double f_ne, double x_ne, double y_ne,
 	double f_se, double x_se, double y_se,
-	double f_sw, double x_sw, double y_sw
+	double f_sw, double x_sw, double y_sw,
+	double x0, double y0
 )
 {
-	double f = 0.0;
+	const double h[4] = { 
+		distance(x_nw, y_nw, x0, y0),
+		distance(x_ne, y_ne, x0, y0),
+		distance(x_se, y_se, x0, y0),
+		distance(x_sw, y_sw, x0, y0)
+	};
+
+	double hp[4], hp_sum = 0.0;
+	for (auto i = 0; i < 4; ++i)
+	{ 
+		hp[i] = 1.0 / pow(h[i], 2);
+		hp_sum += hp[i];
+	}
 	
-	// TODO
+	double w[4];
+	for (auto i = 0; i < 4; ++i)
+		w[i] = hp[i] / hp_sum;
+
+	const double f = w[0] * f_nw + w[1] * f_ne + w[2] * f_se + w[3] * f_sw;
 
 	return f;
 }
@@ -441,7 +463,6 @@ void solvePoissonEquation()
 		for (int j = 0; j < Ny - 1; ++j)
 			v_prime[i][j] = -dt / dy * (p_prime[i][j + 1] - p_prime[i][j]) / rho;
 
-	output("Cavity_prime.dat", u_prime, v_prime, p_prime);
 }
 
 // Explicit time-marching
@@ -482,7 +503,7 @@ void ProjectionMethod()
 		for (size_t i = 2; i <= Nx; ++i)
 			u_bar(i, j) = interp_f();
 
-	cout << "\tCalculate new star value..." << endl;
+	// Calculate star values
 	double v_a, v_b, dru2dx, druvdy, dduddx, dduddy, A_star, dpdx;
 	for (int j = 1; j < Ny - 1; ++j)
 		for (int i = 0; i < Nx - 1; ++i)
