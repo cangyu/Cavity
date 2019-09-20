@@ -376,12 +376,15 @@ void output()
 
 void solvePoissonEquation()
 {
-	cout << "\tSolve the Possion equation..." << endl;
-	const int NumOfUnknown = (Nx - 2) * (Ny - 2);
+	typedef Eigen::SparseMatrix<double> SpMat;
+	typedef Eigen::Triplet<double> T;
+
+	const size_t m = (Nx + 1) * (Ny + 1);
+	vector<T> coef;
+	Eigen::VectorXd rhs(m);
+	SpMat A(m, m);
 
 	// Compute d
-	VectorXd b(NumOfUnknown);
-	b.setZero();
 	int cnt = 0;
 	for (int j = 1; j < Ny - 1; ++j)
 		for (int i = 1; i < Nx - 1; ++i)
@@ -430,7 +433,6 @@ void solvePoissonEquation()
 					elem.push_back(Triplet<double>(idx[c], idx[c], v[c]));
 		}
 
-	SparseMatrix<double> A(NumOfUnknown, NumOfUnknown);
 	A.setZero();
 	A.setFromTriplets(elem.begin(), elem.end());
 
@@ -440,29 +442,10 @@ void solvePoissonEquation()
 	// Solve
 	VectorXd x = chol.solve(b);
 
-	ofstream fout("A.txt");
-	fout << A;
-	fout.close();
-	fout.open("b.txt");
-	fout << b;
-	fout.close();
-	fout.open("x.txt");
-	fout << x;
-	fout.close();
-
 	cnt = 0;
 	for (int i = 1; i < Nx - 1; ++i)
 		for (int j = 1; j < Ny - 1; ++j)
 			p_prime[i][j] = x[cnt++];
-
-	for (int j = 1; j < Ny - 1; ++j)
-		for (int i = 0; i < Nx - 1; ++i)
-			u_prime[i][j] = -dt / dx * (p_prime[i + 1][j] - p_prime[i][j]) / rho;
-
-	for (int i = 1; i < Nx - 1; ++i)
-		for (int j = 0; j < Ny - 1; ++j)
-			v_prime[i][j] = -dt / dy * (p_prime[i][j + 1] - p_prime[i][j]) / rho;
-
 }
 
 // Explicit time-marching
