@@ -168,7 +168,7 @@ inline double interp_f(
 	double x0, double y0
 )
 {
-	const double h[4] = { 
+	const double h[4] = {
 		distance(x_nw, y_nw, x0, y0),
 		distance(x_ne, y_ne, x0, y0),
 		distance(x_se, y_se, x0, y0),
@@ -177,11 +177,11 @@ inline double interp_f(
 
 	double hp[4], hp_sum = 0.0;
 	for (auto i = 0; i < 4; ++i)
-	{ 
+	{
 		hp[i] = 1.0 / pow(h[i], 2);
 		hp_sum += hp[i];
 	}
-	
+
 	double w[4];
 	for (auto i = 0; i < 4; ++i)
 		w[i] = hp[i] / hp_sum;
@@ -472,7 +472,7 @@ void ProjectionMethod()
 	// Derivateives at inner
 	Array2D dudx(Nx, Ny + 1, 0.0), dduddx(Nx, Ny + 1, 0.0);
 	Array2D dudy(Nx, Ny + 1, 0.0), dduddy(Nx, Ny + 1, 0.0);
-	for(size_t j = 2; j <= Ny; ++j)
+	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx - 1; ++i)
 		{
 			dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
@@ -483,7 +483,7 @@ void ProjectionMethod()
 
 	Array2D dvdx(Nx + 1, Ny, 0.0), ddvddx(Nx + 1, Ny, 0.0);
 	Array2D dvdy(Nx + 1, Ny, 0.0), ddvddy(Nx + 1, Ny, 0.0);
-	for (size_t j = 2; j <= Ny-1; ++j)
+	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
 			dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
@@ -492,89 +492,88 @@ void ProjectionMethod()
 			ddvddy(i, j) = ddf(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
 		}
 
-	// Approximated values
+	// Approximated values at inner
 	Array2D v_bar(Nx, Ny + 1, 0.0);
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx - 1; ++i)
-			v_bar(i, j) = interp_f();
+			v_bar(i, j) = interp_f(
+				v(i, j), xV(i), yV(j),
+				v(i + 1, j), xV(i + 1), yV(j),
+				v(i + 1, j - 1), xV(i + 1), yV(j - 1),
+				v(i, j - 1), xV(i), yV(j - 1),
+				xU(i), yU(j));
 
 	Array2D u_bar(Nx + 1, Ny, 0.0);
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
-			u_bar(i, j) = interp_f();
+			u_bar(i, j) = interp_f(
+				u(i - 1, j + 1), xU(i - 1), yU(j + 1),
+				u(i, j + 1), xU(i), yU(j + 1),
+				u(i, j), xU(i), yU(j),
+				u(i - 1, j), xU(i - 1), yU(j),
+				xV(i), yV(j));
 
-	// Calculate star values
-	double v_a, v_b, dru2dx, druvdy, dduddx, dduddy, A_star, dpdx;
-	for (int j = 1; j < Ny - 1; ++j)
-		for (int i = 0; i < Nx - 1; ++i)
-		{
-			v_a = relaxation(v[i][j], v[i + 1][j], 0.5);
-			v_b = relaxation(v[i][j - 1], v[i + 1][j - 1], 0.5);
-			if (i == 0)
-			{
-				dru2dx = (rho * pow(u[i + 1][j], 2) + 3 * rho * pow(u[i][j], 2)) / (3 * dx);
-				dduddx = (u[i + 1][j] - 3 * u[i][j]) / (0.75 * dx2);
-			}
-			else if (i == Nx - 2)
-			{
-				dru2dx = (-rho * pow(u[i - 1][j], 2) - 3 * rho * pow(u[i][j], 2)) / (3 * dx);
-				dduddx = (u[i - 1][j] - 3 * u[i][j]) / (0.75 * dx2);
-			}
-			else
-			{
-				dru2dx = (rho * pow(u[i + 1][j], 2) - rho * pow(u[i - 1][j], 2)) / (2 * dx);
-				dduddx = (u[i + 1][j] - 2 * u[i][j] + u[i - 1][j]) / dx2;
-			}
-			druvdy = 0.5*(rho * u[i][j + 1] * v_a - rho * u[i][j - 1] * v_b) / dy;
-			dduddy = (u[i][j + 1] - 2 * u[i][j] + u[i][j - 1]) / dy2;
-			A_star = -(dru2dx + druvdy) + mu * (dduddx + dduddy);
-			dpdx = (p[i + 1][j] - p[i][j]) / dx;
-			u_star[i][j] += dt * (A_star - dpdx) / rho;
-		}
+	// F at inner
+	Array2D F2(Nx, Ny + 1, 0.0);
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+			F2(i, j) = -(u(i, j)*dudx(i, j) + v_bar(i, j) * dudy(i, j)) + nu * (dduddx(i, j) + dduddy(i, j));
 
-	double u_c, u_d, drvudx, drv2dy, ddvddx, ddvddy, B_star, dpdy;
-	for (int i = 1; i < Nx - 1; ++i)
-		for (int j = 0; j < Ny - 1; ++j)
-		{
-			u_c = relaxation(u[i - 1][j], u[i - 1][j + 1], 0.5);
-			u_d = relaxation(u[i][j], u[i][j + 1], 0.5);
-			if (j == 0)
-			{
-				drv2dy = (rho * pow(v[i][j + 1], 2) + 3 * rho * pow(v[i][j], 2)) / (3 * dy);
-				ddvddy = (v[i][j + 1] - 3 * v[i][j]) / (0.75 * dy2);
-			}
-			else if (j == Ny - 2)
-			{
-				drv2dy = (-rho * pow(v[i][j - 1], 2) - 3 * rho * pow(v[i][j], 2)) / (3 * dy);
-				ddvddy = (v[i][j - 1] - 3 * v[i][j]) / (0.75 * dy2);
-			}
-			else
-			{
-				drv2dy = 0.5*(rho * pow(v[i][j + 1], 2) - rho * pow(v[i][j - 1], 2)) / dy;
-				ddvddy = (v[i][j + 1] - 2 * v[i][j] + v[i][j - 1]) / dy2;
-			}
-			drvudx = 0.5*(rho * v[i + 1][j] * u_d - rho * v[i - 1][j] * u_c) / dx;
-			ddvddx = (v[i + 1][j] - 2 * v[i][j] + v[i - 1][j]) / dx2;
-			B_star = -(drvudx + drv2dy) + mu * (ddvddx + ddvddy);
-			dpdy = (p[i][j + 1] - p[i][j]) / dy;
-			v_star[i][j] += dt * (B_star - dpdy) / rho;
-		}
+	Array2D F3(Nx + 1, Ny, 0.0);
+	for (size_t j = 2; j <= Ny - 1; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+			F3(i, j) = -(u_bar(i, j) * dvdx(i, j) + v(i, j) * dvdy(i, j)) + nu * (ddvddx(i, j) + ddvddy(i, j));
+
+	// Star values at inner
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+			u_star(i, j) = u(i, j) + dt * F2(i, j);
+
+	for (size_t j = 2; j <= Ny - 1; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+			v_star(i, j) = v(i, j) + dt * F3(i, j);
+
+	// Star values at boundary
+	for (size_t i = 1; i <= Nx; ++i)
+	{
+		u_star(i, 1) = 0.0;
+		u_star(i, Ny + 1) = u0;
+	}
+	for (size_t j = 2; j <= Ny; ++j)
+	{
+		u_star(1, j) = 0.0;
+		u_star(Nx, j) = 0.0;
+	}
+
+	for (size_t i = 1; i <= Nx + 1; ++i)
+	{
+		v_star(i, 1) = 0.0;
+		v_star(i, Ny) = 0.0;
+	}
+	for (size_t j = 2; j <= Ny - 1; ++j)
+	{
+		v_star(1, j) = 0.0;
+		v_star(Nx + 1, j) = 0.0;
+	}
 
 	/******************************* Poisson ******************************/
 	solvePoissonEquation();
 
 	/******************************* Correction ******************************/
-	for (int i = 1; i < Nx - 1; ++i)
-		for (int j = 1; j < Ny - 1; ++j)
-			p[i][j] += alpha_p * p_prime[i][j];
+	// U, V at inner
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+		{
+			u_prime(i, j) = -dt / rho * (p(i + 1, j) - p(i, j)) / (xP(i + 1) - xP(i));
+			u(i, j) += u_prime(i, j);
+		}
 
-	for (int j = 1; j < Ny - 1; ++j)
-		for (int i = 0; i < Nx - 1; ++i)
-			u[i][j] += u_prime[i][j];
-
-	for (int i = 1; i < Nx - 1; ++i)
-		for (int j = 0; j < Ny - 1; ++j)
-			v[i][j] += v_prime[i][j];
+	for (size_t j = 2; j <= Ny - 1; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+		{
+			v_prime(i, j) = -dt / rho * (p(i, j + 1) - p(i, j)) / (yP(j + 1) - yP(j));
+			v(i, j) += v_prime(i, j);
+		}
 }
 
 bool checkConvergence()
