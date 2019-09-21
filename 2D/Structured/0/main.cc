@@ -101,8 +101,6 @@ const size_t Nx = 51, Ny = 41;
 const double xLeft = -Lx / 2, xRight = Lx / 2;
 const double yBottom = -Ly / 2, yTop = Ly / 2;
 const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
-const double dxdx = pow(dx, 2), dydy = pow(dy, 2);
-const double dx2 = 2 * dx, dy2 = 2 * dy;
 
 // Flow param
 const double Re = 100.0;
@@ -191,30 +189,30 @@ inline double interp_f(
 	return f;
 }
 
-void BC()
+void set_velocity_bc(Array2D &u_, Array2D &v_)
 {
 	// u
 	for (size_t i = 1; i <= Nx; ++i)
 	{
-		u(i, 1) = 0.0;
-		u(i, Ny + 1) = u0;
+		u_(i, 1) = 0.0;
+		u_(i, Ny + 1) = u0;
 	}
 	for (size_t j = 2; j <= Ny; ++j)
 	{
-		u(1, j) = 0.0;
-		u(Nx, j) = 0.0;
+		u_(1, j) = 0.0;
+		u_(Nx, j) = 0.0;
 	}
 
 	// v
 	for (size_t i = 1; i <= Nx + 1; ++i)
 	{
-		v(i, 1) = 0.0;
-		v(i, Ny) = 0.0;
+		v_(i, 1) = 0.0;
+		v_(i, Ny) = 0.0;
 	}
 	for (size_t j = 2; j <= Ny - 1; ++j)
 	{
-		v(1, j) = 0.0;
-		v(Nx + 1, j) = 0.0;
+		v_(1, j) = 0.0;
+		v_(Nx + 1, j) = 0.0;
 	}
 }
 
@@ -280,7 +278,7 @@ void init()
 			v(i, j) = v0;
 
 	// B.C.
-	BC();
+    set_velocity_bc(u, v);
 }
 
 void write_user(size_t n)
@@ -374,6 +372,24 @@ void output()
 	write_user(iter);
 }
 
+// 0-based indexing of stencil pts
+inline void poisson_stencil(int i, int j, int &id, int &id_w, int &id_e, int &id_n, int &id_s)
+{
+    // Convert i, j from 1-based to 0-based indexing.
+    const int i0 = i-1;
+    const int j0 = j-1;
+
+    // Set the band-width
+    const int bw = Nx+1;
+
+    // Calculating 0-based index of stencil pts
+    id = j0 * bw + i0;
+    id_w = id - 1;
+    id_e = id + 1;
+    id_n = id + bw;
+    id_s = id - bw;
+}
+
 void solvePoissonEquation()
 {
 	typedef Eigen::SparseMatrix<double> SpMat;
@@ -384,68 +400,115 @@ void solvePoissonEquation()
 	Eigen::VectorXd rhs(m);
 	SpMat A(m, m);
 
-	// Compute d
-	int cnt = 0;
-	for (int j = 1; j < Ny - 1; ++j)
-		for (int i = 1; i < Nx - 1; ++i)
+    int id, id_w, id_e, id_n, id_s;
+
+    /***************************** Equations at inner *************************/
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
 		{
-			double drusdx = (rho*u_star[i][j] - rho * u_star[i - 1][j]) / dx;
-			double drvsdy = (rho*v_star[i][j] - rho * v_star[i][j - 1]) / dy;
-			p_prime[i][j] = drusdx + drvsdy;
-			b[cnt++] = -p_prime[i][j];
+            const double dxL = xP(i) - xP(i-1);
+            const double dxR = xP(i+1) - xP(i);
+            const double dxC = xP(i+1) - xP(i-1);
+            const double dyL = yP(j) - yP(j-1);
+            const double dyR = yP(j+1) - yP(j);
+            const double dyC = yP(j+1) - yP(j-1);
+
+		    const double dusdx = (u_star(i, j) - u_star(i - 1, j)) / (xU(i) - xU(i-1));
+            const double dvsdy = (v_star(i, j) - v_star(i, j - 1)) / (yV(j) - yV(j-1));
+			const double divergence = dusdx + dvsdy;
+			const double p_rhs = rho / dt * divergence;
+
+			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
+
+			const double a = -2.0 * (1.0 / (dxR * dxL) + 1.0 / (dyR * dyL));
+            const double b_w = 2.0 / (dxC * dxL);
+            const double b_e = 2.0 / (dxC * dxR);
+            const double c_n = 2.0 / (dyC * dyR);
+            const double c_s = 2.0 / (dyC * dyL);
+
+            coef.emplace_back(id, id, a);
+            coef.emplace_back(id, id_w, b_w);
+            coef.emplace_back(id, id_e, b_e);
+            coef.emplace_back(id, id_n, c_n);
+            coef.emplace_back(id, id_s, c_s);
+            rhs(id) = p_rhs;
 		}
 
-	// Compute coefficient matrix
-	vector<Triplet<double>> elem;
-	for (int j = 1; j < Ny - 1; ++j)
-		for (int i = 1; i < Nx - 1; ++i)
-		{
-			int idx[5], ii[5], jj[5];
-			bool flag[5];
-			idx_around(i, j, ii, jj, idx, flag);
+    /*************************** Equations at boundary ************************/
+	// Left
+	for(size_t j = 2; j <= Ny; ++j)
+    {
+        poisson_stencil(1, j, id, id_w, id_e, id_n, id_s);
+        coef.emplace_back(id, id, 1.0);
+        coef.emplace_back(id, id_e, -1.0);
+        rhs(id) = 0.0;
+    }
+	// Right
+    for(size_t j = 2; j <= Ny; ++j)
+    {
+        poisson_stencil(Nx+1, j, id, id_w, id_e, id_n, id_s);
+        coef.emplace_back(id, id, 1.0);
+        coef.emplace_back(id, id_w, -1.0);
+        rhs(id) = 0.0;
+    }
+    // Bottom
+    for(size_t i = 2; i <= Nx; ++i)
+    {
+        poisson_stencil(i, 1, id, id_w, id_e, id_n, id_s);
+        coef.emplace_back(id, id, 1.0);
+        coef.emplace_back(id, id_n, -1.0);
+        rhs(id) = 0.0;
+    }
+    // Top
+    for(size_t i = 2; i <= Nx; ++i)
+    {
+        poisson_stencil(i, Ny+1, id, id_w, id_e, id_n, id_s);
+        coef.emplace_back(id, id, 1.0);
+        coef.emplace_back(id, id_s, -1.0);
+        rhs(id) = 0.0;
+    }
 
-			double v[5] = { a, 0.0, 0.0, 0.0, 0.0 };
+    /************************** Equations at 4 corners ************************/
+    // Left-Bottom
+    poisson_stencil(1, 1, id, id_w, id_e, id_n, id_s);
+    coef.emplace_back(id, id, 1.0);
+    coef.emplace_back(id, id_n, -0.5);
+    coef.emplace_back(id, id_e, -0.5);
+    rhs(id) = 0.0;
+    // Right-Bottom
+    poisson_stencil(Nx+1, 1, id, id_w, id_e, id_n, id_s);
+    coef.emplace_back(id, id, 1.0);
+    coef.emplace_back(id, id_n, -0.5);
+    coef.emplace_back(id, id_w, -0.5);
+    rhs(id) = 0.0;
+    // Left-Top
+    poisson_stencil(1, Ny+1, id, id_w, id_e, id_n, id_s);
+    coef.emplace_back(id, id, 1.0);
+    coef.emplace_back(id, id_s, -0.5);
+    coef.emplace_back(id, id_e, -0.5);
+    rhs(id) = 0.0;
+    // Right-Top
+    poisson_stencil(Nx+1, Ny+1, id, id_w, id_e, id_n, id_s);
+    coef.emplace_back(id, id, 1.0);
+    coef.emplace_back(id, id_s, -0.5);
+    coef.emplace_back(id, id_w, -0.5);
+    rhs(id) = 0.0;
 
-			// E
-			if (flag[1])
-				v[0] += b;
-			else
-				v[1] += b;
+    /*************************** Solve all equations **************************/
+    // Construct sparse matrix
+    A.setFromTriplets(coef.begin(), coef.end());
 
-			// N
-			if (!flag[2])
-				v[2] += c;
+    // Solve the linear system: Ax = rhs
+    Eigen::SimplicialCholesky<SpMat> chl(A);
+    Eigen::VectorXd res = chl.solve(rhs);
 
-			// W
-			if (flag[3])
-				v[0] += b;
-			else
-				v[3] += b;
-
-			// S
-			if (flag[4])
-				v[0] += c;
-			else
-				v[4] += c;
-
-			for (auto c = 0; c < 5; ++c)
-				if (!flag[c])
-					elem.push_back(Triplet<double>(idx[c], idx[c], v[c]));
-		}
-
-	A.setZero();
-	A.setFromTriplets(elem.begin(), elem.end());
-
-	// Take Cholesky decomposition of A
-	SimplicialCholesky<SparseMatrix<double>> chol(A);
-
-	// Solve
-	VectorXd x = chol.solve(b);
-
-	cnt = 0;
-	for (int i = 1; i < Nx - 1; ++i)
-		for (int j = 1; j < Ny - 1; ++j)
-			p_prime[i][j] = x[cnt++];
+    // Update p
+    for (size_t j = 1; j <= Ny+1; ++j)
+        for (size_t i = 1; i <= Nx+1; ++i)
+        {
+            poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
+            p.at(i, j) = res(id);
+        }
 }
 
 // Explicit time-marching
@@ -517,27 +580,7 @@ void ProjectionMethod()
 			v_star(i, j) = v(i, j) + dt * F3(i, j);
 
 	// Star values at boundary
-	for (size_t i = 1; i <= Nx; ++i)
-	{
-		u_star(i, 1) = 0.0;
-		u_star(i, Ny + 1) = u0;
-	}
-	for (size_t j = 2; j <= Ny; ++j)
-	{
-		u_star(1, j) = 0.0;
-		u_star(Nx, j) = 0.0;
-	}
-
-	for (size_t i = 1; i <= Nx + 1; ++i)
-	{
-		v_star(i, 1) = 0.0;
-		v_star(i, Ny) = 0.0;
-	}
-	for (size_t j = 2; j <= Ny - 1; ++j)
-	{
-		v_star(1, j) = 0.0;
-		v_star(Nx + 1, j) = 0.0;
-	}
+	set_velocity_bc(u_star, v_star);
 
 	/******************************* Poisson ******************************/
 	solvePoissonEquation();
@@ -561,22 +604,14 @@ void ProjectionMethod()
 
 bool checkConvergence()
 {
-	double rsd = 0.0;
-	for (int p = 0; p < NumOfUnknown; ++p)
-	{
-		double tmp = fabs(b[p]);
-		if (tmp > rsd)
-			rsd = tmp;
-	}
-	cout << "\trsd=" << rsd << endl;
+	double rsd = numeric_limits<double>::max();
 
 	return rsd < 1e-4 || iter > MAX_ITER;
 }
 
-void solve(void)
+void solve()
 {
 	bool ok = false;
-	int iter = 0;
 	while (!ok)
 	{
 		cout << "Iter" << ++iter << ":" << endl;
@@ -584,6 +619,7 @@ void solve(void)
 		cout << "\tt=" << t << "s, dt=" << dt << "s" << endl;
 		ProjectionMethod();
 		t += dt;
+		output();
 		ok = checkConvergence();
 	}
 	cout << "Converged!" << endl;
