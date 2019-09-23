@@ -96,8 +96,8 @@ private:
 };
 
 // Geom
-const double Lx = 0.1, Ly = 0.08; // m
-const size_t Nx = 51, Ny = 41;
+const double Lx = 1.0, Ly = 1.0; // m
+const size_t Nx = 51, Ny = 51;
 const double xLeft = -Lx / 2, xRight = Lx / 2;
 const double yBottom = -Ly / 2, yTop = Ly / 2;
 const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
@@ -105,8 +105,8 @@ const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
 // Flow param
 const double Re = 100.0;
 const double rho = 1.0; // kg/m^3
-const double p0 = 101325.0; // Pa
-const double u0 = 0.1; // m/s
+const double p0 = 101325.0; // Operating pressure, Pa
+const double u0 = 1.0; // m/s
 const double v0 = 0.0; // m/s
 const double nu = u0 * max(Lx, Ly) / Re; // m^2 / s
 const double mu = rho * nu; // Pa*s
@@ -119,20 +119,18 @@ const size_t MAX_ITER = 5000;
 
 // Coordinate
 Array1D x(Nx, 0.0), y(Ny, 0.0); // m
-Array1D xP(Nx + 1, 0.0), yP(Ny + 1, 0.0);
-Array1D xU(Nx, 0.0), yU(Ny + 1, 0.0);
-Array1D xV(Nx + 1, 0.0), yV(Ny, 0.0);
+Array1D xP(Nx + 1, 0.0), yP(Ny + 1, 0.0); // m
+Array1D xU(Nx, 0.0), yU(Ny + 1, 0.0); // m
+Array1D xV(Nx + 1, 0.0), yV(Ny, 0.0); // m
 
 // Variables
 Array2D p(Nx + 1, Ny + 1, 0.0); // Pa
 Array2D u(Nx, Ny + 1, 0.0); // m/s
 Array2D v(Nx + 1, Ny, 0.0); // m/s
 
-Array2D p_star(Nx + 1, Ny + 1, 0.0);
 Array2D u_star(Nx, Ny + 1, 0.0);
 Array2D v_star(Nx + 1, Ny, 0.0);
 
-Array2D p_prime(Nx + 1, Ny + 1, 0.0);
 Array2D u_prime(Nx, Ny + 1, 0.0);
 Array2D v_prime(Nx + 1, Ny, 0.0);
 
@@ -163,8 +161,7 @@ inline double interp_f(
 	double f_ne, double x_ne, double y_ne,
 	double f_se, double x_se, double y_se,
 	double f_sw, double x_sw, double y_sw,
-	double x0, double y0
-)
+	double x0, double y0)
 {
 	const double h[4] = {
 		distance(x_nw, y_nw, x0, y0),
@@ -267,7 +264,7 @@ void init()
 	// I.C.
 	for (size_t j = 1; j <= Ny + 1; ++j)
 		for (size_t i = 1; i <= Ny + 1; ++i)
-			p(i, j) = p0;
+			p(i, j) = 0.0;
 
 	for (size_t j = 1; j <= Ny + 1; ++j)
 		for (size_t i = 1; i <= Nx; ++i)
@@ -314,7 +311,12 @@ void write_tecplot(size_t n)
 	}
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx - 1; ++i)
-			p_interp(i, j) = 0.25*(p(i, j) + p(i + 1, j) + p(i, j + 1) + p(i + 1, j + 1));
+			p_interp(i, j) = interp_f(
+				p(i, j + 1), xP(i), yP(j + 1),
+				p(i + 1, j + 1), xP(i + 1), yP(j + 1),
+				p(i + 1, j), xP(i + 1), yP(j),
+				p(i, j), xP(i), yP(j),
+				x(i), y(j));
 
 	// u
 	for (size_t i = 1; i <= Nx; ++i)
@@ -356,7 +358,7 @@ void write_tecplot(size_t n)
 			fout << setw(WIDTH) << setprecision(DIGITS) << rho;
 			fout << setw(WIDTH) << setprecision(DIGITS) << u(i, j);
 			fout << setw(WIDTH) << setprecision(DIGITS) << v(i, j);
-			fout << setw(WIDTH) << setprecision(DIGITS) << p(i, j);
+			fout << setw(WIDTH) << setprecision(DIGITS) << p(i, j) + p0;
 			fout << endl;
 		}
 
