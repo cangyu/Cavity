@@ -112,10 +112,10 @@ const double nu = u0 * max(Lx, Ly) / Re; // m^2 / s
 const double mu = rho * nu; // Pa*s
 
 // Timing
-double dt = 0.01; // s
+double dt = 0.0; // s
 double t = 0.0; // s
 size_t iter = 0;
-const size_t MAX_ITER = 2000;
+const size_t MAX_ITER = 5000;
 
 // Coordinate
 Array1D x(Nx, 0.0), y(Ny, 0.0); // m
@@ -278,7 +278,7 @@ void init()
 			v(i, j) = v0;
 
 	// B.C.
-    set_velocity_bc(u, v);
+	set_velocity_bc(u, v);
 }
 
 void write_user(size_t n)
@@ -375,19 +375,19 @@ void output()
 // 0-based indexing of stencil pts
 inline void poisson_stencil(int i, int j, int &id, int &id_w, int &id_e, int &id_n, int &id_s)
 {
-    // Convert i, j from 1-based to 0-based indexing.
-    const int i0 = i-1;
-    const int j0 = j-1;
+	// Convert i, j from 1-based to 0-based indexing.
+	const int i0 = i - 1;
+	const int j0 = j - 1;
 
-    // Set the band-width
-    const int bw = Nx+1;
+	// Set the band-width
+	const int bw = Nx + 1;
 
-    // Calculating 0-based index of stencil pts
-    id = j0 * bw + i0;
-    id_w = id - 1;
-    id_e = id + 1;
-    id_n = id + bw;
-    id_s = id - bw;
+	// Calculating 0-based index of stencil pts
+	id = j0 * bw + i0;
+	id_w = id - 1;
+	id_e = id + 1;
+	id_n = id + bw;
+	id_s = id - bw;
 }
 
 void solvePoissonEquation()
@@ -400,115 +400,115 @@ void solvePoissonEquation()
 	Eigen::VectorXd rhs(m);
 	SpMat A(m, m);
 
-    int id, id_w, id_e, id_n, id_s;
+	int id, id_w, id_e, id_n, id_s;
 
-    /***************************** Equations at inner *************************/
+	/***************************** Equations at inner *************************/
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
-            const double dxL = xP(i) - xP(i-1);
-            const double dxR = xP(i+1) - xP(i);
-            const double dxC = xP(i+1) - xP(i-1);
-            const double dyL = yP(j) - yP(j-1);
-            const double dyR = yP(j+1) - yP(j);
-            const double dyC = yP(j+1) - yP(j-1);
+			const double dxL = xP(i) - xP(i - 1);
+			const double dxR = xP(i + 1) - xP(i);
+			const double dxC = xP(i + 1) - xP(i - 1);
+			const double dyL = yP(j) - yP(j - 1);
+			const double dyR = yP(j + 1) - yP(j);
+			const double dyC = yP(j + 1) - yP(j - 1);
 
-		    const double dusdx = (u_star(i, j) - u_star(i - 1, j)) / (xU(i) - xU(i-1));
-            const double dvsdy = (v_star(i, j) - v_star(i, j - 1)) / (yV(j) - yV(j-1));
+			const double dusdx = (u_star(i, j) - u_star(i - 1, j)) / (xU(i) - xU(i - 1));
+			const double dvsdy = (v_star(i, j) - v_star(i, j - 1)) / (yV(j) - yV(j - 1));
 			const double divergence = dusdx + dvsdy;
 			const double p_rhs = rho / dt * divergence;
 
 			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
 
 			const double a = -2.0 * (1.0 / (dxR * dxL) + 1.0 / (dyR * dyL));
-            const double b_w = 2.0 / (dxC * dxL);
-            const double b_e = 2.0 / (dxC * dxR);
-            const double c_n = 2.0 / (dyC * dyR);
-            const double c_s = 2.0 / (dyC * dyL);
+			const double b_w = 2.0 / (dxC * dxL);
+			const double b_e = 2.0 / (dxC * dxR);
+			const double c_n = 2.0 / (dyC * dyR);
+			const double c_s = 2.0 / (dyC * dyL);
 
-            coef.emplace_back(id, id, a);
-            coef.emplace_back(id, id_w, b_w);
-            coef.emplace_back(id, id_e, b_e);
-            coef.emplace_back(id, id_n, c_n);
-            coef.emplace_back(id, id_s, c_s);
-            rhs(id) = p_rhs;
+			coef.emplace_back(id, id, a);
+			coef.emplace_back(id, id_w, b_w);
+			coef.emplace_back(id, id_e, b_e);
+			coef.emplace_back(id, id_n, c_n);
+			coef.emplace_back(id, id_s, c_s);
+			rhs(id) = p_rhs;
 		}
 
-    /*************************** Equations at boundary ************************/
+	/*************************** Equations at boundary ************************/
 	// Left
-	for(size_t j = 2; j <= Ny; ++j)
-    {
-        poisson_stencil(1, j, id, id_w, id_e, id_n, id_s);
-        coef.emplace_back(id, id, 1.0);
-        coef.emplace_back(id, id_e, -1.0);
-        rhs(id) = 0.0;
-    }
+	for (size_t j = 2; j <= Ny; ++j)
+	{
+		poisson_stencil(1, j, id, id_w, id_e, id_n, id_s);
+		coef.emplace_back(id, id, 1.0);
+		coef.emplace_back(id, id_e, -1.0);
+		rhs(id) = 0.0;
+	}
 	// Right
-    for(size_t j = 2; j <= Ny; ++j)
-    {
-        poisson_stencil(Nx+1, j, id, id_w, id_e, id_n, id_s);
-        coef.emplace_back(id, id, 1.0);
-        coef.emplace_back(id, id_w, -1.0);
-        rhs(id) = 0.0;
-    }
-    // Bottom
-    for(size_t i = 2; i <= Nx; ++i)
-    {
-        poisson_stencil(i, 1, id, id_w, id_e, id_n, id_s);
-        coef.emplace_back(id, id, 1.0);
-        coef.emplace_back(id, id_n, -1.0);
-        rhs(id) = 0.0;
-    }
-    // Top
-    for(size_t i = 2; i <= Nx; ++i)
-    {
-        poisson_stencil(i, Ny+1, id, id_w, id_e, id_n, id_s);
-        coef.emplace_back(id, id, 1.0);
-        coef.emplace_back(id, id_s, -1.0);
-        rhs(id) = 0.0;
-    }
+	for (size_t j = 2; j <= Ny; ++j)
+	{
+		poisson_stencil(Nx + 1, j, id, id_w, id_e, id_n, id_s);
+		coef.emplace_back(id, id, 1.0);
+		coef.emplace_back(id, id_w, -1.0);
+		rhs(id) = 0.0;
+	}
+	// Bottom
+	for (size_t i = 2; i <= Nx; ++i)
+	{
+		poisson_stencil(i, 1, id, id_w, id_e, id_n, id_s);
+		coef.emplace_back(id, id, 1.0);
+		coef.emplace_back(id, id_n, -1.0);
+		rhs(id) = 0.0;
+	}
+	// Top
+	for (size_t i = 2; i <= Nx; ++i)
+	{
+		poisson_stencil(i, Ny + 1, id, id_w, id_e, id_n, id_s);
+		coef.emplace_back(id, id, 1.0);
+		coef.emplace_back(id, id_s, -1.0);
+		rhs(id) = 0.0;
+	}
 
-    /************************** Equations at 4 corners ************************/
-    // Left-Bottom
-    poisson_stencil(1, 1, id, id_w, id_e, id_n, id_s);
-    coef.emplace_back(id, id, 1.0);
-    coef.emplace_back(id, id_n, -0.5);
-    coef.emplace_back(id, id_e, -0.5);
-    rhs(id) = 0.0;
-    // Right-Bottom
-    poisson_stencil(Nx+1, 1, id, id_w, id_e, id_n, id_s);
-    coef.emplace_back(id, id, 1.0);
-    coef.emplace_back(id, id_n, -0.5);
-    coef.emplace_back(id, id_w, -0.5);
-    rhs(id) = 0.0;
-    // Left-Top
-    poisson_stencil(1, Ny+1, id, id_w, id_e, id_n, id_s);
-    coef.emplace_back(id, id, 1.0);
-    coef.emplace_back(id, id_s, -0.5);
-    coef.emplace_back(id, id_e, -0.5);
-    rhs(id) = 0.0;
-    // Right-Top
-    poisson_stencil(Nx+1, Ny+1, id, id_w, id_e, id_n, id_s);
-    coef.emplace_back(id, id, 1.0);
-    coef.emplace_back(id, id_s, -0.5);
-    coef.emplace_back(id, id_w, -0.5);
-    rhs(id) = 0.0;
+	/************************** Equations at 4 corners ************************/
+	// Left-Bottom
+	poisson_stencil(1, 1, id, id_w, id_e, id_n, id_s);
+	coef.emplace_back(id, id, 1.0);
+	coef.emplace_back(id, id_n, -0.5);
+	coef.emplace_back(id, id_e, -0.5);
+	rhs(id) = 0.0;
+	// Right-Bottom
+	poisson_stencil(Nx + 1, 1, id, id_w, id_e, id_n, id_s);
+	coef.emplace_back(id, id, 1.0);
+	coef.emplace_back(id, id_n, -0.5);
+	coef.emplace_back(id, id_w, -0.5);
+	rhs(id) = 0.0;
+	// Left-Top
+	poisson_stencil(1, Ny + 1, id, id_w, id_e, id_n, id_s);
+	coef.emplace_back(id, id, 1.0);
+	coef.emplace_back(id, id_s, -0.5);
+	coef.emplace_back(id, id_e, -0.5);
+	rhs(id) = 0.0;
+	// Right-Top
+	poisson_stencil(Nx + 1, Ny + 1, id, id_w, id_e, id_n, id_s);
+	coef.emplace_back(id, id, 1.0);
+	coef.emplace_back(id, id_s, -0.5);
+	coef.emplace_back(id, id_w, -0.5);
+	rhs(id) = 0.0;
 
-    /*************************** Solve all equations **************************/
-    // Construct sparse matrix
-    A.setFromTriplets(coef.begin(), coef.end());
+	/*************************** Solve all equations **************************/
+	// Construct sparse matrix
+	A.setFromTriplets(coef.begin(), coef.end());
 
-    // Solve the linear system: Ax = rhs
-    Eigen::SimplicialCholesky<SpMat> chl(A);
-    Eigen::VectorXd res = chl.solve(rhs);
+	// Solve the linear system: Ax = rhs
+	Eigen::SimplicialCholesky<SpMat> chl(A);
+	Eigen::VectorXd res = chl.solve(rhs);
 
-    // Update p
-    for (size_t j = 1; j <= Ny+1; ++j)
-        for (size_t i = 1; i <= Nx+1; ++i)
-        {
-            poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
-            p.at(i, j) = res(id);
-        }
+	// Update p
+	for (size_t j = 1; j <= Ny + 1; ++j)
+		for (size_t i = 1; i <= Nx + 1; ++i)
+		{
+			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
+			p(i, j) = res(id);
+		}
 }
 
 // Explicit time-marching
@@ -591,15 +591,18 @@ void ProjectionMethod()
 		for (size_t i = 2; i <= Nx - 1; ++i)
 		{
 			u_prime(i, j) = -dt / rho * (p(i + 1, j) - p(i, j)) / (xP(i + 1) - xP(i));
-			u(i, j) += u_prime(i, j);
+			u(i, j) = u_star(i, j) + u_prime(i, j);
 		}
 
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
 			v_prime(i, j) = -dt / rho * (p(i, j + 1) - p(i, j)) / (yP(j + 1) - yP(j));
-			v(i, j) += v_prime(i, j);
+			v(i, j) = v_star(i, j) + v_prime(i, j);
 		}
+
+	// U, V at boundary
+	set_velocity_bc(u, v);
 }
 
 bool checkConvergence()
