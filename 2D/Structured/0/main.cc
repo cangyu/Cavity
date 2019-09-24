@@ -97,7 +97,7 @@ private:
 
 // Geom
 const double Lx = 1.0, Ly = 1.0; // m
-const size_t Nx = 129, Ny = 129;
+const size_t Nx = 257, Ny = 257;
 const double xLeft = -Lx / 2, xRight = Lx / 2;
 const double yBottom = -Ly / 2, yTop = Ly / 2;
 const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
@@ -151,6 +151,14 @@ inline double df(double fl, double fc, double fr, double pl, double pc, double p
 	return ((fr - fc) / (pr - pc) * (pc - pl) + (fl - fc) / (pl - pc) * (pr - pc)) / (pr - pl);
 }
 
+inline double df_upwind(double fl, double fc, double fr, double pl, double pc, double pr, double dir)
+{
+	if (dir > 0)
+		return (fc - fl) / (pc - pl);
+	else
+		return (fr - fc) / (pr - pc);
+}
+
 inline double ddf(double fl, double fc, double fr, double pl, double pc, double pr)
 {
 	return 2.0 / (pr - pl) * ((fr - fc) / (pr - pc) - (fl - fc) / (pl - pc));
@@ -190,12 +198,12 @@ inline double interp_f(
 void set_velocity_bc(Array2D &u_, Array2D &v_)
 {
 	// u
-	for (size_t i = 1; i <= Nx; ++i)
+	for (size_t i = 2; i <= Nx - 1; ++i)
 	{
 		u_(i, 1) = 0.0;
 		u_(i, Ny + 1) = u0;
 	}
-	for (size_t j = 2; j <= Ny; ++j)
+	for (size_t j = 1; j <= Ny + 1; ++j)
 	{
 		u_(1, j) = 0.0;
 		u_(Nx, j) = 0.0;
@@ -365,7 +373,7 @@ void write_tecplot(size_t n)
 
 	// Header
 	fout << R"(TITLE = "2D lid-driven cavity flow at t=)" << t << R"(s")" << endl;
-	fout << R"(VARIABLES = "X", "Y", "rho", "U", "V", "P")" << endl;
+	fout << R"(VARIABLES = "X", "Y", "P", "U", "V")" << endl;
 	fout << "ZONE I=" << Nx << ", J=" << Ny << ", F=POINT" << endl;
 
 	// Flow-field data
@@ -374,10 +382,9 @@ void write_tecplot(size_t n)
 		{
 			fout << setw(WIDTH) << setprecision(DIGITS) << x(i);
 			fout << setw(WIDTH) << setprecision(DIGITS) << y(j);
-			fout << setw(WIDTH) << setprecision(DIGITS) << rho;
+			fout << setw(WIDTH) << setprecision(DIGITS) << p_interp(i, j);
 			fout << setw(WIDTH) << setprecision(DIGITS) << u_interp(i, j);
 			fout << setw(WIDTH) << setprecision(DIGITS) << v_interp(i, j);
-			fout << setw(WIDTH) << setprecision(DIGITS) << p_interp(i, j);
 			fout << endl;
 		}
 
@@ -387,7 +394,7 @@ void write_tecplot(size_t n)
 
 void output()
 {
-	if (!(iter % 100))
+	if (!(iter % 50))
 		write_tecplot(iter);
 
 	write_user(iter);
@@ -530,35 +537,28 @@ void solvePoissonEquation()
 			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
 			p(i, j) = res(id);
 		}
+
+	// Enforce p at boundary
+	for (size_t i = 2; i <= Nx; ++i)
+	{
+		p(i, 1) = p(i, 2);
+		p(i, Ny + 1) = p(i, Ny);
+	}
+	for (size_t j = 2; j <= Ny; ++j)
+	{
+		p(1, j) = p(2, j);
+		p(Nx + 1, j) = p(Nx, j);
+	}
+	p(1, 1) = 0.5*(p(1, 2) + p(2, 1));
+	p(Nx + 1, 1) = 0.5*(p(Nx, 1), p(Nx + 1, 2));
+	p(1, Ny + 1) = 0.5*(p(1, Ny) + p(2, Ny + 1));
+	p(Nx + 1, Ny + 1) = 0.5*(p(Nx, Ny + 1) + p(Nx + 1, Ny));
 }
 
 // Explicit time-marching
 void ProjectionMethod()
 {
 	/******************************* Prediction ******************************/
-	// Derivateives at inner
-	Array2D dudx(Nx, Ny + 1, 0.0), dduddx(Nx, Ny + 1, 0.0);
-	Array2D dudy(Nx, Ny + 1, 0.0), dduddy(Nx, Ny + 1, 0.0);
-	for (size_t j = 2; j <= Ny; ++j)
-		for (size_t i = 2; i <= Nx - 1; ++i)
-		{
-			dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
-			dduddx(i, j) = ddf(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
-			dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
-			dduddy(i, j) = ddf(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
-		}
-
-	Array2D dvdx(Nx + 1, Ny, 0.0), ddvddx(Nx + 1, Ny, 0.0);
-	Array2D dvdy(Nx + 1, Ny, 0.0), ddvddy(Nx + 1, Ny, 0.0);
-	for (size_t j = 2; j <= Ny - 1; ++j)
-		for (size_t i = 2; i <= Nx; ++i)
-		{
-			dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
-			ddvddx(i, j) = ddf(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
-			dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
-			ddvddy(i, j) = ddf(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
-		}
-
 	// Approximated values at inner
 	Array2D v_bar(Nx, Ny + 1, 0.0);
 	for (size_t j = 2; j <= Ny; ++j)
@@ -579,6 +579,29 @@ void ProjectionMethod()
 				u(i, j), xU(i), yU(j),
 				u(i - 1, j), xU(i - 1), yU(j),
 				xV(i), yV(j));
+
+	// Derivateives at inner
+	Array2D dudx(Nx, Ny + 1, 0.0), dduddx(Nx, Ny + 1, 0.0);
+	Array2D dudy(Nx, Ny + 1, 0.0), dduddy(Nx, Ny + 1, 0.0);
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+		{
+			dudx(i, j) = df_upwind(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1), u(i, j));
+			dduddx(i, j) = ddf(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
+			dudy(i, j) = df_upwind(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1), v_bar(i, j));
+			dduddy(i, j) = ddf(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
+		}
+
+	Array2D dvdx(Nx + 1, Ny, 0.0), ddvddx(Nx + 1, Ny, 0.0);
+	Array2D dvdy(Nx + 1, Ny, 0.0), ddvddy(Nx + 1, Ny, 0.0);
+	for (size_t j = 2; j <= Ny - 1; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+		{
+			dvdx(i, j) = df_upwind(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1), u_bar(i, j));
+			ddvddx(i, j) = ddf(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
+			dvdy(i, j) = df_upwind(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1), v(i, j));
+			ddvddy(i, j) = ddf(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
+		}
 
 	// F at inner
 	Array2D F2(Nx, Ny + 1, 0.0);
@@ -642,6 +665,24 @@ bool checkConvergence()
 	v_res = std::log10(std::sqrt(v_res / ((Nx - 1)*(Ny - 2))));
 
 	cout << "\tlog10(|u'|)=" << u_res << ", log10(|v'|)=" << v_res << endl;
+
+	// divergence
+	double div_max = 0.0;
+	size_t i_max, j_max;
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+		{
+			double loc_div = (u(i, j) - u(i - 1, j)) / (xU(i) - xU(i - 1)) + (v(i, j) - v(i, j - 1)) / (yV(j) - yV(j - 1));
+			loc_div = abs(loc_div);
+			if (loc_div > div_max)
+			{
+				div_max = loc_div;
+				i_max = i;
+				j_max = j;
+			}
+		}
+
+	cout << "\tMax divergence: " << div_max << " at: (" << i_max << ", " << j_max << ")" << endl;
 
 	return max(u_res, v_res) < -3 || iter > MAX_ITER;
 }
