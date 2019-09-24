@@ -97,14 +97,14 @@ private:
 
 // Geom
 const double Lx = 1.0, Ly = 1.0; // m
-const size_t Nx = 51, Ny = 51;
+const size_t Nx = 129, Ny = 129;
 const double xLeft = -Lx / 2, xRight = Lx / 2;
 const double yBottom = -Ly / 2, yTop = Ly / 2;
 const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
 
 // Flow param
-const double Re = 100.0;
-const double rho = 1.0; // kg/m^3
+const double Re = 400.0;
+const double rho = 1.225; // kg/m^3
 const double p0 = 101325.0; // Operating pressure, Pa
 const double u0 = 1.0; // m/s
 const double v0 = 0.0; // m/s
@@ -112,10 +112,11 @@ const double nu = u0 * max(Lx, Ly) / Re; // m^2 / s
 const double mu = rho * nu; // Pa*s
 
 // Timing
+const double CFL = 0.5;
 double dt = 0.0; // s
 double t = 0.0; // s
 size_t iter = 0;
-const size_t MAX_ITER = 5000;
+const size_t MAX_ITER = 10000;
 
 // Coordinate
 Array1D x(Nx, 0.0), y(Ny, 0.0); // m
@@ -215,8 +216,26 @@ void set_velocity_bc(Array2D &u_, Array2D &v_)
 
 double TimeStep()
 {
-	// TODO
-	return 1e-3;
+	double dt = numeric_limits<double>::max();
+
+	for (size_t j = 1; j <= Ny + 1; ++j)
+		for (size_t i = 1; i <= Nx; ++i)
+		{
+			double loc_dt = dx / (abs(u(i, j)) + numeric_limits<double>::epsilon());
+			if (loc_dt < dt)
+				dt = loc_dt;
+		}
+
+	for (size_t j = 1; j <= Ny; ++j)
+		for (size_t i = 1; i <= Nx + 1; ++i)
+		{
+			double loc_dt = dy / (abs(v(i, j)) + numeric_limits<double>::epsilon());
+			if (loc_dt < dt)
+				dt = loc_dt;
+		}
+
+	dt *= CFL;
+	return dt;
 }
 
 void init()
@@ -268,11 +287,11 @@ void init()
 
 	for (size_t j = 1; j <= Ny + 1; ++j)
 		for (size_t i = 1; i <= Nx; ++i)
-			u(i, j) = u0;
+			u(i, j) = 0.0;
 
 	for (size_t j = 1; j <= Ny; ++j)
 		for (size_t i = 1; i <= Nx + 1; ++i)
-			v(i, j) = v0;
+			v(i, j) = 0.0;
 
 	// B.C.
 	set_velocity_bc(u, v);
@@ -321,8 +340,8 @@ void write_tecplot(size_t n)
 	// u
 	for (size_t i = 1; i <= Nx; ++i)
 	{
-		u_interp(i, 1) = u(i, 1);
-		u_interp(i, Ny) = u(i, Ny + 1);
+		u_interp(i, 1) = u(i, 1); // Bottom
+		u_interp(i, Ny) = u(i, Ny + 1); // Top
 	}
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 1; i <= Nx; ++i)
@@ -331,8 +350,8 @@ void write_tecplot(size_t n)
 	// v
 	for (size_t j = 1; j <= Ny; ++j)
 	{
-		v_interp(1, j) = v(1, j);
-		v_interp(Nx, j) = v(Nx, j);
+		v_interp(1, j) = v(1, j); // Left
+		v_interp(Nx, j) = v(Nx + 1, j); // Right
 	}
 	for (size_t j = 1; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx - 1; ++i)
@@ -345,7 +364,7 @@ void write_tecplot(size_t n)
 		throw runtime_error("Failed to create data file!");
 
 	// Header
-	fout << R"(TITLE = "2D Lid-Driven Cavity Flow at t=)" << t << R"(s")" << endl;
+	fout << R"(TITLE = "2D lid-driven cavity flow at t=)" << t << R"(s")" << endl;
 	fout << R"(VARIABLES = "X", "Y", "rho", "U", "V", "P")" << endl;
 	fout << "ZONE I=" << Nx << ", J=" << Ny << ", F=POINT" << endl;
 
@@ -356,9 +375,9 @@ void write_tecplot(size_t n)
 			fout << setw(WIDTH) << setprecision(DIGITS) << x(i);
 			fout << setw(WIDTH) << setprecision(DIGITS) << y(j);
 			fout << setw(WIDTH) << setprecision(DIGITS) << rho;
-			fout << setw(WIDTH) << setprecision(DIGITS) << u(i, j);
-			fout << setw(WIDTH) << setprecision(DIGITS) << v(i, j);
-			fout << setw(WIDTH) << setprecision(DIGITS) << p(i, j) + p0;
+			fout << setw(WIDTH) << setprecision(DIGITS) << u_interp(i, j);
+			fout << setw(WIDTH) << setprecision(DIGITS) << v_interp(i, j);
+			fout << setw(WIDTH) << setprecision(DIGITS) << p_interp(i, j);
 			fout << endl;
 		}
 
@@ -368,7 +387,7 @@ void write_tecplot(size_t n)
 
 void output()
 {
-	if (!(iter % 10))
+	if (!(iter % 100))
 		write_tecplot(iter);
 
 	write_user(iter);
@@ -609,9 +628,22 @@ void ProjectionMethod()
 
 bool checkConvergence()
 {
-	double rsd = numeric_limits<double>::max();
+	// 2-norm
+	double u_res = 0.0;
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx - 1; ++i)
+			u_res += std::pow(u_prime(i, j), 2);
+	u_res = std::log10(std::sqrt(u_res / ((Nx - 2)*(Ny - 1))));
 
-	return rsd < 1e-4 || iter > MAX_ITER;
+	double v_res = 0.0;
+	for (size_t j = 2; j <= Ny - 1; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+			v_res += std::abs(v_prime(i, j));
+	v_res = std::log10(std::sqrt(v_res / ((Nx - 1)*(Ny - 2))));
+
+	cout << "\tlog10(|u'|)=" << u_res << ", log10(|v'|)=" << v_res << endl;
+
+	return max(u_res, v_res) < -3 || iter > MAX_ITER;
 }
 
 void solve()
