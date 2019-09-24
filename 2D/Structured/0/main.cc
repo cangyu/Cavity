@@ -96,8 +96,8 @@ private:
 };
 
 // Geom
-const double Lx = 1.0, Ly = 1.0; // m
-const size_t Nx = 257, Ny = 257;
+const double Lx = 0.1, Ly = 0.1; // m
+const size_t Nx = 129, Ny = 129;
 const double xLeft = -Lx / 2, xRight = Lx / 2;
 const double yBottom = -Ly / 2, yTop = Ly / 2;
 const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
@@ -106,7 +106,7 @@ const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
 const double Re = 400.0;
 const double rho = 1.225; // kg/m^3
 const double p0 = 101325.0; // Operating pressure, Pa
-const double u0 = 1.0; // m/s
+const double u0 = 0.1; // m/s
 const double v0 = 0.0; // m/s
 const double nu = u0 * max(Lx, Ly) / Re; // m^2 / s
 const double mu = rho * nu; // Pa*s
@@ -527,8 +527,11 @@ void solvePoissonEquation()
 	A.setFromTriplets(coef.begin(), coef.end());
 
 	// Solve the linear system: Ax = rhs
-	Eigen::SimplicialCholesky<SpMat> chl(A);
-	Eigen::VectorXd res = chl.solve(rhs);
+    Eigen::SparseLU<SpMat, Eigen::COLAMDOrdering<int> > solver;
+    solver.analyzePattern(A);
+    solver.factorize(A);
+    //Eigen::SimplicialCholesky<SpMat> solver(A);
+	Eigen::VectorXd res = solver.solve(rhs);
 
 	// Update p
 	for (size_t j = 1; j <= Ny + 1; ++j)
@@ -558,7 +561,7 @@ void solvePoissonEquation()
 // Explicit time-marching
 void ProjectionMethod()
 {
-	/******************************* Prediction ******************************/
+	/******************************** Prediction ******************************/
 	// Approximated values at inner
 	Array2D v_bar(Nx, Ny + 1, 0.0);
 	for (size_t j = 2; j <= Ny; ++j)
@@ -586,9 +589,9 @@ void ProjectionMethod()
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx - 1; ++i)
 		{
-			dudx(i, j) = df_upwind(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1), u(i, j));
+			dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
 			dduddx(i, j) = ddf(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
-			dudy(i, j) = df_upwind(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1), v_bar(i, j));
+			dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
 			dduddy(i, j) = ddf(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
 		}
 
@@ -597,9 +600,9 @@ void ProjectionMethod()
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
-			dvdx(i, j) = df_upwind(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1), u_bar(i, j));
+			dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
 			ddvddx(i, j) = ddf(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
-			dvdy(i, j) = df_upwind(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1), v(i, j));
+			dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
 			ddvddy(i, j) = ddf(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
 		}
 
