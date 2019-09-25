@@ -568,8 +568,8 @@ void compute_source()
 	// Right
 	for (size_t j = 2; j <= Ny; ++j)
 	{
-		const auto loc_F2 = -nu * df_left2(u(Nx - 2, j), u(Nx - 1, j), u(Nx, j), xU(Nx - 2), xU(Nx - 1), xU(Nx));
-		rhs(stencil_center_idx(Nx + 1, j)) = rho * loc_F2;
+		const auto loc_F2 = nu * df_left2(u(Nx - 2, j), u(Nx - 1, j), u(Nx, j), xU(Nx - 2), xU(Nx - 1), xU(Nx));
+		rhs(stencil_center_idx(Nx + 1, j)) = rho * loc_F2 * -1.0;
 	}
 
 	// Bottom
@@ -582,8 +582,8 @@ void compute_source()
 	// Top
 	for (size_t i = 2; i <= Nx; ++i)
 	{
-		const auto loc_F3 = -nu * df_left2(v(i, Ny - 2), v(i, Ny - 1), v(i, Ny), yV(Ny - 2), yV(Ny - 1), yV(Ny));
-		rhs(stencil_center_idx(i, Ny + 1)) = rho * loc_F3;
+		const auto loc_F3 = nu * df_left2(v(i, Ny - 2), v(i, Ny - 1), v(i, Ny), yV(Ny - 2), yV(Ny - 1), yV(Ny));
+		rhs(stencil_center_idx(i, Ny + 1)) = rho * loc_F3 * -1.0;
 	}
 
 	/**************************** RHS at 4 corners ****************************/
@@ -621,18 +621,22 @@ void ProjectionMethod()
 			if (i == 2 || i == Nx - 1)
 				dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
 			else
+			{
 				dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
-			//dudx(i, j) = df_upwind(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1), u(i, j));
-			//dudx(i, j) = df_upwind2(u(i - 2, j), u(i - 1, j), u(i, j), u(i + 1, j), u(i + 2, j), xU(i - 2), xU(i - 1), xU(i), xU(i + 1), xU(i + 2), u(i, j));
+				//dudx(i, j) = df_upwind(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1), u(i, j));
+				//dudx(i, j) = df_upwind2(u(i - 2, j), u(i - 1, j), u(i, j), u(i + 1, j), u(i + 2, j), xU(i - 2), xU(i - 1), xU(i), xU(i + 1), xU(i + 2), u(i, j));
+			}
 
 			dduddx(i, j) = ddf(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
 
 			if (j == 2 || j == Ny)
 				dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
 			else
+			{
 				dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
-			//dudy(i, j) = df_upwind(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1), v_bar(i, j));
-			//dudy(i, j) = df_upwind2(u(i, j - 2), u(i, j - 1), u(i, j), u(i, j + 1), u(i, j + 2), yU(j - 2), yU(j - 1), yU(j), yU(j + 1), yU(j + 2), v_bar(i, j));
+				//dudy(i, j) = df_upwind(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1), v_bar(i, j));
+				//dudy(i, j) = df_upwind2(u(i, j - 2), u(i, j - 1), u(i, j), u(i, j + 1), u(i, j + 2), yU(j - 2), yU(j - 1), yU(j), yU(j + 1), yU(j + 2), v_bar(i, j));
+			}
 
 			dduddy(i, j) = ddf(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
 		}
@@ -645,18 +649,22 @@ void ProjectionMethod()
 			if (i == 2 || i == Nx)
 				dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
 			else
+			{
 				dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
-			//dvdx(i, j) = df_upwind(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1), u_bar(i, j));
-			//dvdx(i, j) = df_upwind2(v(i - 2, j), v(i - 1, j), v(i, j), v(i + 1, j), v(i + 2, j), xV(i - 2), xV(i - 1), xV(i), xV(i + 1), xV(i + 2), u_bar(i, j));
+				//dvdx(i, j) = df_upwind(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1), u_bar(i, j));
+				//dvdx(i, j) = df_upwind2(v(i - 2, j), v(i - 1, j), v(i, j), v(i + 1, j), v(i + 2, j), xV(i - 2), xV(i - 1), xV(i), xV(i + 1), xV(i + 2), u_bar(i, j));
+			}
 
 			ddvddx(i, j) = ddf(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
 
 			if (j == 2 || j == Ny - 1)
 				dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
 			else
+			{
 				dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
-			//dvdy(i, j) = df_upwind(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1), v(i, j));
-			//dvdy(i, j) = df_upwind2(v(i, j - 2), v(i, j - 1), v(i, j), v(i, j + 1), v(i, j + 2), yV(j - 2), yV(j - 1), yV(j), yV(j + 1), yV(j + 2), v(i, j));
+				//dvdy(i, j) = df_upwind(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1), v(i, j));
+				//dvdy(i, j) = df_upwind2(v(i, j - 2), v(i, j - 1), v(i, j), v(i, j + 1), v(i, j + 2), yV(j - 2), yV(j - 1), yV(j), yV(j + 1), yV(j + 2), v(i, j));
+			}
 
 			ddvddy(i, j) = ddf(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
 		}
