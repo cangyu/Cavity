@@ -96,17 +96,17 @@ private:
 };
 
 // Geom
-const double Lx = 0.1, Ly = 0.1; // m
-const size_t Nx = 257, Ny = 257;
-const double xLeft = -Lx / 2, xRight = Lx / 2;
-const double yBottom = -Ly / 2, yTop = Ly / 2;
+const double Lx = 1.0, Ly = 1.0; // m
+const size_t Nx = 129, Ny = 129;
+const double xLeft = 0.0, xRight = Lx;
+const double yBottom = 0.0, yTop = Ly;
 const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
 
 // Flow param
-const double Re = 400.0;
+const double Re = 1000;
 const double rho = 1.225; // kg/m^3
 const double p0 = 101325.0; // Operating pressure, Pa
-const double u0 = 0.1; // m/s
+const double u0 = 1.0; // m/s
 const double v0 = 0.0; // m/s
 const double nu = u0 * max(Lx, Ly) / Re; // m^2 / s
 const double mu = rho * nu; // Pa*s
@@ -187,28 +187,32 @@ inline double df_upwind(double fl, double fc, double fr, double pl, double pc, d
 		return (fr - fc) / (pr - pc);
 }
 
+inline double df_left2(double fl2, double fl1, double fc, double pl2, double pl1, double pc)
+{
+	const double df2 = fl2 - fc;
+	const double df1 = fl1 - fc;
+	const double d2 = 1.0 / (pl2 - pc);
+	const double d1 = 1.0 / (pl1 - pc);
+	return (df1 * pow(d1, 2) - df2 * pow(d2, 2)) / (d1 - d2);
+}
+
+inline double df_right2(double fc, double fr1, double fr2, double pc, double pr1, double pr2)
+{
+	const double df2 = fr2 - fc;
+	const double df1 = fr1 - fc;
+	const double d2 = 1.0 / (pr2 - pc);
+	const double d1 = 1.0 / (pr1 - pc);
+	return (df1 * pow(d1, 2) - df2 * pow(d2, 2)) / (d1 - d2);
+}
+
 inline double df_upwind2(
 	double fl2, double fl1, double fc, double fr1, double fr2,
 	double pl2, double pl1, double pc, double pr1, double pr2, double dir)
 {
 	if (dir > 0)
-	{
-		const double df2 = fl2 - fc;
-		const double df1 = fl1 - fc;
-		const double d2 = 1.0 / (pl2 - pc);
-		const double d1 = 1.0 / (pl1 - pc);
-
-		return (df1 * pow(d1, 2) - df2 * pow(d2, 2)) / (d1 - d2);
-	}
+		return df_left2(fl2, fl1, fc, pl2, pl1, pc);
 	else
-	{
-		const double df2 = fr2 - fc;
-		const double df1 = fr1 - fc;
-		const double d2 = 1.0 / (pr2 - pc);
-		const double d1 = 1.0 / (pr1 - pc);
-
-		return (df1 * pow(d1, 2) - df2 * pow(d2, 2)) / (d1 - d2);
-	}
+		return df_right2(fc, fr1, fr2, pc, pr1, pr2);
 }
 
 inline double ddf(double fl, double fc, double fr, double pl, double pc, double pr)
@@ -250,12 +254,12 @@ inline double interp_f(
 void set_velocity_bc(Array2D &u_, Array2D &v_)
 {
 	// u
-	for (size_t i = 2; i <= Nx - 1; ++i)
+	for (size_t i = 1; i <= Nx; ++i)
 	{
 		u_(i, 1) = 0.0;
 		u_(i, Ny + 1) = u0;
 	}
-	for (size_t j = 1; j <= Ny + 1; ++j)
+	for (size_t j = 2; j <= Ny; ++j)
 	{
 		u_(1, j) = 0.0;
 		u_(Nx, j) = 0.0;
@@ -359,6 +363,7 @@ void init()
 	/***************************** Poisson equation ***************************/
 	vector<Eigen::Triplet<double>> coef; // Coefficient matrix
 	int id, id_w, id_e, id_n, id_s;
+	double rdx = 0.0, rdy = 0.0;
 
 	// Inner
 	for (size_t j = 2; j <= Ny; ++j)
@@ -386,32 +391,36 @@ void init()
 			coef.emplace_back(id, id_s, c_s);
 		}
 	// Left
+	rdx = 1.0 / (xP(2) - xP(1));
 	for (size_t j = 2; j <= Ny; ++j)
 	{
 		poisson_stencil(1, j, id, id_w, id_e, id_n, id_s);
-		coef.emplace_back(id, id, 1.0);
-		coef.emplace_back(id, id_e, -1.0);
+		coef.emplace_back(id, id, -rdx);
+		coef.emplace_back(id, id_e, rdx);
 	}
 	// Right
+	rdx = 1.0 / (xP(Nx + 1) - xP(Nx));
 	for (size_t j = 2; j <= Ny; ++j)
 	{
 		poisson_stencil(Nx + 1, j, id, id_w, id_e, id_n, id_s);
-		coef.emplace_back(id, id, 1.0);
-		coef.emplace_back(id, id_w, -1.0);
+		coef.emplace_back(id, id, rdx);
+		coef.emplace_back(id, id_w, -rdx);
 	}
 	// Bottom
+	rdy = 1.0 / (yP(2) - yP(1));
 	for (size_t i = 2; i <= Nx; ++i)
 	{
 		poisson_stencil(i, 1, id, id_w, id_e, id_n, id_s);
-		coef.emplace_back(id, id, 1.0);
-		coef.emplace_back(id, id_n, -1.0);
+		coef.emplace_back(id, id, -rdy);
+		coef.emplace_back(id, id_n, rdy);
 	}
 	// Top
+	rdy = 1.0 / (yP(Ny + 1) - yP(Ny));
 	for (size_t i = 2; i <= Nx; ++i)
 	{
 		poisson_stencil(i, Ny + 1, id, id_w, id_e, id_n, id_s);
-		coef.emplace_back(id, id, 1.0);
-		coef.emplace_back(id, id_s, -1.0);
+		coef.emplace_back(id, id, rdy);
+		coef.emplace_back(id, id_s, -rdy);
 	}
 	// Left-Bottom
 	poisson_stencil(1, 1, id, id_w, id_e, id_n, id_s);
@@ -529,7 +538,7 @@ void write_tecplot(size_t n)
 
 void output()
 {
-	if (!(iter % 100))
+	if (!(iter % 500))
 		write_tecplot(iter);
 
 	write_user(iter);
@@ -551,19 +560,31 @@ void compute_source()
 	/***************************** RHS at boundary ****************************/
 	// Left
 	for (size_t j = 2; j <= Ny; ++j)
-		rhs(stencil_center_idx(1, j)) = 0.0;
+	{
+		const auto loc_F2 = nu * df_right2(u(1, j), u(2, j), u(3, j), xU(1), xU(2), xU(3));
+		rhs(stencil_center_idx(1, j)) = rho * loc_F2;
+	}
 
 	// Right
 	for (size_t j = 2; j <= Ny; ++j)
-		rhs(stencil_center_idx(Nx + 1, j)) = 0.0;
+	{
+		const auto loc_F2 = -nu * df_left2(u(Nx - 2, j), u(Nx - 1, j), u(Nx, j), xU(Nx - 2), xU(Nx - 1), xU(Nx));
+		rhs(stencil_center_idx(Nx + 1, j)) = rho * loc_F2;
+	}
 
 	// Bottom
 	for (size_t i = 2; i <= Nx; ++i)
-		rhs(stencil_center_idx(i, 1)) = 0.0;
+	{
+		const auto loc_F3 = nu * df_right2(v(i, 1), v(i, 2), v(i, 3), yV(1), yV(2), yV(3));
+		rhs(stencil_center_idx(i, 1)) = rho * loc_F3;
+	}
 
 	// Top
 	for (size_t i = 2; i <= Nx; ++i)
-		rhs(stencil_center_idx(i, Ny + 1)) = 0.0;
+	{
+		const auto loc_F3 = -nu * df_left2(v(i, Ny - 2), v(i, Ny - 1), v(i, Ny), yV(Ny - 2), yV(Ny - 1), yV(Ny));
+		rhs(stencil_center_idx(i, Ny + 1)) = rho * loc_F3;
+	}
 
 	/**************************** RHS at 4 corners ****************************/
 	// Left-Bottom
@@ -594,52 +615,50 @@ void ProjectionMethod()
 	// Derivateives at inner
 	Array2D dudx(Nx, Ny + 1, 0.0), dduddx(Nx, Ny + 1, 0.0);
 	Array2D dudy(Nx, Ny + 1, 0.0), dduddy(Nx, Ny + 1, 0.0);
-	Array2D dpdx(Nx, Ny + 1, 0.0);
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx - 1; ++i)
 		{
 			if (i == 2 || i == Nx - 1)
 				dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
 			else
-				//dudx(i, j) = df_upwind(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1), u(i, j));
-				dudx(i, j) = df_upwind2(u(i - 2, j), u(i - 1, j), u(i, j), u(i + 1, j), u(i + 2, j), xU(i - 2), xU(i - 1), xU(i), xU(i + 1), xU(i + 2), u(i, j));
+				dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
+			//dudx(i, j) = df_upwind(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1), u(i, j));
+			//dudx(i, j) = df_upwind2(u(i - 2, j), u(i - 1, j), u(i, j), u(i + 1, j), u(i + 2, j), xU(i - 2), xU(i - 1), xU(i), xU(i + 1), xU(i + 2), u(i, j));
 
 			dduddx(i, j) = ddf(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
 
 			if (j == 2 || j == Ny)
 				dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
 			else
-				//dudy(i, j) = df_upwind(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1), v_bar(i, j));
-				dudy(i, j) = df_upwind2(u(i, j - 2), u(i, j - 1), u(i, j), u(i, j + 1), u(i, j + 2), yU(j - 2), yU(j - 1), yU(j), yU(j + 1), yU(j + 2), v_bar(i, j));
+				dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
+			//dudy(i, j) = df_upwind(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1), v_bar(i, j));
+			//dudy(i, j) = df_upwind2(u(i, j - 2), u(i, j - 1), u(i, j), u(i, j + 1), u(i, j + 2), yU(j - 2), yU(j - 1), yU(j), yU(j + 1), yU(j + 2), v_bar(i, j));
 
 			dduddy(i, j) = ddf(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
-
-			dpdx(i, j) = (p(i + 1, j) - p(i, j)) / (xP(i + 1) - xP(i));
 		}
 
 	Array2D dvdx(Nx + 1, Ny, 0.0), ddvddx(Nx + 1, Ny, 0.0);
 	Array2D dvdy(Nx + 1, Ny, 0.0), ddvddy(Nx + 1, Ny, 0.0);
-	Array2D dpdy(Nx + 1, Ny, 0.0);
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
 			if (i == 2 || i == Nx)
 				dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
 			else
-				//dvdx(i, j) = df_upwind(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1), u_bar(i, j));
-				dvdx(i, j) = df_upwind2(v(i - 2, j), v(i - 1, j), v(i, j), v(i + 1, j), v(i + 2, j), xV(i - 2), xV(i - 1), xV(i), xV(i + 1), xV(i + 2), u_bar(i, j));
+				dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
+			//dvdx(i, j) = df_upwind(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1), u_bar(i, j));
+			//dvdx(i, j) = df_upwind2(v(i - 2, j), v(i - 1, j), v(i, j), v(i + 1, j), v(i + 2, j), xV(i - 2), xV(i - 1), xV(i), xV(i + 1), xV(i + 2), u_bar(i, j));
 
 			ddvddx(i, j) = ddf(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
 
 			if (j == 2 || j == Ny - 1)
 				dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
 			else
-				//dvdy(i, j) = df_upwind(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1), v(i, j));
-				dvdy(i, j) = df_upwind2(v(i, j - 2), v(i, j - 1), v(i, j), v(i, j + 1), v(i, j + 2), yV(j - 2), yV(j - 1), yV(j), yV(j + 1), yV(j + 2), v(i, j));
+				dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
+			//dvdy(i, j) = df_upwind(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1), v(i, j));
+			//dvdy(i, j) = df_upwind2(v(i, j - 2), v(i, j - 1), v(i, j), v(i, j + 1), v(i, j + 2), yV(j - 2), yV(j - 1), yV(j), yV(j + 1), yV(j + 2), v(i, j));
 
 			ddvddy(i, j) = ddf(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
-
-			dpdx(i, j) = (p(i, j + 1) - p(i, j)) / (yP(j + 1) - yP(i));
 		}
 
 	// F at inner
@@ -699,6 +718,8 @@ void ProjectionMethod()
 
 bool checkConvergence()
 {
+	size_t i_max, j_max;
+
 	// inf-norm
 	double u_res = 0.0;
 	for (size_t j = 2; j <= Ny; ++j)
@@ -706,9 +727,13 @@ bool checkConvergence()
 		{
 			auto du = abs(u_prime(i, j));
 			if (du > u_res)
+			{
 				u_res = du;
+				i_max = i;
+				j_max = j;
+			}
 		}
-	u_res = log10(u_res);
+	cout << "\tMax |u'|=" << u_res << ", at (" << i_max << ", " << j_max << ")" << endl;
 
 	double v_res = 0.0;
 	for (size_t j = 2; j <= Ny - 1; ++j)
@@ -716,15 +741,16 @@ bool checkConvergence()
 		{
 			auto dv = abs(v_prime(i, j));
 			if (dv > v_res)
+			{
 				v_res = dv;
+				i_max = i;
+				j_max = j;
+			}
 		}
-	v_res = log10(v_res);
-
-	cout << "\tlog10(|u'|)=" << u_res << ", log10(|v'|)=" << v_res << endl;
+	cout << "\tMax |v'|=" << v_res << ", at (" << i_max << ", " << j_max << ")" << endl;
 
 	// divergence
 	double div_max = 0.0;
-	size_t i_max, j_max;
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
@@ -737,8 +763,7 @@ bool checkConvergence()
 				j_max = j;
 			}
 		}
-
-	cout << "\tMax divergence: " << div_max << " at: (" << i_max << ", " << j_max << ")" << endl;
+	cout << "\tMax divergence=" << div_max << " at: (" << i_max << ", " << j_max << ")" << endl;
 
 	return max(u_res, v_res) < -3 || iter > MAX_ITER;
 }
