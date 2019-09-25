@@ -357,6 +357,7 @@ void init()
 	for (size_t j = 1; j <= Ny; ++j)
 		for (size_t i = 1; i <= Nx + 1; ++i)
 			v(i, j) = 0.0;
+
 	/*********************************** B.C. *********************************/
 	set_velocity_bc(u, v);
 
@@ -482,12 +483,7 @@ void write_tecplot(size_t n)
 	}
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx - 1; ++i)
-			p_interp(i, j) = interp_f(
-				p(i, j + 1), xP(i), yP(j + 1),
-				p(i + 1, j + 1), xP(i + 1), yP(j + 1),
-				p(i + 1, j), xP(i + 1), yP(j),
-				p(i, j), xP(i), yP(j),
-				x(i), y(j));
+			p_interp(i, j) = interp_f(p(i, j + 1), xP(i), yP(j + 1), p(i + 1, j + 1), xP(i + 1), yP(j + 1), p(i + 1, j), xP(i + 1), yP(j), p(i, j), xP(i), yP(j), x(i), y(j));
 
 	// u
 	for (size_t i = 1; i <= Nx; ++i)
@@ -688,9 +684,6 @@ void ProjectionMethod()
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 			v_star(i, j) = v(i, j) + dt * F3(i, j);
-
-	// Star values at boundary
-	set_velocity_bc(u_star, v_star);
 
 	/***************************** Poisson Equation ***************************/
 	// RHS
