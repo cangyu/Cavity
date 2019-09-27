@@ -137,31 +137,11 @@ Array2D u_prime(Nx, Ny + 1, 0.0);
 Array2D v_prime(Nx + 1, Ny, 0.0);
 
 // Poisson equation
-const size_t m = (Nx + 1) * (Ny + 1);
+const size_t m = (Nx - 1) * (Ny - 1);
 Eigen::SparseMatrix<double> A(m, m);
 Eigen::VectorXd rhs(m);
 Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> solver;
-const int bw = Nx + 1; // Band-width
-
-// 0-based indexing of stencil pts
-inline int stencil_center_idx(int i, int j)
-{
-	// Convert i, j from 1-based to 0-based indexing.
-	const int i0 = i - 1;
-	const int j0 = j - 1;
-
-	return(i0 + j0 * bw);
-}
-
-inline void poisson_stencil(int i, int j, int &id, int &id_w, int &id_e, int &id_n, int &id_s)
-{
-	// Calculating 0-based index of stencil pts
-	id = stencil_center_idx(i, j);
-	id_w = id - 1;
-	id_e = id + 1;
-	id_n = id + bw;
-	id_s = id - bw;
-}
+const int bw = Nx - 1; // Band-width
 
 inline double distance(double x_src, double y_src, double x_dst, double y_dst)
 {
@@ -251,33 +231,6 @@ inline double interp_f(
 	return f;
 }
 
-void set_velocity_bc(Array2D &u_, Array2D &v_)
-{
-	// u
-	for (size_t i = 1; i <= Nx; ++i)
-	{
-		u_(i, 1) = 0.0;
-		u_(i, Ny + 1) = u0;
-	}
-	for (size_t j = 2; j <= Ny; ++j)
-	{
-		u_(1, j) = 0.0;
-		u_(Nx, j) = 0.0;
-	}
-
-	// v
-	for (size_t i = 1; i <= Nx + 1; ++i)
-	{
-		v_(i, 1) = 0.0;
-		v_(i, Ny) = 0.0;
-	}
-	for (size_t j = 2; j <= Ny - 1; ++j)
-	{
-		v_(1, j) = 0.0;
-		v_(Nx + 1, j) = 0.0;
-	}
-}
-
 double TimeStep()
 {
 	double dt = numeric_limits<double>::max();
@@ -302,6 +255,31 @@ double TimeStep()
 	return dt;
 }
 
+// Index of stencil pts.
+// Input is 1-based while output is 0-based.
+inline int stencil_center_idx(int i, int j)
+{
+	// Convert i, j from 1-based to 0-based indexing.
+	// Only inner pts are unknown, outside pressure are extropolated using boundary conditon.
+	// This is the common practice to convert 2nd-class B.C. to 1st-class B.C. ,
+	// so that the discrete linear system has unique solution.
+	const int i0 = i - 2;
+	const int j0 = j - 2;
+
+	return(i0 + j0 * bw);
+}
+
+// Index of both center and surrounding stencil pts.
+// Input is 1-based while output is 0-based.
+inline void poisson_stencil(int i, int j, int &id, int &id_w, int &id_e, int &id_n, int &id_s)
+{
+	id = stencil_center_idx(i, j);
+	id_w = id - 1;
+	id_e = id + 1;
+	id_n = id + bw;
+	id_s = id - bw;
+}
+
 void init()
 {
 	cout << "Re=" << Re << endl;
@@ -317,15 +295,15 @@ void init()
 		y(j) = relaxation(yBottom, yTop, 1.0 * (j - 1) / (Ny - 1));
 
 	// Grid of p
-	xP(1) = xLeft;
+	xP(1) = xLeft - 0.5 * (x(2) - x(1));
 	for (size_t i = 2; i <= Nx; ++i)
 		xP(i) = relaxation(x(i - 1), x(i), 0.5);
-	xP(Nx + 1) = xRight;
+	xP(Nx + 1) = xRight + 0.5 * (x(Nx) - x(Nx-1));
 
-	yP(1) = yBottom;
+	yP(1) = yBottom - 0.5 * (y(2) - y(1));
 	for (size_t j = 2; j <= Ny; ++j)
 		yP(j) = relaxation(y(j - 1), y(j), 0.5);
-	yP(Ny + 1) = yTop;
+	yP(Ny + 1) = yTop + 0.5 * (y(Ny) - y(Ny-1));
 
 	// Grid of u
 	for (size_t i = 1; i <= Nx; ++i)
@@ -359,14 +337,34 @@ void init()
 			v(i, j) = 0.0;
 
 	/*********************************** B.C. *********************************/
-	set_velocity_bc(u, v);
+	// u
+	for (size_t i = 1; i <= Nx; ++i)
+	{
+		u(i, 1) = 0.0;
+		u(i, Ny + 1) = u0;
+	}
+	for (size_t j = 2; j <= Ny; ++j)
+	{
+		u(1, j) = 0.0;
+		u(Nx, j) = 0.0;
+	}
+
+	// v
+	for (size_t i = 1; i <= Nx + 1; ++i)
+	{
+		v(i, 1) = 0.0;
+		v(i, Ny) = 0.0;
+	}
+	for (size_t j = 2; j <= Ny - 1; ++j)
+	{
+		v(1, j) = 0.0;
+		v(Nx + 1, j) = 0.0;
+	}
 
 	/***************************** Poisson equation ***************************/
-	vector<Eigen::Triplet<double>> coef; // Coefficient matrix
-	int id, id_w, id_e, id_n, id_s;
-	double rdx = 0.0, rdy = 0.0;
+	// Coefficient matrix
+	vector<Eigen::Triplet<double>> coef; 
 
-	// Inner
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
@@ -383,66 +381,67 @@ void init()
 			const double c_n = 2.0 / (dyC * dyR);
 			const double c_s = 2.0 / (dyC * dyL);
 
+			int id, id_w, id_e, id_n, id_s;
+			double rdx = 0.0, rdy = 0.0;
 			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
 
-			coef.emplace_back(id, id, a);
-			coef.emplace_back(id, id_w, b_w);
-			coef.emplace_back(id, id_e, b_e);
-			coef.emplace_back(id, id_n, c_n);
-			coef.emplace_back(id, id_s, c_s);
+			if(i==2 && j==2) // Left-Bottom
+			{
+				coef.emplace_back(id, id, 1.0);
+				coef.emplace_back(id, id_n, -0.5);
+				coef.emplace_back(id, id_e, -0.5);
+			}
+			else if(i == Nx && j == 2) // Right-Bottom
+			{
+				coef.emplace_back(id, id, 1.0);
+				coef.emplace_back(id, id_n, -0.5);
+				coef.emplace_back(id, id_w, -0.5);
+			}
+			else if(i == 2 && j == Ny) // Left-Top
+			{
+				coef.emplace_back(id, id, 1.0);
+				coef.emplace_back(id, id_s, -0.5);
+				coef.emplace_back(id, id_e, -0.5);
+			}
+			else if(i == Nx && j == Ny) // Right-Top
+			{
+				coef.emplace_back(id, id, 1.0);
+				coef.emplace_back(id, id_s, -0.5);
+				coef.emplace_back(id, id_w, -0.5);
+			}
+			else if(i == 2) // Left
+			{
+				rdx = 1.0 / (xP(2) - xP(1));
+				coef.emplace_back(id, id, -rdx);
+				coef.emplace_back(id, id_e, rdx);
+			}
+			else if(i == Nx) // Right
+			{
+				rdx = 1.0 / (xP(Nx + 1) - xP(Nx));
+				coef.emplace_back(id, id, rdx);
+				coef.emplace_back(id, id_w, -rdx);
+			}
+			else if(j == 2)	// Bottom
+			{
+				rdy = 1.0 / (yP(2) - yP(1));
+				coef.emplace_back(id, id, -rdy);
+				coef.emplace_back(id, id_n, rdy);
+			}
+			else if(j == Ny) // Top
+			{
+				rdy = 1.0 / (yP(Ny + 1) - yP(Ny));
+				coef.emplace_back(id, id, rdy);
+				coef.emplace_back(id, id_s, -rdy);
+			}
+			else // Inner
+			{
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_w, b_w);
+				coef.emplace_back(id, id_e, b_e);
+				coef.emplace_back(id, id_n, c_n);
+				coef.emplace_back(id, id_s, c_s);
+			}
 		}
-	// Left
-	rdx = 1.0 / (xP(2) - xP(1));
-	for (size_t j = 2; j <= Ny; ++j)
-	{
-		poisson_stencil(1, j, id, id_w, id_e, id_n, id_s);
-		coef.emplace_back(id, id, -rdx);
-		coef.emplace_back(id, id_e, rdx);
-	}
-	// Right
-	rdx = 1.0 / (xP(Nx + 1) - xP(Nx));
-	for (size_t j = 2; j <= Ny; ++j)
-	{
-		poisson_stencil(Nx + 1, j, id, id_w, id_e, id_n, id_s);
-		coef.emplace_back(id, id, rdx);
-		coef.emplace_back(id, id_w, -rdx);
-	}
-	// Bottom
-	rdy = 1.0 / (yP(2) - yP(1));
-	for (size_t i = 2; i <= Nx; ++i)
-	{
-		poisson_stencil(i, 1, id, id_w, id_e, id_n, id_s);
-		coef.emplace_back(id, id, -rdy);
-		coef.emplace_back(id, id_n, rdy);
-	}
-	// Top
-	rdy = 1.0 / (yP(Ny + 1) - yP(Ny));
-	for (size_t i = 2; i <= Nx; ++i)
-	{
-		poisson_stencil(i, Ny + 1, id, id_w, id_e, id_n, id_s);
-		coef.emplace_back(id, id, rdy);
-		coef.emplace_back(id, id_s, -rdy);
-	}
-	// Left-Bottom
-	poisson_stencil(1, 1, id, id_w, id_e, id_n, id_s);
-	coef.emplace_back(id, id, 1.0);
-	coef.emplace_back(id, id_n, -0.5);
-	coef.emplace_back(id, id_e, -0.5);
-	// Right-Bottom
-	poisson_stencil(Nx + 1, 1, id, id_w, id_e, id_n, id_s);
-	coef.emplace_back(id, id, 1.0);
-	coef.emplace_back(id, id_n, -0.5);
-	coef.emplace_back(id, id_w, -0.5);
-	// Left-Top
-	poisson_stencil(1, Ny + 1, id, id_w, id_e, id_n, id_s);
-	coef.emplace_back(id, id, 1.0);
-	coef.emplace_back(id, id_s, -0.5);
-	coef.emplace_back(id, id_e, -0.5);
-	// Right-Top
-	poisson_stencil(Nx + 1, Ny + 1, id, id_w, id_e, id_n, id_s);
-	coef.emplace_back(id, id, 1.0);
-	coef.emplace_back(id, id_s, -0.5);
-	coef.emplace_back(id, id_w, -0.5);
 
 	// Construct sparse matrix
 	A.setFromTriplets(coef.begin(), coef.end());
@@ -712,9 +711,6 @@ void ProjectionMethod()
 			v_prime(i, j) = -dt / rho * (p(i, j + 1) - p(i, j)) / (yP(j + 1) - yP(j));
 			v(i, j) = v_star(i, j) + v_prime(i, j);
 		}
-
-	// U, V at boundary
-	set_velocity_bc(u, v);
 }
 
 bool checkConvergence()
