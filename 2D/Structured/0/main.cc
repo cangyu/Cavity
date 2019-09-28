@@ -176,12 +176,7 @@ inline double ddf(double fl, double fc, double fr, double pl, double pc, double 
 }
 
 // Shepard Interpolation
-inline double interp_f(
-	double f_nw, double x_nw, double y_nw,
-	double f_ne, double x_ne, double y_ne,
-	double f_se, double x_se, double y_se,
-	double f_sw, double x_sw, double y_sw,
-	double x0, double y0)
+inline double interp_f(double f_nw, double x_nw, double y_nw, double f_ne, double x_ne, double y_ne, double f_se, double x_se, double y_se, double f_sw, double x_sw, double y_sw, double x0, double y0)
 {
 	const double h[4] = {
 		distance(x_nw, y_nw, x0, y0),
@@ -264,6 +259,7 @@ void init()
 	ofstream fout(f_hist);
 	if (fout.fail())
 		throw runtime_error("Failed to create user-defined output file.");
+	fout.close();
 
 	/********************************** Grid **********************************/
 	// Grid of geom
