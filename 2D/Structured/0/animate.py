@@ -8,5 +8,5 @@ div = np.log(np.abs(data[:, 1]))
 
 plt.plot(t, div, '-')
 plt.xlabel('t/s')
-plt.ylabel(r'$log(|\nabla \vec{U}|)$')
+plt.ylabel(r'$log(|\nabla \cdot \vec{U}|)$')
 plt.show()
