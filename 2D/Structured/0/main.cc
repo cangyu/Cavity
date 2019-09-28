@@ -9,42 +9,15 @@
 
 using namespace std;
 
-class Array1D
+class Array1D : public vector<double>
 {
-private:
-	vector<double> m_data;
-
 public:
-	Array1D(size_t nx, double val = 0.0) :
-		m_data(nx, val)
-	{
-		if (nx == 0)
-			throw runtime_error("Invalid size: nx=" + to_string(nx));
-	}
-
-	~Array1D() = default;
-
-	// 0-based indexing
-	double &at(size_t i)
-	{
-		return m_data[i];
-	}
-
-	double at(size_t i) const
-	{
-		return m_data[i];
-	}
+	Array1D(size_t nx, double val = 0.0) : vector<double>(nx, val) {}
 
 	// 1-based indexing
-	double &operator()(size_t i)
-	{
-		return at(i - 1);
-	}
+	double &operator()(size_t i) { return vector<double>::at(i - 1); }
 
-	double operator()(size_t i) const
-	{
-		return at(i - 1);
-	}
+	double operator()(size_t i) const { return vector<double>::at(i - 1); }
 };
 
 class Array2D
@@ -116,8 +89,8 @@ const double CFL = 0.5;
 double dt = 0.0; // s
 double t = 0.0; // s
 size_t iter = 0;
-const size_t MAX_ITER = 100000;
-const double MAX_TIME = 600.0; // s
+const size_t MAX_ITER = 10000;
+const double MAX_TIME = 60.0; // s
 
 // Coordinate
 Array1D x(Nx, 0.0), y(Ny, 0.0); // m
@@ -143,6 +116,11 @@ Eigen::SparseMatrix<double> A(m, m);
 Eigen::VectorXd rhs(m);
 Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> solver;
 const int bw = Nx - 1; // Band-width
+
+// Statistics
+const size_t TECPLOT_GAP = 500;
+const string f_hist = "history.txt";
+double max_divergence = 0.0;
 
 inline double distance(double x_src, double y_src, double x_dst, double y_dst)
 {
@@ -260,8 +238,7 @@ inline int stencil_center_idx(int i, int j)
 {
 	// Convert i, j from 1-based to 0-based indexing.
 	// Only inner pts are unknown, outside pressure are extropolated using boundary conditon.
-	// This is the common practice to convert 2nd-class B.C. to 1st-class B.C. ,
-	// so that the discrete linear system has unique solution.
+	// This is the common practice to convert 2nd-class B.C. to 1st-class B.C. so that the discrete linear system has unique solution.
 	const int i0 = i - 2;
 	const int j0 = j - 2;
 
@@ -285,6 +262,10 @@ void init()
 	cout << "rho=" << rho << endl;
 	cout << "u0=" << u0 << endl;
 	cout << "mu=" << mu << endl;
+
+	ofstream fout(f_hist);
+	if (fout.fail())
+		throw runtime_error("Failed to create user-defined output file.");
 
 	/********************************** Grid **********************************/
 	// Grid of geom
@@ -454,7 +435,14 @@ void init()
 
 void write_user(size_t n)
 {
-	// TODO
+	ofstream fout(f_hist, ios::app);
+	if (fout.fail())
+		throw runtime_error("Failed to open output file.");
+
+	if (n > 0)
+		fout << t << '\t' << max_divergence << endl;
+
+	fout.close();
 }
 
 void write_tecplot(size_t n)
@@ -536,53 +524,10 @@ void write_tecplot(size_t n)
 
 void output()
 {
-	if (!(iter % 500))
+	if (!(iter % TECPLOT_GAP))
 		write_tecplot(iter);
 
 	write_user(iter);
-}
-
-void compute_source()
-{
-	for (size_t j = 2; j <= Ny; ++j)
-		for (size_t i = 2; i <= Nx; ++i)
-		{
-			int id, id_w, id_e, id_n, id_s;
-			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
-
-			const double dusdx = (u_star(i, j) - u_star(i - 1, j)) / (xU(i) - xU(i - 1));
-			const double dvsdy = (v_star(i, j) - v_star(i, j - 1)) / (yV(j) - yV(j - 1));
-			const double divergence = dusdx + dvsdy;
-			const double p_rhs = rho / dt * divergence;
-			rhs(id) = p_rhs;
-
-			const double dxL = xP(i) - xP(i - 1);
-			const double dxR = xP(i + 1) - xP(i);
-			const double dxC = xP(i + 1) - xP(i - 1);
-			const double dyL = yP(j) - yP(j - 1);
-			const double dyR = yP(j + 1) - yP(j);
-			const double dyC = yP(j + 1) - yP(j - 1);
-
-			const double a = -2.0 * (1.0 / (dxR * dxL) + 1.0 / (dyR * dyL));
-			const double b_w = 2.0 / (dxC * dxL);
-			const double b_e = 2.0 / (dxC * dxR);
-			const double c_n = 2.0 / (dyC * dyR);
-			const double c_s = 2.0 / (dyC * dyL);
-
-			if (i == 2)
-				rhs(id) -= b_w * p(i - 1, j);
-			else if (i == Nx)
-				rhs(id) -= b_e * p(i + 1, j);
-			else
-				rhs(id) -= 0.0;
-
-			if (j == 2)
-				rhs(id) -= c_s * p(i, j - 1);
-			else if (j == Ny)
-				rhs(id) -= c_n * p(i, j + 1);
-			else
-				rhs(id) -= 0.0;
-		}
 }
 
 // Explicit time-marching
@@ -679,7 +624,45 @@ void ProjectionMethod()
 
 	/***************************** Poisson Equation ***************************/
 	// RHS
-	compute_source();
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+		{
+			int id, id_w, id_e, id_n, id_s;
+			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
+
+			const double dusdx = (u_star(i, j) - u_star(i - 1, j)) / (xU(i) - xU(i - 1));
+			const double dvsdy = (v_star(i, j) - v_star(i, j - 1)) / (yV(j) - yV(j - 1));
+			const double divergence = dusdx + dvsdy;
+			const double p_rhs = rho / dt * divergence;
+			rhs(id) = p_rhs;
+
+			const double dxL = xP(i) - xP(i - 1);
+			const double dxR = xP(i + 1) - xP(i);
+			const double dxC = xP(i + 1) - xP(i - 1);
+			const double dyL = yP(j) - yP(j - 1);
+			const double dyR = yP(j + 1) - yP(j);
+			const double dyC = yP(j + 1) - yP(j - 1);
+
+			const double a = -2.0 * (1.0 / (dxR * dxL) + 1.0 / (dyR * dyL));
+			const double b_w = 2.0 / (dxC * dxL);
+			const double b_e = 2.0 / (dxC * dxR);
+			const double c_n = 2.0 / (dyC * dyR);
+			const double c_s = 2.0 / (dyC * dyL);
+
+			if (i == 2)
+				rhs(id) -= b_w * p(i - 1, j);
+			else if (i == Nx)
+				rhs(id) -= b_e * p(i + 1, j);
+			else
+				rhs(id) -= 0.0;
+
+			if (j == 2)
+				rhs(id) -= c_s * p(i, j - 1);
+			else if (j == Ny)
+				rhs(id) -= c_n * p(i, j + 1);
+			else
+				rhs(id) -= 0.0;
+		}
 
 	// Solve the linear system: Ax = rhs
 	Eigen::VectorXd res = solver.solve(rhs);
@@ -728,16 +711,10 @@ void ProjectionMethod()
 		p(i, Ny + 1) = p(i, Ny) + loc_dy * dpdn;
 	}
 
-	// Left-Bottom
+	// 4 corners
 	p(1, 1) = relaxation(p(1, 2), p(2, 1), 0.5);
-
-	// Right-Bottom
 	p(Nx + 1, 1) = relaxation(p(Nx + 1, 2), p(Nx, 1), 0.5);
-
-	// Left-Top
 	p(1, Ny + 1) = relaxation(p(1, Ny), p(2, Ny + 1), 0.5);
-
-	// Right-Top
 	p(Nx + 1, Ny + 1) = relaxation(p(Nx + 1, Ny), p(Nx, Ny + 1), 0.5);
 
 	/******************************** Correction ******************************/
@@ -791,22 +768,21 @@ bool checkConvergence()
 	cout << "\tMax |v'|=" << v_res << ", at (" << i_max << ", " << j_max << ")" << endl;
 
 	// divergence
-	double div_max = 0.0;
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
 			double loc_div = (u(i, j) - u(i - 1, j)) / (xU(i) - xU(i - 1)) + (v(i, j) - v(i, j - 1)) / (yV(j) - yV(j - 1));
 			loc_div = abs(loc_div);
-			if (loc_div > div_max)
+			if (loc_div > max_divergence)
 			{
-				div_max = loc_div;
+				max_divergence = loc_div;
 				i_max = i;
 				j_max = j;
 			}
 		}
-	cout << "\tMax divergence=" << div_max << " at: (" << i_max << ", " << j_max << ")" << endl;
+	cout << "\tMax divergence=" << max_divergence << " at: (" << i_max << ", " << j_max << ")" << endl;
 
-	return max(u_res, v_res) < -3 || iter > MAX_ITER;
+	return max_divergence < 1e-3 || max(u_res, v_res) < 1e-2 || iter > MAX_ITER || t > MAX_TIME;
 }
 
 void solve()
@@ -817,10 +793,11 @@ void solve()
 		cout << "Iter" << ++iter << ":" << endl;
 		dt = TimeStep();
 		cout << "\tt=" << t << "s, dt=" << dt << "s" << endl;
+		max_divergence = 0.0;
 		ProjectionMethod();
 		t += dt;
-		output();
 		ok = checkConvergence();
+		output();
 	}
 	cout << "Converged!" << endl;
 	write_tecplot(iter);
