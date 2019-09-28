@@ -387,51 +387,55 @@ void init()
 
 			if(i==2 && j==2) // Left-Bottom
 			{
-				coef.emplace_back(id, id, 1.0);
-				coef.emplace_back(id, id_n, -0.5);
-				coef.emplace_back(id, id_e, -0.5);
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_e, b_e);
+				coef.emplace_back(id, id_n, c_n);
 			}
 			else if(i == Nx && j == 2) // Right-Bottom
 			{
-				coef.emplace_back(id, id, 1.0);
-				coef.emplace_back(id, id_n, -0.5);
-				coef.emplace_back(id, id_w, -0.5);
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_w, b_w);
+				coef.emplace_back(id, id_n, c_n);
 			}
 			else if(i == 2 && j == Ny) // Left-Top
 			{
-				coef.emplace_back(id, id, 1.0);
-				coef.emplace_back(id, id_s, -0.5);
-				coef.emplace_back(id, id_e, -0.5);
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_e, b_e);
+				coef.emplace_back(id, id_s, c_s);
 			}
 			else if(i == Nx && j == Ny) // Right-Top
 			{
-				coef.emplace_back(id, id, 1.0);
-				coef.emplace_back(id, id_s, -0.5);
-				coef.emplace_back(id, id_w, -0.5);
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_w, b_w);
+				coef.emplace_back(id, id_s, c_s);
 			}
 			else if(i == 2) // Left
 			{
-				rdx = 1.0 / (xP(2) - xP(1));
-				coef.emplace_back(id, id, -rdx);
-				coef.emplace_back(id, id_e, rdx);
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_e, b_e);
+				coef.emplace_back(id, id_n, c_n);
+				coef.emplace_back(id, id_s, c_s);
 			}
 			else if(i == Nx) // Right
 			{
-				rdx = 1.0 / (xP(Nx + 1) - xP(Nx));
-				coef.emplace_back(id, id, rdx);
-				coef.emplace_back(id, id_w, -rdx);
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_w, b_w);
+				coef.emplace_back(id, id_n, c_n);
+				coef.emplace_back(id, id_s, c_s);
 			}
 			else if(j == 2)	// Bottom
 			{
-				rdy = 1.0 / (yP(2) - yP(1));
-				coef.emplace_back(id, id, -rdy);
-				coef.emplace_back(id, id_n, rdy);
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_w, b_w);
+				coef.emplace_back(id, id_e, b_e);
+				coef.emplace_back(id, id_n, c_n);
 			}
 			else if(j == Ny) // Top
 			{
-				rdy = 1.0 / (yP(Ny + 1) - yP(Ny));
-				coef.emplace_back(id, id, rdy);
-				coef.emplace_back(id, id_s, -rdy);
+				coef.emplace_back(id, id, a);
+				coef.emplace_back(id, id_w, b_w);
+				coef.emplace_back(id, id_e, b_e);
+				coef.emplace_back(id, id_s, c_s);
 			}
 			else // Inner
 			{
