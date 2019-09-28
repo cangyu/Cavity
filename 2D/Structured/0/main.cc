@@ -103,7 +103,7 @@ const double yBottom = 0.0, yTop = Ly;
 const double dx = Lx / (Nx - 1), dy = Ly / (Ny - 1);
 
 // Flow param
-const double Re = 1000;
+const double Re = 400.0;
 const double rho = 1.225; // kg/m^3
 const double p0 = 101325.0; // Operating pressure, Pa
 const double u0 = 1.0; // m/s
@@ -117,6 +117,7 @@ double dt = 0.0; // s
 double t = 0.0; // s
 size_t iter = 0;
 const size_t MAX_ITER = 100000;
+const double MAX_TIME = 600.0; // s
 
 // Coordinate
 Array1D x(Nx, 0.0), y(Ny, 0.0); // m
@@ -185,9 +186,7 @@ inline double df_right2(double fc, double fr1, double fr2, double pc, double pr1
 	return (df1 * pow(d1, 2) - df2 * pow(d2, 2)) / (d1 - d2);
 }
 
-inline double df_upwind2(
-	double fl2, double fl1, double fc, double fr1, double fr2,
-	double pl2, double pl1, double pc, double pr1, double pr2, double dir)
+inline double df_upwind2(double fl2, double fl1, double fc, double fr1, double fr2, double pl2, double pl1, double pc, double pr1, double pr2, double dir)
 {
 	if (dir > 0)
 		return df_left2(fl2, fl1, fc, pl2, pl1, pc);
@@ -298,12 +297,12 @@ void init()
 	xP(1) = xLeft - 0.5 * (x(2) - x(1));
 	for (size_t i = 2; i <= Nx; ++i)
 		xP(i) = relaxation(x(i - 1), x(i), 0.5);
-	xP(Nx + 1) = xRight + 0.5 * (x(Nx) - x(Nx-1));
+	xP(Nx + 1) = xRight + 0.5 * (x(Nx) - x(Nx - 1));
 
 	yP(1) = yBottom - 0.5 * (y(2) - y(1));
 	for (size_t j = 2; j <= Ny; ++j)
 		yP(j) = relaxation(y(j - 1), y(j), 0.5);
-	yP(Ny + 1) = yTop + 0.5 * (y(Ny) - y(Ny-1));
+	yP(Ny + 1) = yTop + 0.5 * (y(Ny) - y(Ny - 1));
 
 	// Grid of u
 	for (size_t i = 1; i <= Nx; ++i)
@@ -363,7 +362,7 @@ void init()
 
 	/***************************** Poisson equation ***************************/
 	// Coefficient matrix
-	vector<Eigen::Triplet<double>> coef; 
+	vector<Eigen::Triplet<double>> coef;
 
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
@@ -385,52 +384,52 @@ void init()
 			double rdx = 0.0, rdy = 0.0;
 			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
 
-			if(i==2 && j==2) // Left-Bottom
+			if (i == 2 && j == 2) // Left-Bottom
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_e, b_e);
 				coef.emplace_back(id, id_n, c_n);
 			}
-			else if(i == Nx && j == 2) // Right-Bottom
+			else if (i == Nx && j == 2) // Right-Bottom
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_w, b_w);
 				coef.emplace_back(id, id_n, c_n);
 			}
-			else if(i == 2 && j == Ny) // Left-Top
+			else if (i == 2 && j == Ny) // Left-Top
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_e, b_e);
 				coef.emplace_back(id, id_s, c_s);
 			}
-			else if(i == Nx && j == Ny) // Right-Top
+			else if (i == Nx && j == Ny) // Right-Top
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_w, b_w);
 				coef.emplace_back(id, id_s, c_s);
 			}
-			else if(i == 2) // Left
+			else if (i == 2) // Left
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_e, b_e);
 				coef.emplace_back(id, id_n, c_n);
 				coef.emplace_back(id, id_s, c_s);
 			}
-			else if(i == Nx) // Right
+			else if (i == Nx) // Right
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_w, b_w);
 				coef.emplace_back(id, id_n, c_n);
 				coef.emplace_back(id, id_s, c_s);
 			}
-			else if(j == 2)	// Bottom
+			else if (j == 2)	// Bottom
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_w, b_w);
 				coef.emplace_back(id, id_e, b_e);
 				coef.emplace_back(id, id_n, c_n);
 			}
-			else if(j == Ny) // Top
+			else if (j == Ny) // Top
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_w, b_w);
@@ -545,55 +544,45 @@ void output()
 
 void compute_source()
 {
-	/******************************* RHS at inner *****************************/
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
+			int id, id_w, id_e, id_n, id_s;
+			poisson_stencil(i, j, id, id_w, id_e, id_n, id_s);
+
 			const double dusdx = (u_star(i, j) - u_star(i - 1, j)) / (xU(i) - xU(i - 1));
 			const double dvsdy = (v_star(i, j) - v_star(i, j - 1)) / (yV(j) - yV(j - 1));
 			const double divergence = dusdx + dvsdy;
 			const double p_rhs = rho / dt * divergence;
-			rhs(stencil_center_idx(i, j)) = p_rhs;
+			rhs(id) = p_rhs;
+
+			const double dxL = xP(i) - xP(i - 1);
+			const double dxR = xP(i + 1) - xP(i);
+			const double dxC = xP(i + 1) - xP(i - 1);
+			const double dyL = yP(j) - yP(j - 1);
+			const double dyR = yP(j + 1) - yP(j);
+			const double dyC = yP(j + 1) - yP(j - 1);
+
+			const double a = -2.0 * (1.0 / (dxR * dxL) + 1.0 / (dyR * dyL));
+			const double b_w = 2.0 / (dxC * dxL);
+			const double b_e = 2.0 / (dxC * dxR);
+			const double c_n = 2.0 / (dyC * dyR);
+			const double c_s = 2.0 / (dyC * dyL);
+
+			if (i == 2)
+				rhs(id) -= b_w * p(i - 1, j);
+			else if (i == Nx)
+				rhs(id) -= b_e * p(i + 1, j);
+			else
+				rhs(id) -= 0.0;
+
+			if (j == 2)
+				rhs(id) -= c_s * p(i, j - 1);
+			else if (j == Ny)
+				rhs(id) -= c_n * p(i, j + 1);
+			else
+				rhs(id) -= 0.0;
 		}
-
-	/***************************** RHS at boundary ****************************/
-	// Left
-	for (size_t j = 2; j <= Ny; ++j)
-	{
-		const auto loc_F2 = nu * df_right2(u(1, j), u(2, j), u(3, j), xU(1), xU(2), xU(3));
-		rhs(stencil_center_idx(1, j)) = rho * loc_F2;
-	}
-
-	// Right
-	for (size_t j = 2; j <= Ny; ++j)
-	{
-		const auto loc_F2 = nu * df_left2(u(Nx - 2, j), u(Nx - 1, j), u(Nx, j), xU(Nx - 2), xU(Nx - 1), xU(Nx));
-		rhs(stencil_center_idx(Nx + 1, j)) = rho * loc_F2 * -1.0;
-	}
-
-	// Bottom
-	for (size_t i = 2; i <= Nx; ++i)
-	{
-		const auto loc_F3 = nu * df_right2(v(i, 1), v(i, 2), v(i, 3), yV(1), yV(2), yV(3));
-		rhs(stencil_center_idx(i, 1)) = rho * loc_F3;
-	}
-
-	// Top
-	for (size_t i = 2; i <= Nx; ++i)
-	{
-		const auto loc_F3 = nu * df_left2(v(i, Ny - 2), v(i, Ny - 1), v(i, Ny), yV(Ny - 2), yV(Ny - 1), yV(Ny));
-		rhs(stencil_center_idx(i, Ny + 1)) = rho * loc_F3 * -1.0;
-	}
-
-	/**************************** RHS at 4 corners ****************************/
-	// Left-Bottom
-	rhs(stencil_center_idx(1, 1)) = 0.0;
-	// Right-Bottom
-	rhs(stencil_center_idx(Nx + 1, 1)) = 0.0;
-	// Left-Top
-	rhs(stencil_center_idx(1, Ny + 1)) = 0.0;
-	// Right-Top
-	rhs(stencil_center_idx(Nx + 1, Ny + 1)) = 0.0;
 }
 
 // Explicit time-marching
@@ -696,9 +685,60 @@ void ProjectionMethod()
 	Eigen::VectorXd res = solver.solve(rhs);
 
 	// Update p
-	for (size_t j = 1; j <= Ny + 1; ++j)
-		for (size_t i = 1; i <= Nx + 1; ++i)
-			p(i, j) = res(stencil_center_idx(i, j));
+	// Inner
+	for (size_t j = 2; j <= Ny; ++j)
+		for (size_t i = 2; i <= Nx; ++i)
+		{
+			auto id = stencil_center_idx(i, j);
+			p(i, j) = res(id);
+		}
+
+	// Left
+	double loc_dx = xP(2) - xP(1);
+	for (size_t j = 2; j <= Ny; ++j)
+	{
+		const auto loc_F2 = nu * df_right2(u(1, j), u(2, j), u(3, j), xU(1), xU(2), xU(3));
+		const auto dpdn = rho * loc_F2;
+		p(1, j) = p(2, j) - loc_dx * dpdn;
+	}
+
+	// Right
+	loc_dx = xP(Nx + 1) - xP(Nx);
+	for (size_t j = 2; j <= Ny; ++j)
+	{
+		const auto loc_F2 = nu * df_left2(u(Nx - 2, j), u(Nx - 1, j), u(Nx, j), xU(Nx - 2), xU(Nx - 1), xU(Nx));
+		const auto dpdn = rho * loc_F2 * -1.0;
+		p(Nx + 1, j) = p(Nx, j) + loc_dx * dpdn;
+	}
+
+	// Bottom
+	double loc_dy = yP(2) - yP(1);
+	for (size_t i = 2; i <= Nx; ++i)
+	{
+		const auto loc_F3 = nu * df_right2(v(i, 1), v(i, 2), v(i, 3), yV(1), yV(2), yV(3));
+		const auto dpdn = rho * loc_F3;
+		p(i, 1) = p(i, 2) - loc_dy * dpdn;
+	}
+
+	// Top
+	for (size_t i = 2; i <= Nx; ++i)
+	{
+		const auto loc_F3 = nu * df_left2(v(i, Ny - 2), v(i, Ny - 1), v(i, Ny), yV(Ny - 2), yV(Ny - 1), yV(Ny));
+		const auto dpdn = rho * loc_F3 * -1.0;
+		p(i, Ny + 1) = p(i, Ny) + loc_dy * dpdn;
+	}
+
+	// Left-Bottom
+	p(1, 1) = relaxation(p(1, 2), p(2, 1), 0.5);
+
+	// Right-Bottom
+	p(Nx + 1, 1) = relaxation(p(Nx + 1, 2), p(Nx, 1), 0.5);
+
+	// Left-Top
+	p(1, Ny + 1) = relaxation(p(1, Ny), p(2, Ny + 1), 0.5);
+
+	// Right-Top
+	p(Nx + 1, Ny + 1) = relaxation(p(Nx + 1, Ny), p(Nx, Ny + 1), 0.5);
 
 	/******************************** Correction ******************************/
 	// U, V at inner
