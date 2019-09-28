@@ -89,8 +89,6 @@ const double CFL = 0.5;
 double dt = 0.0; // s
 double t = 0.0; // s
 size_t iter = 0;
-const size_t MAX_ITER = 10000;
-const double MAX_TIME = 60.0; // s
 
 // Coordinate
 Array1D x(Nx, 0.0), y(Ny, 0.0); // m
@@ -782,7 +780,7 @@ bool checkConvergence()
 		}
 	cout << "\tMax divergence=" << max_divergence << " at: (" << i_max << ", " << j_max << ")" << endl;
 
-	return max_divergence < 1e-3 || max(u_res, v_res) < 1e-2 || iter > MAX_ITER || t > MAX_TIME;
+	return max_divergence < 1e-3;
 }
 
 void solve()
