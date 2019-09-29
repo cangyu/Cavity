@@ -21,6 +21,7 @@ Usage:
 > * Path of `Eigen3` may vary in different systems or platforms, adjust it accordingly.
 
 Results:
+
 |<div align=center><img src="2D/Structured/fig/u.png"/></div>|<div align=center><img src="2D/Structured/fig/v.png"/></div>|<div align=center><img src="2D/Structured/fig/p.png"/></div>|
 |:-:|:-:|:-:|
 |Steady __u__ | Steady __v__ | Steady __p__ |
