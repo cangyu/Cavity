@@ -69,10 +69,10 @@ private:
 };
 
 // Geom
-double Lx = 1.0, Ly = 1.0; // m
-size_t Nx = 161, Ny = 161;
-double xLeft = 0.0, xRight = Lx;
-double yBottom = 0.0, yTop = Ly;
+const double Lx = 1.0, Ly = 1.0; // m
+const size_t Nx = 129, Ny = 129;
+const double xLeft = 0.0, xRight = Lx;
+const double yBottom = 0.0, yTop = Ly;
 
 // Flow param
 const double Re = 400.0;
@@ -80,8 +80,8 @@ const double rho = 1.225; // kg/m^3
 const double p0 = 101325.0; // Operating pressure, Pa
 const double u0 = 1.0; // m/s
 const double v0 = 0.0; // m/s
-double nu = u0 * max(Lx, Ly) / Re; // m^2 / s
-double mu = rho * nu; // Pa*s
+const double nu = u0 * max(Lx, Ly) / Re; // m^2 / s
+const double mu = rho * nu; // Pa*s
 
 // Timing
 const double CFL = 0.5;
@@ -207,7 +207,7 @@ double TimeStep()
 	for (size_t j = 1; j <= Ny + 1; ++j)
 		for (size_t i = 1; i <= Nx; ++i)
 		{
-			double loc_dt = (xP(i + 1) - xP(i)) / (abs(u(i, j)) + numeric_limits<double>::epsilon());
+			double loc_dt = (xP(i+1) - xP(i)) / (abs(u(i, j)) + numeric_limits<double>::epsilon());
 			if (loc_dt < dt)
 				dt = loc_dt;
 		}
@@ -215,7 +215,7 @@ double TimeStep()
 	for (size_t j = 1; j <= Ny; ++j)
 		for (size_t i = 1; i <= Nx + 1; ++i)
 		{
-			double loc_dt = (yP(j + 1) - yP(j)) / (abs(v(i, j)) + numeric_limits<double>::epsilon());
+			double loc_dt = (yP(j+1) - yP(j)) / (abs(v(i, j)) + numeric_limits<double>::epsilon());
 			if (loc_dt < dt)
 				dt = loc_dt;
 		}
@@ -250,50 +250,22 @@ inline void poisson_stencil(int i, int j, int &id, int &id_w, int &id_e, int &id
 
 void init()
 {
+	cout << "Re=" << Re << endl;
+	cout << "rho=" << rho << endl;
+	cout << "u0=" << u0 << endl;
+	cout << "mu=" << mu << endl;
+
 	ofstream fout(f_hist);
 	if (fout.fail())
 		throw runtime_error("Failed to create user-defined output file.");
 	fout.close();
 
 	/********************************** Grid **********************************/
-	ifstream fin("xyz.fmt");
-	if (fin.fail())
-		throw runtime_error("Failed to open the input grid file.");
-
-	int nblk = 0;
-	fin >> nblk;
-	assert(nblk == 1);
-
-	int nx = 0, ny = 0;
-	fin >> nx >> ny;
-	assert(Nx == nx && Ny == ny);
-
-	Array2D XX(Nx, Ny, 0.0), YY(Nx, Ny, 0.0);
-	for (size_t j = 1; j <= Ny; ++j)
-		for (size_t i = 1; i <= Nx; ++i)
-			fin >> XX(i, j);
-	for (size_t j = 1; j <= Ny; ++j)
-		for (size_t i = 1; i <= Nx; ++i)
-			fin >> YY(i, j);
-
-	fin.close();
-
 	// Grid of geom
 	for (size_t i = 1; i <= Nx; ++i)
-		x(i) = XX(i, 1);
+		x(i) = relaxation(xLeft, xRight, 1.0 * (i - 1) / (Nx - 1));
 	for (size_t j = 1; j <= Ny; ++j)
-		y(j) = YY(1, j);
-
-	xLeft = x(1);
-	xRight = x(Nx);
-	yBottom = y(1);
-	yTop = y(Ny);
-
-	Lx = xRight - xLeft;
-	Ly = yTop - yBottom;
-
-	nu = u0 * max(Lx, Ly) / Re;
-	mu = rho * nu;
+		y(j) = relaxation(yBottom, yTop, 1.0 * (j - 1) / (Ny - 1));
 
 	// Grid of p
 	xP(1) = xLeft - 0.5 * (x(2) - x(1));
@@ -452,11 +424,6 @@ void init()
 	A.setFromTriplets(coef.begin(), coef.end());
 	solver.analyzePattern(A);
 	solver.factorize(A);
-
-	cout << "Re=" << Re << endl;
-	cout << "rho=" << rho << endl;
-	cout << "u0=" << u0 << endl;
-	cout << "mu=" << mu << endl;
 }
 
 void write_user(size_t n)
@@ -538,7 +505,7 @@ void write_tecplot(size_t n)
 		{
 			fout << setw(WIDTH) << setprecision(DIGITS) << x(i);
 			fout << setw(WIDTH) << setprecision(DIGITS) << y(j);
-			fout << setw(WIDTH) << setprecision(DIGITS) << p_interp(i, j);
+			fout << setw(WIDTH) << setprecision(DIGITS) << p_interp(i, j) - p0;
 			fout << setw(WIDTH) << setprecision(DIGITS) << u_interp(i, j);
 			fout << setw(WIDTH) << setprecision(DIGITS) << v_interp(i, j);
 			fout << endl;
