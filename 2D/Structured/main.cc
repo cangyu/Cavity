@@ -207,7 +207,7 @@ double TimeStep()
 	for (size_t j = 1; j <= Ny + 1; ++j)
 		for (size_t i = 1; i <= Nx; ++i)
 		{
-			double loc_dt = (xP(i+1) - xP(i)) / (abs(u(i, j)) + numeric_limits<double>::epsilon());
+			double loc_dt = (xP(i + 1) - xP(i)) / (abs(u(i, j)) + numeric_limits<double>::epsilon());
 			if (loc_dt < dt)
 				dt = loc_dt;
 		}
@@ -215,7 +215,7 @@ double TimeStep()
 	for (size_t j = 1; j <= Ny; ++j)
 		for (size_t i = 1; i <= Nx + 1; ++i)
 		{
-			double loc_dt = (yP(j+1) - yP(j)) / (abs(v(i, j)) + numeric_limits<double>::epsilon());
+			double loc_dt = (yP(j + 1) - yP(j)) / (abs(v(i, j)) + numeric_limits<double>::epsilon());
 			if (loc_dt < dt)
 				dt = loc_dt;
 		}
