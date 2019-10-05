@@ -4,8 +4,210 @@
 #include <cassert>
 #include "xf_msh.h"
 
-using namespace std;
+// Arrays
+template<typename T>
+class Array1D : public std::vector<T>
+{
+public:
+	Array1D(size_t n = 0) : std::vector<T>(n) {}
 
+	Array1D(size_t n, const T &val) : std::vector<T>(n, val) {}
+
+	~Array1D() = default;
+
+	// 1-based indexing
+	T &operator()(size_t i)
+	{
+		return std::vector<T>::at(i - 1);
+	}
+
+	T operator()(size_t i) const
+	{
+		return std::vector<T>::at(i - 1);
+	}
+};
+
+template<typename T>
+class Array2D
+{
+private:
+	std::vector<T> m_data;
+	size_t m_Nx, m_Ny;
+
+public:
+	Array2D(size_t nx = 0, size_t ny = 0) : m_Nx(nx), m_Ny(ny), m_data(nx * ny) {}
+
+	Array2D(size_t nx, size_t ny, const T &val) : m_Nx(nx), m_Ny(ny), m_data(nx * ny, val) {}
+
+	~Array2D() = default;
+
+	void resize(size_t nI, size_t nJ)
+	{
+		m_Nx = nI;
+		m_Ny = nJ;
+		m_data.resize(nI * nJ);
+	}
+
+	// 0-based indexing
+	T &at(size_t i, size_t j)
+	{
+		return m_data[idx(i, j)];
+	}
+
+	T at(size_t i, size_t j) const
+	{
+		return m_data[idx(i, j)];
+	}
+
+	// 1-based indexing
+	T &operator()(size_t i, size_t j)
+	{
+		return at(i - 1, j - 1);
+	}
+
+	T operator()(size_t i, size_t j) const
+	{
+		return at(i - 1, j - 1);
+	}
+
+private:
+	// Internal 0-based indexing interface.
+	size_t idx(size_t i, size_t j) const
+	{
+		return i + m_Nx * j;
+	}
+};
+
+template<typename T>
+class Array3D
+{
+private:
+	std::vector<T> m_data;
+	size_t m_Nx, m_Ny, m_Nz;
+
+public:
+	Array3D(size_t nx = 0, size_t ny = 0, size_t nz = 0) : m_Nx(nx), m_Ny(ny), m_Nz(nz), m_data(nx * ny * nz) {}
+
+	Array3D(size_t nx, size_t ny, size_t nz, const T &val) : m_Nx(nx), m_Ny(ny), m_Nz(nz), m_data(nx * ny * nz, val) {}
+
+	~Array3D() = default;
+
+	void resize(size_t nI, size_t nJ, size_t nK)
+	{
+		m_Nx = nI;
+		m_Ny = nJ;
+		m_Nz = nK;
+		m_data.resize(nI * nJ * nK);
+	}
+
+	// 0-based indexing
+	T &at(size_t i, size_t j, size_t k)
+	{
+		return m_data[idx(i, j, k)];
+	}
+
+	T at(size_t i, size_t j, size_t k) const
+	{
+		return m_data[idx(i, j, k)];
+	}
+
+	// 1-based indexing
+	T &operator()(size_t i, size_t j, size_t k)
+	{
+		return at(i - 1, j - 1, k - 1);
+	}
+
+	T operator()(size_t i, size_t j, size_t k) const
+	{
+		return at(i - 1, j - 1, k - 1);
+	}
+
+private:
+	// Internal 0-based indexing interface.
+	size_t idx(size_t i, size_t j, size_t k) const
+	{
+		return i + m_Nx * (j + m_Ny * k);
+	}
+};
+
+// Basic mathematical types
+typedef double Scalar;
+
+class Vector
+{
+private:
+	Scalar m_data[3];
+
+public:
+	Vector() : m_data{ 0.0, 0.0, 0.0 } {}
+
+	Vector(Scalar val) : m_data{ val, val, val } {}
+
+	Vector(Scalar v1, Scalar v2, Scalar v3) : m_data{ v1, v2, v3 } {}
+
+	~Vector() = default;
+
+	Scalar operator()(size_t idx) const // 1-based indexing
+	{
+		return m_data[idx - 1];
+	}
+
+	Scalar &operator()(size_t idx) // 1-based indexing
+	{
+		return m_data[idx - 1];
+	}
+
+	Scalar x() const { return this->operator()(1); }
+	Scalar y() const { return this->operator()(2); }
+	Scalar z() const { return this->operator()(3); }
+
+	Scalar &x() { return this->operator()(1); }
+	Scalar &y() { return this->operator()(2); }
+	Scalar &z() { return this->operator()(3); }
+};
+
+class Tensor
+{
+private:
+	Scalar m_data[3][3];
+
+public:
+	Tensor() : m_data{ {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0} } {}
+
+	~Tensor() = default;
+
+	Scalar operator()(size_t i, size_t j) const // 1-based indexing
+	{
+		return m_data[i - 1][j - 1];
+	}
+
+	Scalar &operator()(size_t i, size_t j) // 1-based indexing
+	{
+		return m_data[i - 1][j - 1];
+	}
+
+	Scalar xx() const { return this->operator()(1, 1); }
+	Scalar xy() const { return this->operator()(1, 2); }
+	Scalar xz() const { return this->operator()(1, 3); }
+	Scalar yx() const { return this->operator()(2, 1); }
+	Scalar yy() const { return this->operator()(2, 2); }
+	Scalar yz() const { return this->operator()(2, 3); }
+	Scalar zx() const { return this->operator()(3, 1); }
+	Scalar zy() const { return this->operator()(3, 2); }
+	Scalar zz() const { return this->operator()(3, 3); }
+
+	Scalar &xx() { return this->operator()(1, 1); }
+	Scalar &xy() { return this->operator()(1, 2); }
+	Scalar &xz() { return this->operator()(1, 3); }
+	Scalar &yx() { return this->operator()(2, 1); }
+	Scalar &yy() { return this->operator()(2, 2); }
+	Scalar &yz() { return this->operator()(2, 3); }
+	Scalar &zx() { return this->operator()(3, 1); }
+	Scalar &zy() { return this->operator()(3, 2); }
+	Scalar &zz() { return this->operator()(3, 3); }
+};
+
+// 1st-order derivative using central difference.
 inline double fder1(double fl, double fm, double fr, double dxl, double dxr)
 {
 	const double dxrl = dxr / dxl;
@@ -13,6 +215,7 @@ inline double fder1(double fl, double fm, double fr, double dxl, double dxr)
 	return (dxlr*fr - dxrl * fl - (dxlr - dxrl)*fm) / (dxl + dxr);
 }
 
+// 2nd-order derivative using central difference.
 inline double fder2(double fl, double fm, double fr, double dxl, double dxr)
 {
 	const double inv_dxl = 1.0 / dxl;
@@ -20,532 +223,85 @@ inline double fder2(double fl, double fm, double fr, double dxl, double dxr)
 	return 2.0 / (dxl + dxr) * (fl * inv_dxl + fr * inv_dxr - fm * (inv_dxl + inv_dxr));
 }
 
-const int NDIM = 2;
-const int X_DIM = 0;
-const int Y_DIM = 1;
+const Scalar T0 = 300.0; // K
+const Scalar P0 = 101325.0; // Pa
+const Scalar rho = 1.225; //kg/m^3
+const Scalar U0 = 1.0; // m/s
+const Scalar nu = 1e-5; //m^2/s
 
-const double g = 9.80665; // m/s^2
-const double T0 = 300.0; // K
-const double P0 = 101325.0; // Pa
-const double rho_h2o = 0.996873e3; //kg/m^3
-const double U0 = 5.0; // m/s
-const double nu = 1e-5; //m^2/s
-const vector<double> f{ 0.0, -g };
+const Scalar g = 9.80665; // m/s^2
+const Vector f(0.0, 0.0, -g);
 
-const int NumOfIter = 10;
+size_t iter = 10;
+const size_t MAX_ITER = 2000;
+Scalar dt = 0.0, t = 0.0; // s
+const Scalar MAX_TIME = 100.0; // s
 
 class Point
 {
-private:
-	vector<double> c;
-	vector<double> vel;
-	double p, rho;
+public:
+	Vector V_star, N, F, grad_p, grad_u, grad_v, vel_laplace, grad_dp;
+	Scalar div_V_star, dp;
 
 public:
-	vector<double> V_star, N, F;
-	vector<double> grad_p, grad_u, grad_v, vel_laplace;
-	double div_V_star, dp;
-	vector<double> grad_dp;
-
-public:
-	Point(double x = 0.0, double y = 0.0) :
-		c{ x, y },
-		vel(NDIM, 0.0),
+	Point(double x = 0.0, double y = 0.0, double z = 0.0) :
+		c(x, y, z),
+		vel(0.0),
 		p(101325.0),
 		rho(1.0),
-		V_star(NDIM, 0.0),
-		N(NDIM, 0.0),
-		F(NDIM, 0.0),
-		grad_p(NDIM, 0.0),
-		grad_u(NDIM, 0.0),
-		grad_v(NDIM, 0.0),
-		vel_laplace(NDIM, 0.0),
+		V_star(0.0),
+		N(0.0),
+		F(0.0),
+		grad_p(0.0),
+		grad_u(0.0),
+		grad_v(0.0),
+		vel_laplace(0.0),
 		div_V_star(0.0),
 		dp(0.0),
-		grad_dp(NDIM, 0.0)
+		grad_dp(0.0)
 	{
 	}
 
 	~Point() = default;
 
-	double x(void) const
-	{
-		return c[X_DIM];
-	}
+	Vector &position() { return c; };
 
-	double& x(void)
-	{
-		return c[X_DIM];
-	}
+	Scalar &density() { return rho; }
 
-	double y(void) const
-	{
-		return c[Y_DIM];
-	}
+	Vector &velocity() { return vel; };
 
-	double& y(void)
-	{
-		return c[Y_DIM];
-	}
+	Scalar &pressure() { return p; }
 
-	double U(void) const
-	{
-		return vel[X_DIM];
-	}
+	Scalar &temperature() { return T; }
 
-	double& U(void)
-	{
-		return vel[X_DIM];
-	}
-
-	double V(void) const
-	{
-		return vel[Y_DIM];
-	}
-
-	double& V(void)
-	{
-		return vel[Y_DIM];
-	}
-
-	double pressure(void) const
-	{
-		return p;
-	}
-
-	double& pressure(void)
-	{
-		return p;
-	}
-
-	double density(void) const
-	{
-		return rho;
-	}
-
-	double& density(void)
-	{
-		return rho;
-	}
+private:
+	Vector c, vel;
+	Scalar p, rho, T;
 };
 
-class Block
+class Face
 {
-private:
-	vector<int> dim;
-	vector<vector<Point>> all_pnt;
-	vector<vector<double>> coef;
-	vector<double> rhs;
-
 public:
-	Block(int nx = 0, int ny = 0) :
-		dim{ nx, ny },
-		all_pnt(ny, vector<Point>(nx)),
-		coef(nx*ny - 4, vector<double>(nx*ny - 4, 0.0)),
-		rhs(nx*ny - 4, 0.0)
-	{
-	}
+	Face() {}
 
-	~Block() = default;
+	~Face() = default;
 
-	int x_pnt_num(void) const
-	{
-		return dim[X_DIM];
-	}
+	int shape() const { return vertex.size(); }
 
-	int y_pnt_num(void) const
-	{
-		return dim[Y_DIM];
-	}
+	Vector &center() { return c; };
 
-	Point& pnt(int i, int j)
-	{
-		while (i < 0)
-			i += x_pnt_num();
-		while (i > x_pnt_num())
-			i -= x_pnt_num();
+	Scalar &density() { return rho; }
 
-		while (j < 0)
-			j += y_pnt_num();
-		while (j > y_pnt_num())
-			j -= y_pnt_num();
+	Vector &velocity() { return vel; };
 
-		return all_pnt[j][i];
-	}
+	Scalar &pressure() { return p; }
 
-	void do_predict_step(double dt)
-	{
-		Point *p = nullptr;
-
-		calc_gradients();
-		calc_convection_term();
-
-		//Calculate the combined term: F
-		for (int j = 0; j < y_pnt_num(); ++j)
-			for (int i = 0; i < x_pnt_num(); ++i)
-			{
-				p = &pnt(i, j);
-				p->F[X_DIM] = -p->N[X_DIM] + nu * p->vel_laplace[X_DIM] + f[X_DIM];
-				p->F[Y_DIM] = -p->N[Y_DIM] + nu * p->vel_laplace[Y_DIM] + f[Y_DIM];
-			}
-
-		//Calculate the predicted velocity
-		for (int j = 0; j < y_pnt_num(); ++j)
-			for (int i = 0; i < x_pnt_num(); ++i)
-			{
-				p = &pnt(i, j);
-				p->V_star[X_DIM] = p->U() + dt * p->F[X_DIM] - dt / rho_h2o * p->grad_p[X_DIM];
-				p->V_star[Y_DIM] = p->V() + dt * p->F[Y_DIM] - dt / rho_h2o * p->grad_p[Y_DIM];
-			}
-	}
-
-	void solve_pressure_poisson_equation(double dt)
-	{
-		Point *pl = nullptr, *pm = nullptr, *pr = nullptr;
-		double dl = 0.0, dr = 0.0;
-
-		/*Calculate divergence*/
-		//X-direction
-		for (int j = 0; j < y_pnt_num(); ++j)
-		{
-			pm = &pnt(0, j);
-			pr = &pnt(1, j);
-			dr = pr->x() - pm->x();
-			pm->div_V_star = (pr->V_star[X_DIM] - pm->V_star[X_DIM]) / dr;
-
-			for (int i = 1; i < x_pnt_num() - 1; ++i)
-			{
-				pl = &pnt(i - 1, j);
-				pm = &pnt(i, j);
-				pr = &pnt(i + 1, j);
-
-				//Upwind biased
-				if (pm->U() > 0)
-				{
-					dl = pm->x() - pl->x();
-					pm->div_V_star = (pm->V_star[X_DIM] - pl->V_star[X_DIM]) / dl;
-				}
-				else
-				{
-					dr = pr->x() - pm->x();
-					pm->div_V_star = (pr->V_star[X_DIM] - pm->V_star[X_DIM]) / dr;
-				}
-			}
-
-			pl = &pnt(-2, j);
-			pm = &pnt(-1, j);
-			dl = pm->x() - pl->x();
-			pm->div_V_star = (pm->V_star[X_DIM] - pl->V_star[X_DIM]) / dl;
-		}
-
-		//Y-direction
-		for (int i = 0; i < x_pnt_num(); ++i)
-		{
-			pm = &pnt(i, 0);
-			pr = &pnt(i, 1);
-			dr = pr->y() - pm->y();
-			pm->div_V_star += (pr->V_star[Y_DIM] - pm->V_star[Y_DIM]) / dr;
-
-			for (int j = 1; j < y_pnt_num() - 1; ++j)
-			{
-				pl = &pnt(i, j - 1);
-				pm = &pnt(i, j);
-				pr = &pnt(i, j + 1);
-
-				//Upwind biased
-				if (pm->V() > 0)
-				{
-					dl = pm->y() - pl->y();
-					pm->div_V_star += (pm->V_star[Y_DIM] - pl->V_star[Y_DIM]) / dl;
-				}
-				else
-				{
-					dr = pr->y() - pm->y();
-					pm->div_V_star += (pr->V_star[Y_DIM] - pm->V_star[Y_DIM]) / dr;
-				}
-			}
-
-			pl = &pnt(i, -2);
-			pm = &pnt(i, -1);
-			dl = pm->y() - pl->y();
-			pm->div_V_star += (pm->V_star[Y_DIM] - pl->V_star[Y_DIM]) / dl;
-		}
-
-		/*Calculate coefficient matrix*/
-		//TODO
-
-		/*Solve pressure correction*/
-		//TODO
-	}
-
-	void do_correct_step(double dt)
-	{
-		calc_dp_gradient();
-
-		Point *p = nullptr;
-		for (int j = 0; j < y_pnt_num(); ++j)
-			for (int i = 0; i < x_pnt_num(); ++i)
-			{
-				p = &pnt(i, j);
-				p->U() = p->V_star[X_DIM] - dt / rho_h2o * p->grad_dp[X_DIM];
-				p->V() = p->V_star[Y_DIM] - dt / rho_h2o * p->grad_dp[Y_DIM];
-			}
-	}
+	Scalar &temperature() { return T; }
 
 private:
-	void calc_upwind_der1()
-	{
-		Point *pl = nullptr, *pm = nullptr, *pr = nullptr;
-		double dl, dr;
-
-		/*x-direction*/
-		for (int j = 0; j < y_pnt_num(); ++j)
-		{
-			pm = &pnt(0, j);
-			pr = &pnt(1, j);
-			dr = pr->x() - pm->x();
-			pm->grad_p[X_DIM] = (pr->pressure() - pm->pressure()) / dr;
-			pm->grad_u[X_DIM] = (pr->U() - pm->U()) / dr;
-			pm->grad_v[X_DIM] = (pr->V() - pm->V()) / dr;
-
-			for (int i = 1; i < x_pnt_num() - 1; ++i)
-			{
-				pl = &pnt(i - 1, j);
-				pm = &pnt(i, j);
-				pr = &pnt(i + 1, j);
-
-				//Upwind biased
-				if (pm->U() > 0)
-				{
-					dl = pm->x() - pl->x();
-					pm->grad_p[X_DIM] = (pm->pressure() - pl->pressure()) / dl;
-					pm->grad_u[X_DIM] = (pm->U() - pl->U()) / dl;
-					pm->grad_v[X_DIM] = (pm->V() - pl->V()) / dl;
-				}
-				else
-				{
-					dr = pr->x() - pm->x();
-					pm->grad_p[X_DIM] = (pr->pressure() - pm->pressure()) / dr;
-					pm->grad_u[X_DIM] = (pr->U() - pm->U()) / dr;
-					pm->grad_v[X_DIM] = (pr->V() - pm->V()) / dr;
-				}
-			}
-
-			pl = &pnt(-2, j);
-			pm = &pnt(-1, j);
-			dl = pm->x() - pr->x();
-			pm->grad_p[X_DIM] = (pm->pressure() - pl->pressure()) / dl;
-			pm->grad_u[X_DIM] = (pm->U() - pl->U()) / dl;
-			pm->grad_v[X_DIM] = (pm->V() - pl->V()) / dl;
-		}
-
-		/*y-direction*/
-		for (int i = 0; i < x_pnt_num(); ++i)
-		{
-			pm = &pnt(i, 0);
-			pr = &pnt(i, 1);
-			dr = pr->y() - pm->y();
-			pm->grad_p[Y_DIM] = (pr->pressure() - pm->pressure()) / dr;
-			pm->grad_u[Y_DIM] = (pr->U() - pm->U()) / dr;
-			pm->grad_v[Y_DIM] = (pr->V() - pm->V()) / dr;
-
-			for (int j = 1; j < y_pnt_num() - 1; ++j)
-			{
-				pl = &pnt(i, j - 1);
-				pm = &pnt(i, j);
-				pr = &pnt(i, j + 1);
-
-				//Upwind biased
-				if (pm->V() > 0)
-				{
-					dl = pm->y() - pl->y();
-					pm->grad_p[Y_DIM] = (pm->pressure() - pl->pressure()) / dl;
-					pm->grad_u[Y_DIM] = (pm->U() - pl->U()) / dl;
-					pm->grad_v[Y_DIM] = (pm->V() - pl->V()) / dl;
-				}
-				else
-				{
-					dr = pr->y() - pm->y();
-					pm->grad_p[Y_DIM] = (pr->pressure() - pm->pressure()) / dr;
-					pm->grad_u[Y_DIM] = (pr->U() - pm->U()) / dr;
-					pm->grad_v[Y_DIM] = (pr->V() - pm->V()) / dr;
-				}
-			}
-
-			pl = &pnt(i, -2);
-			pm = &pnt(i, -1);
-			dl = pm->x() - pl->x();
-			pm->grad_p[Y_DIM] = (pm->pressure() - pl->pressure()) / dl;
-			pm->grad_u[Y_DIM] = (pm->U() - pl->U()) / dl;
-			pm->grad_v[Y_DIM] = (pm->V() - pl->V()) / dl;
-		}
-	}
-
-	void calc_vel_laplace()
-	{
-		Point *pl = nullptr, *pm = nullptr, *pr = nullptr;
-		double dl, dr;
-
-		/*x-direction*/
-		for (int j = 0; j < y_pnt_num(); ++j)
-		{
-			pm = &pnt(0, j);
-			pr = &pnt(1, j);
-			dr = pr->x() - pm->x();
-			pm->vel_laplace[X_DIM] = (pr->grad_u[X_DIM] - pm->grad_u[X_DIM]) / dr;
-			pm->vel_laplace[Y_DIM] = (pr->grad_v[X_DIM] - pm->grad_v[X_DIM]) / dr;
-
-			for (int i = 1; i < x_pnt_num() - 1; ++i)
-			{
-				pl = &pnt(i - 1, j);
-				pm = &pnt(i, j);
-				pr = &pnt(i + 1, j);
-
-				//Central difference
-				dr = pr->x() - pm->x();
-				dl = pm->x() - pl->x();
-				pm->vel_laplace[X_DIM] = fder2(pl->U(), pm->U(), pr->U(), dl, dr);
-				pm->vel_laplace[Y_DIM] = fder2(pl->V(), pm->V(), pr->V(), dl, dr);
-			}
-
-			pl = &pnt(-2, j);
-			pm = &pnt(-1, j);
-			dl = pm->x() - pr->x();
-			pm->vel_laplace[X_DIM] = (pm->grad_u[X_DIM] - pl->grad_u[X_DIM]) / dl;
-			pm->vel_laplace[Y_DIM] = (pm->grad_v[X_DIM] - pl->grad_v[X_DIM]) / dl;
-		}
-
-		/*y-direction*/
-		for (int i = 0; i < x_pnt_num(); ++i)
-		{
-			pm = &pnt(i, 0);
-			pr = &pnt(i, 1);
-			dr = pr->y() - pm->y();
-			pm->vel_laplace[X_DIM] += (pr->grad_u[Y_DIM] - pm->grad_u[Y_DIM]) / dr;
-			pm->vel_laplace[Y_DIM] += (pr->grad_v[Y_DIM] - pm->grad_v[Y_DIM]) / dr;
-
-			for (int j = 1; j < y_pnt_num() - 1; ++j)
-			{
-				pl = &pnt(i, j - 1);
-				pm = &pnt(i, j);
-				pr = &pnt(i, j + 1);
-				dr = pr->y() - pm->y();
-				dl = pm->y() - pl->y();
-				pm->vel_laplace[X_DIM] += fder2(pl->U(), pm->U(), pr->U(), dl, dr);
-				pm->vel_laplace[Y_DIM] += fder2(pl->V(), pm->V(), pr->V(), dl, dr);
-			}
-
-			pl = &pnt(i, -2);
-			pm = &pnt(i, -1);
-			dl = pm->x() - pl->x();
-			pm->vel_laplace[X_DIM] += (pm->grad_u[Y_DIM] - pl->grad_u[Y_DIM]) / dl;
-			pm->vel_laplace[Y_DIM] += (pm->grad_v[Y_DIM] - pl->grad_v[Y_DIM]) / dl;
-		}
-	}
-
-	void calc_gradients()
-	{
-		calc_upwind_der1();
-		calc_vel_laplace();
-	}
-
-	void calc_convection_term()
-	{
-		Point *p = nullptr;
-		double u = 0.0, v = 0.0;
-
-		for (int j = 0; j < y_pnt_num(); ++j)
-			for (int i = 0; i < x_pnt_num(); ++i)
-			{
-				p = &pnt(i, j);
-				u = p->U();
-				v = p->V();
-				p->N[X_DIM] = u * p->grad_u[X_DIM] + v * p->grad_u[Y_DIM];
-				p->N[Y_DIM] = u * p->grad_v[X_DIM] + v * p->grad_v[Y_DIM];
-			}
-	}
-
-	void calc_dp_gradient()
-	{
-		Point *pl = nullptr, *pm = nullptr, *pr = nullptr;
-		double dl = 0.0, dr = 0.0;
-
-		//X-direction
-		for (int j = 0; j < y_pnt_num(); ++j)
-		{
-			pm = &pnt(0, j);
-			pr = &pnt(1, j);
-			dr = pr->x() - pm->x();
-			pm->grad_dp[X_DIM] = (pr->dp - pm->dp) / dr;
-
-			for (int i = 1; i < x_pnt_num() - 1; ++i)
-			{
-				pl = &pnt(i - 1, j);
-				pm = &pnt(i, j);
-				pr = &pnt(i + 1, j);
-
-				//Upwind
-				if (pm->U() > 0)
-				{
-					dl = pm->x() - pl->x();
-					pm->grad_dp[X_DIM] = (pm->dp - pl->dp) / dl;
-				}
-				else
-				{
-					dr = pr->x() - pm->x();
-					pm->grad_dp[X_DIM] = (pr->dp - pm->dp) / dr;
-				}
-			}
-
-			pl = &pnt(-2, j);
-			pm = &pnt(-1, j);
-			dl = pm->x() - pl->x();
-			pm->grad_dp[X_DIM] = (pm->dp - pl->dp) / dl;
-		}
-
-		//Y-direction
-		for (int i = 0; i < x_pnt_num(); ++i)
-		{
-			pm = &pnt(i, 0);
-			pr = &pnt(i, 1);
-			dr = pr->y() - pm->y();
-			pm->grad_dp[Y_DIM] = (pr->dp - pm->dp) / dr;
-
-			for (int j = 1; j < y_pnt_num() - 1; ++j)
-			{
-				pl = &pnt(i, j - 1);
-				pm = &pnt(i, j);
-				pr = &pnt(i, j + 1);
-
-				//Upwind
-				if (pm->V() > 0)
-				{
-					dl = pm->y() - pl->y();
-					pm->grad_dp[Y_DIM] = (pm->dp - pl->dp) / dl;
-				}
-				else
-				{
-					dr = pr->y() - pm->y();
-					pm->grad_dp[Y_DIM] = (pr->dp - pm->dp) / dr;
-				}
-			}
-
-			pl = &pnt(i, -2);
-			pm = &pnt(i, -1);
-			dl = pm->y() - pl->y();
-			pm->grad_dp[Y_DIM] = (pm->dp - pl->dp) / dl;
-		}
-	}
-
-	int cord2idx(int i, int j)
-	{
-		return 0;
-	}
-
-	void idx2cord(int idx, int &i, int &j)
-	{
-
-	}
+	Array1D<size_t> vertex; // Contents are 1-based pnt index.
+	Vector c, vel;
+	Scalar p, rho, T;
 };
 
 int main(int argc, char *argv[])
@@ -553,7 +309,6 @@ int main(int argc, char *argv[])
 	//Read grid
 	XF_MSH mesh;
 	mesh.readFromFile("grid/fluent.msh");
-	mesh.writeToFile("grid/blessed.msh");
 
 	return 0;
 }
