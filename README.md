@@ -15,7 +15,7 @@ Grid is uniform, the code can be extended to unstructured easily. Variables are 
 
 Results(`Re=400`):
 
-|<div align=center><img src="2D/Structured/fig/Re=400/u.png"/></div>|<div align=center><img src="2D/Structured/fig/Re=400/v.png"/></div>|<div align=center><img src="2D/Structured/fig/Re=400/p.png"/></div>|
+|<div align=center><img src="2D/Structured/fig/Re=400(129x129)/u.png"/></div>|<div align=center><img src="2D/Structured/fig/Re=400(129x129)/v.png"/></div>|<div align=center><img src="2D/Structured/fig/Re=400(129x129)/p.png"/></div>|
 |:-:|:-:|:-:|
 |Steady __u__ | Steady __v__ | Steady __p__ |
 
