@@ -20,7 +20,7 @@ Results(`Re=400`):
 |Steady __u__ | Steady __v__ | Steady __p__ |
 
 Usage:
-> * Compile: `g++ main.cc -std=c++14 -I /usr/include/eigen3 -o Cavity`
+> * Compile: `g++ main.cpp -std=c++14 -I /usr/include/eigen3 -O3 -o Cavity`
 > * Execute: `./Cavity`, may stop it manually when the divergence does not change.
 > * View full flowfield: `Tecplot` or `ParaView` or `EnSight`
 > * Animate convergency history: `python3 animate.py`
