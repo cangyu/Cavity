@@ -115,7 +115,7 @@ Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> solver;
 const int bw = Nx - 1; // Band-width
 
 // Statistics
-const size_t TECPLOT_GAP = 500;
+const size_t TECPLOT_GAP = 100;
 const string f_hist = "history.txt";
 double max_divergence = 0.0;
 
@@ -311,12 +311,12 @@ void init()
 
 	/*********************************** B.C. *********************************/
 	// u
-	for (size_t i = 1; i <= Nx; ++i)
+	for (size_t i = 2; i <= Nx - 1; ++i)
 	{
 		u(i, 1) = 0.0;
 		u(i, Ny + 1) = u0;
 	}
-	for (size_t j = 2; j <= Ny; ++j)
+	for (size_t j = 1; j <= Ny + 1; ++j)
 	{
 		u(1, j) = 0.0;
 		u(Nx, j) = 0.0;
@@ -396,7 +396,7 @@ void init()
 				coef.emplace_back(id, id_n, c_n);
 				coef.emplace_back(id, id_s, c_s);
 			}
-			else if (j == 2)	// Bottom
+			else if (j == 2) // Bottom
 			{
 				coef.emplace_back(id, id, a);
 				coef.emplace_back(id, id_w, b_w);
@@ -544,24 +544,26 @@ void ProjectionMethod()
 	for (size_t j = 2; j <= Ny; ++j)
 		for (size_t i = 2; i <= Nx - 1; ++i)
 		{
-			dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
-			//dudx(i, j) = df_upwind(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1), u(i, j));
+			//dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
+			dudx(i, j) = df_upwind(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1), u(i, j));
 			/*
 			if (i == 2 || i == Nx - 1)
 				dudx(i, j) = df(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
 			else
 				dudx(i, j) = df_upwind2(u(i - 2, j), u(i - 1, j), u(i, j), u(i + 1, j), u(i + 2, j), xU(i - 2), xU(i - 1), xU(i), xU(i + 1), xU(i + 2), u(i, j));
 			*/
+
 			dduddx(i, j) = ddf(u(i - 1, j), u(i, j), u(i + 1, j), xU(i - 1), xU(i), xU(i + 1));
 
-			dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
-			//dudy(i, j) = df_upwind(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1), v_bar(i, j));
+			//dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
+			dudy(i, j) = df_upwind(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1), v_bar(i, j));
 			/*
 			if (j == 2 || j == Ny)
 				dudy(i, j) = df(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
 			else
 				dudy(i, j) = df_upwind2(u(i, j - 2), u(i, j - 1), u(i, j), u(i, j + 1), u(i, j + 2), yU(j - 2), yU(j - 1), yU(j), yU(j + 1), yU(j + 2), v_bar(i, j));
 			*/
+
 			dduddy(i, j) = ddf(u(i, j - 1), u(i, j), u(i, j + 1), yU(j - 1), yU(j), yU(j + 1));
 		}
 
@@ -570,24 +572,26 @@ void ProjectionMethod()
 	for (size_t j = 2; j <= Ny - 1; ++j)
 		for (size_t i = 2; i <= Nx; ++i)
 		{
-			dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
-			//dvdx(i, j) = df_upwind(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1), u_bar(i, j));
+			//dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
+			dvdx(i, j) = df_upwind(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1), u_bar(i, j));
 			/*
 			if (i == 2 || i == Nx)
 				dvdx(i, j) = df(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
 			else
 				dvdx(i, j) = df_upwind2(v(i - 2, j), v(i - 1, j), v(i, j), v(i + 1, j), v(i + 2, j), xV(i - 2), xV(i - 1), xV(i), xV(i + 1), xV(i + 2), u_bar(i, j));
 			*/
+
 			ddvddx(i, j) = ddf(v(i - 1, j), v(i, j), v(i + 1, j), xV(i - 1), xV(i), xV(i + 1));
 
-			dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
-			//dvdy(i, j) = df_upwind(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1), v(i, j));
+			//dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
+			dvdy(i, j) = df_upwind(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1), v(i, j));
 			/*
 			if (j == 2 || j == Ny - 1)
 				dvdy(i, j) = df(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
 			else
 				dvdy(i, j) = df_upwind2(v(i, j - 2), v(i, j - 1), v(i, j), v(i, j + 1), v(i, j + 2), yV(j - 2), yV(j - 1), yV(j), yV(j + 1), yV(j + 2), v(i, j));
 			*/
+
 			ddvddy(i, j) = ddf(v(i, j - 1), v(i, j), v(i, j + 1), yV(j - 1), yV(j), yV(j + 1));
 		}
 
@@ -797,6 +801,5 @@ int main(int argc, char *argv[])
 	init();
 	output();
 	solve();
-
 	return 0;
 }
