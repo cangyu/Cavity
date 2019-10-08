@@ -1,72 +1,11 @@
 ﻿#include <iomanip>
 #include <iostream>
 #include <fstream>
-#include <vector>
 #include <cmath>
-#include <string>
-#include <stdexcept>
 #include <Eigen/Sparse>
+#include "natural_array.hpp"
 
 using namespace std;
-
-class Array1D : public vector<double>
-{
-public:
-	Array1D(size_t nx, double val = 0.0) : vector<double>(nx, val) {}
-
-	// 1-based indexing
-	double &operator()(size_t i) { return vector<double>::at(i - 1); }
-
-	double operator()(size_t i) const { return vector<double>::at(i - 1); }
-};
-
-class Array2D
-{
-private:
-	vector<double> m_data;
-	size_t m_Nx, m_Ny;
-
-public:
-	Array2D(size_t nx, size_t ny, double val = 0.0) :
-		m_Nx(nx),
-		m_Ny(ny),
-		m_data(nx * ny, val)
-	{
-		if (nx == 0 || ny == 0)
-			throw runtime_error("Invalid size: nx=" + to_string(nx) + ", ny=" + to_string(ny));
-	}
-
-	~Array2D() = default;
-
-	// 0-based indexing
-	double &at(size_t i, size_t j)
-	{
-		return m_data[idx(i, j)];
-	}
-
-	double at(size_t i, size_t j) const
-	{
-		return m_data[idx(i, j)];
-	}
-
-	// 1-based indexing
-	double &operator()(size_t i, size_t j)
-	{
-		return at(i - 1, j - 1);
-	}
-
-	double operator()(size_t i, size_t j) const
-	{
-		return at(i - 1, j - 1);
-	}
-
-private:
-	// Internal 0-based indexing interface.
-	size_t idx(size_t i, size_t j) const
-	{
-		return i + m_Nx * j;
-	}
-};
 
 // Geom
 const double Lx = 1.0, Ly = 1.0; // m
