@@ -1,0 +1,117 @@
+#ifndef __MATH_TYPE_HPP__
+#define __MATH_TYPE_HPP__
+
+#include <utility>
+
+typedef double Scalar;
+
+class Vector
+{
+private:
+	Scalar m_data[3];
+
+	void exchange(Vector &rhs)
+	{
+		for (int i = 0; i < 3; ++i)
+			std::swap(m_data[i], rhs.m_data[i]);
+	}
+
+public:
+	Vector() : m_data{ 0.0, 0.0, 0.0 } {}
+
+	Vector(Scalar val) : m_data{ val, val, val } {}
+
+	Vector(Scalar v1, Scalar v2, Scalar v3) : m_data{ v1, v2, v3 } {}
+
+	Vector(const Vector &rhs) = default;
+
+	~Vector() = default;
+
+	Vector &operator=(Vector rhs)
+	{
+		exchange(rhs);
+		return *this;
+	}
+
+	// 0-based indexing
+	Scalar at(size_t idx) const { return m_data[idx]; }
+	Scalar &at(size_t idx) { return m_data[idx]; }
+
+	// 1-based indexing
+	Scalar operator()(int idx) const { return m_data[idx - 1]; }
+	Scalar &operator()(int idx) { return m_data[idx - 1]; }
+
+	// Access through component
+	Scalar x() const { return m_data[0]; }
+	Scalar y() const { return m_data[1]; }
+	Scalar z() const { return m_data[2]; }
+
+	Scalar &x() { return m_data[0]; }
+	Scalar &y() { return m_data[1]; }
+	Scalar &z() { return m_data[2]; }
+};
+
+class Tensor
+{
+private:
+	Scalar m_data[3][3];
+
+	void exchange(Tensor &rhs)
+	{
+		for (int i = 0; i < 3; ++i)
+			for (int j = 0; j < 3; ++j)
+				std::swap(m_data[i][j], rhs.m_data[i][j]);
+	}
+
+public:
+	Tensor() : m_data{ {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0} } {}
+
+	Tensor(const Tensor &rhs) = default;
+
+	~Tensor() = default;
+
+	Tensor &operator=(Tensor rhs)
+	{
+		exchange(rhs);
+		return *this;
+	}
+
+	// 0-based indexing
+	Scalar at(size_t i, size_t j) const { return m_data[i][j]; }
+	Scalar &at(size_t i, size_t j) { return m_data[i][j]; }
+
+	// 1-based indexing
+	Scalar operator()(int i, int j) const { return at(i - 1, j - 1); }
+	Scalar &operator()(int i, int j) { return at(i - 1, j - 1); }
+
+	// Access through component
+	Scalar xx() const { return this->operator()(1, 1); }
+	Scalar xy() const { return this->operator()(1, 2); }
+	Scalar xz() const { return this->operator()(1, 3); }
+	Scalar yx() const { return this->operator()(2, 1); }
+	Scalar yy() const { return this->operator()(2, 2); }
+	Scalar yz() const { return this->operator()(2, 3); }
+	Scalar zx() const { return this->operator()(3, 1); }
+	Scalar zy() const { return this->operator()(3, 2); }
+	Scalar zz() const { return this->operator()(3, 3); }
+
+	Scalar &xx() { return this->operator()(1, 1); }
+	Scalar &xy() { return this->operator()(1, 2); }
+	Scalar &xz() { return this->operator()(1, 3); }
+	Scalar &yx() { return this->operator()(2, 1); }
+	Scalar &yy() { return this->operator()(2, 2); }
+	Scalar &yz() { return this->operator()(2, 3); }
+	Scalar &zx() { return this->operator()(3, 1); }
+	Scalar &zy() { return this->operator()(3, 2); }
+	Scalar &zz() { return this->operator()(3, 3); }
+};
+
+inline Scalar dot_product(const Vector &a, const Vector &b)
+{
+	Scalar ret = 0.0;
+	for (size_t i = 0; i < 3; ++i)
+		ret += a.at(i) * b.at(i);
+	return ret;
+}
+
+#endif

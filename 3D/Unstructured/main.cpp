@@ -3,9 +3,9 @@
 #include <vector>
 #include <cassert>
 #include "xf_msh.h"
-#include "natural_array.h"
-#include "math_type.h"
-#include "geom_entity.h"
+#include "natural_array.hpp"
+#include "math_type.hpp"
+#include "geom_entity.hpp"
 
 // 1st-order derivative using central difference.
 inline double fder1(double fl, double fm, double fr, double dxl, double dxr)
@@ -37,6 +37,7 @@ const size_t MAX_ITER = 2000;
 Scalar dt = 0.0, t = 0.0; // s
 const Scalar MAX_TIME = 100.0; // s
 
+XF_MSH mesh;
 Array1D<Point> pnt;
 Array1D<Face> face;
 Array1D<Cell> cell;
@@ -44,7 +45,6 @@ Array1D<Cell> cell;
 void init()
 {
 	//Read grid
-	XF_MSH mesh;
 	mesh.readFromFile("grid/fluent.msh");
 	const size_t NumOfPnt = mesh.numOfNode();
 	const size_t NumOfFace = mesh.numOfFace();
@@ -60,7 +60,7 @@ void init()
 void solve()
 {
 	bool converged = false;
-	while(!converged)
+	while (!converged)
 	{
 
 	}
