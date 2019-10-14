@@ -2,7 +2,7 @@
 #include <fstream>
 #include <vector>
 #include <cassert>
-#include "xf_msh.h"
+#include "xf_msh.hpp"
 #include "natural_array.hpp"
 #include "math_type.hpp"
 #include "geom_entity.hpp"
@@ -37,23 +37,71 @@ const size_t MAX_ITER = 2000;
 Scalar dt = 0.0, t = 0.0; // s
 const Scalar MAX_TIME = 100.0; // s
 
-XF_MSH mesh;
-Array1D<Point> pnt;
-Array1D<Face> face;
-Array1D<Cell> cell;
+//Load grid
+const XF_MSH mesh("grid/fluent.msh");
+const size_t NumOfPnt = mesh.numOfNode();
+const size_t NumOfFace = mesh.numOfFace();
+const size_t NumOfCell = mesh.numOfCell();
+
+Array1D<Point> pnt(NumOfPnt);
+Array1D<Face> face(NumOfFace);
+Array1D<Cell> cell(NumOfCell);
+Array1D<Patch> patch; // The group of boundary faces
 
 void init()
 {
-	//Read grid
-	mesh.readFromFile("grid/fluent.msh");
-	const size_t NumOfPnt = mesh.numOfNode();
-	const size_t NumOfFace = mesh.numOfFace();
-	const size_t NumOfCell = mesh.numOfCell();
-	pnt.resize(NumOfPnt);
-	face.resize(NumOfFace);
-	cell.resize(NumOfCell);
+	// Read grid data
+	for (size_t i = 1; i <= NumOfPnt; ++i)
+	{
+		const auto &n_src = mesh.node(i);
+		auto &n_dst = pnt(i);
+
+		const auto &c_src = n_src.coordinate;
+		auto &c_dst = n_dst.coordinate();
+		c_dst.x() = c_src.x();
+		c_dst.y() = c_src.y();
+		c_dst.z() = c_src.z();
+	}
+	for (size_t i = 1; i <= NumOfFace; ++i)
+	{
+		const auto &f_src = mesh.face(i);
+		auto &f_dst = face(i);
+
+		const auto &c_src = f_src.center;
+		auto &c_dst = f_dst.center();
+		c_dst.x() = c_src.x();
+		c_dst.y() = c_src.y();
+		c_dst.z() = c_src.z();
+
+		f_dst.area() = f_src.area;
+	}
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		const auto &c_src = mesh.cell(i);
+		auto &c_dst = cell(i);
+
+		const auto &centroid_src = c_src.center;
+		auto &centroid_dst = c_dst.center();
+		centroid_dst.x() = centroid_src.x();
+		centroid_dst.y() = centroid_src.y();
+		centroid_dst.z() = centroid_src.z();
+	}
 
 	// I.C.
+	for (size_t i = 1; i <= NumOfPnt; ++i)
+	{
+		auto &n_dst = pnt(i);
+	}
+	for (size_t i = 1; i <= NumOfFace; ++i)
+	{
+		auto &f_dst = face(i);
+	}
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		auto &c_dst = cell(i);
+	}
+
+	// B.C.
 
 }
 

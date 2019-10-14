@@ -20,7 +20,7 @@ public:
 		return std::vector<T>::at(i - 1);
 	}
 
-	T operator()(size_t i) const
+	const T &operator()(size_t i) const
 	{
 		return std::vector<T>::at(i - 1);
 	}
@@ -53,7 +53,7 @@ public:
 		return m_data[idx(i, j)];
 	}
 
-	T at(size_t i, size_t j) const
+	const T &at(size_t i, size_t j) const
 	{
 		return m_data[idx(i, j)];
 	}
@@ -64,7 +64,7 @@ public:
 		return at(i - 1, j - 1);
 	}
 
-	T operator()(size_t i, size_t j) const
+	const T &operator()(size_t i, size_t j) const
 	{
 		return at(i - 1, j - 1);
 	}
@@ -105,7 +105,7 @@ public:
 		return m_data[idx(i, j, k)];
 	}
 
-	T at(size_t i, size_t j, size_t k) const
+	const T &at(size_t i, size_t j, size_t k) const
 	{
 		return m_data[idx(i, j, k)];
 	}
@@ -116,7 +116,7 @@ public:
 		return at(i - 1, j - 1, k - 1);
 	}
 
-	T operator()(size_t i, size_t j, size_t k) const
+	const T &operator()(size_t i, size_t j, size_t k) const
 	{
 		return at(i - 1, j - 1, k - 1);
 	}

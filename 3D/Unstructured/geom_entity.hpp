@@ -26,6 +26,9 @@ private:
 		std::swap(dvel, rhs.dvel);
 	}
 
+protected:
+	Vector &position() { return c; };
+
 public:
 	GeneralPhysicalVar() = default;
 
@@ -38,8 +41,6 @@ public:
 		exchange(rhs);
 		return *this;
 	}
-
-	Vector &position() { return c; };
 
 	Scalar &density() { return rho; }
 	Vector &velocity() { return vel; };
@@ -58,6 +59,8 @@ public:
 	Point() : GeneralPhysicalVar() {}
 
 	~Point() = default;
+
+	Vector &coordinate() { return position(); }
 };
 
 class Face : public GeneralPhysicalVar
@@ -67,10 +70,16 @@ public:
 
 	~Face() = default;
 
-	int shape() const { return vertex.size(); }
+	Vector &center() { return position(); }
 
+	size_t shape() const { return m_vertex.size(); }
+
+	Scalar &area() { return m_area; }
+ 
 private:
-	Array1D<size_t> vertex; // Contents are 1-based pnt index.
+	Array1D<size_t> m_vertex; // Contents are 1-based pnt index.
+	Scalar m_area;
+
 };
 
 class Cell : public GeneralPhysicalVar
@@ -80,10 +89,31 @@ public:
 
 	~Cell() = default;
 
-	int shape() const { return vertex.size(); }
+	Vector &center() { return position(); }
+
+	size_t shape() const { return vertex.size(); }
 
 private:
 	Array1D<size_t> vertex; // Contents are 1-based pnt index.
+};
+
+class Patch
+{
+private:
+	std::string m_name;
+	int m_bc;
+	Array1D<size_t> m_faceIncluded;
+
+public:
+	Patch() : m_bc(-1) {}
+
+	std::string &name() { return m_name; }
+
+	int &BC() { return m_bc; }
+
+	size_t &face(size_t idx) { return m_faceIncluded(idx); }
+
+	void resize(size_t n) { m_faceIncluded.resize(n); }
 };
 
 #endif
