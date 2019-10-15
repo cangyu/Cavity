@@ -27,38 +27,14 @@ public:
 	Scalar &z() { return at(2); }
 };
 
-class Tensor
+class Tensor : public std::array<Scalar, 9>
 {
-private:
-	Scalar m_data[3][3];
-
-	void exchange(Tensor &rhs)
-	{
-		for (int i = 0; i < 3; ++i)
-			for (int j = 0; j < 3; ++j)
-				std::swap(m_data[i][j], rhs.m_data[i][j]);
-	}
-
 public:
-	Tensor() : m_data{ {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0} } {}
-
-	Tensor(const Tensor &rhs) = default;
-
-	~Tensor() = default;
-
-	Tensor &operator=(Tensor rhs)
-	{
-		exchange(rhs);
-		return *this;
-	}
-
-	// 0-based indexing
-	Scalar at(size_t i, size_t j) const { return m_data[i][j]; }
-	Scalar &at(size_t i, size_t j) { return m_data[i][j]; }
+	Tensor() : std::array<Scalar, 9>{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } {}
 
 	// 1-based indexing
-	Scalar operator()(int i, int j) const { return at(i - 1, j - 1); }
-	Scalar &operator()(int i, int j) { return at(i - 1, j - 1); }
+	Scalar operator()(int i, int j) const { return at(idx(i - 1, j - 1)); }
+	Scalar &operator()(int i, int j) { return at(idx(i - 1, j - 1)); }
 
 	// Access through component
 	Scalar xx() const { return this->operator()(1, 1); }
@@ -80,6 +56,9 @@ public:
 	Scalar &zx() { return this->operator()(3, 1); }
 	Scalar &zy() { return this->operator()(3, 2); }
 	Scalar &zz() { return this->operator()(3, 3); }
+
+private:
+	size_t idx(int i, int j) const { return i + 3 * j; }
 };
 
 inline Scalar dot_product(const Vector &a, const Vector &b)
