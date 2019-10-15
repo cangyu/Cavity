@@ -10,9 +10,7 @@ class Vector : public std::array<Scalar, 3>
 {
 public:
 	Vector() : std::array<Scalar, 3>{ 0.0, 0.0, 0.0 } {}
-
 	Vector(Scalar val) : std::array<Scalar, 3>{ val, val, val } {}
-
 	Vector(Scalar v1, Scalar v2, Scalar v3) : std::array<Scalar, 3>{ v1, v2, v3 } {}
 
 	// 1-based indexing
@@ -86,10 +84,25 @@ public:
 
 inline Scalar dot_product(const Vector &a, const Vector &b)
 {
-	Scalar ret = 0.0;
-	for (size_t i = 0; i < 3; ++i)
-		ret += a.at(i) * b.at(i);
-	return ret;
+	return a.x() * b.x() + a.y() * b.y() + a.z() * b.z();
 }
+
+inline void dot_product(const Vector &a, const Vector &b, Scalar &dst)
+{
+	dst = a.x() * b.x() + a.y() * b.y() + a.z() * b.z();
+}
+
+inline Vector cross_product(const Vector &a, const Vector &b)
+{
+	return Vector(a.y()*b.z() - a.z()*b.y(), a.z()*b.x() - a.x()*b.z(), a.x()*b.y() - a.y()*b.x());
+}
+
+inline void cross_product(const Vector &a, const Vector &b, Vector &dst)
+{
+	dst.x() = a.y()*b.z() - a.z()*b.y();
+	dst.y() = a.z()*b.x() - a.x()*b.z();
+	dst.z() = a.x()*b.y() - a.y()*b.x();
+}
+
 
 #endif

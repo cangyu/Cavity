@@ -2,10 +2,65 @@
 #include <fstream>
 #include <vector>
 #include <cassert>
-#include "xf_msh.hpp"
+#include "xf.hpp"
 #include "natural_array.hpp"
 #include "math_type.hpp"
-#include "geom_entity.hpp"
+
+struct Point
+{
+	Vector coordinate;
+
+	Scalar density;
+	Vector velocity;
+	Scalar pressure;
+	Scalar temperature;
+
+	Vector density_gradient;
+	Tensor velocity_gradient;
+	Vector pressure_gradient;
+	Vector temperature_gradient;
+};
+
+struct Face
+{
+	Vector center;
+	Scalar area;
+	Array1D<Point*> vertex;
+
+	Scalar density;
+	Vector velocity;
+	Scalar pressure;
+	Scalar temperature;
+
+	Vector density_gradient;
+	Tensor velocity_gradient;
+	Vector pressure_gradient;
+	Vector temperature_gradient;
+};
+
+struct Cell
+{
+	Vector center;
+	Array1D<Point*> vertex;
+	Array1D<Face*> surface;
+
+	Scalar density;
+	Vector velocity;
+	Scalar pressure;
+	Scalar temperature;
+
+	Vector density_gradient;
+	Tensor velocity_gradient;
+	Vector pressure_gradient;
+	Vector temperature_gradient;
+};
+
+struct Patch
+{
+	std::string name;
+	int BC;
+	Array1D<Face *> surface;
+};
 
 // 1st-order derivative using central difference.
 inline double fder1(double fl, double fm, double fr, double dxl, double dxr)
@@ -38,7 +93,7 @@ Scalar dt = 0.0, t = 0.0; // s
 const Scalar MAX_TIME = 100.0; // s
 
 //Load grid
-const XF_MSH mesh("grid/fluent.msh");
+const XF::MESH mesh("grid/fluent.msh");
 const size_t NumOfPnt = mesh.numOfNode();
 const size_t NumOfFace = mesh.numOfFace();
 const size_t NumOfCell = mesh.numOfCell();
@@ -57,7 +112,7 @@ void init()
 		auto &n_dst = pnt(i);
 
 		const auto &c_src = n_src.coordinate;
-		auto &c_dst = n_dst.coordinate();
+		auto &c_dst = n_dst.coordinate;
 		c_dst.x() = c_src.x();
 		c_dst.y() = c_src.y();
 		c_dst.z() = c_src.z();
@@ -68,12 +123,12 @@ void init()
 		auto &f_dst = face(i);
 
 		const auto &c_src = f_src.center;
-		auto &c_dst = f_dst.center();
+		auto &c_dst = f_dst.center;
 		c_dst.x() = c_src.x();
 		c_dst.y() = c_src.y();
 		c_dst.z() = c_src.z();
 
-		f_dst.area() = f_src.area;
+		f_dst.area = f_src.area;
 	}
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
@@ -81,7 +136,7 @@ void init()
 		auto &c_dst = cell(i);
 
 		const auto &centroid_src = c_src.center;
-		auto &centroid_dst = c_dst.center();
+		auto &centroid_dst = c_dst.center;
 		centroid_dst.x() = centroid_src.x();
 		centroid_dst.y() = centroid_src.y();
 		centroid_dst.z() = centroid_src.z();
