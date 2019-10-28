@@ -3,7 +3,6 @@
 #include <vector>
 #include <cassert>
 #include "xf.hpp"
-#include "tecplot.hpp"
 #include "geom_entity.hpp"
 
 // 1st-order derivative using central difference.
@@ -50,12 +49,13 @@ Array1D<Face> face(NumOfFace);
 Array1D<Cell> cell(NumOfCell);
 Array1D<Patch> patch; // The group of boundary faces
 
-void loadMesh()
+void readMSH()
 {
 	for (size_t i = 1; i <= NumOfPnt; ++i)
 	{
 		const auto &n_src = mesh.node(i);
 		auto &n_dst = pnt(i);
+		n_dst.index = i;
 
 		const auto &c_src = n_src.coordinate;
 		auto &c_dst = n_dst.coordinate;
@@ -67,6 +67,7 @@ void loadMesh()
 	{
 		const auto &f_src = mesh.face(i);
 		auto &f_dst = face(i);
+		f_dst.index = i;
 
 		const auto &c_src = f_src.center;
 		auto &c_dst = f_dst.center;
@@ -76,15 +77,16 @@ void loadMesh()
 
 		f_dst.area = f_src.area;
 
-		const size_t N1 = f_src.node.size();
+		const size_t N1 = f_src.includedNode.size();
 		f_dst.vertex.resize(N1);
 		for (size_t i = 1; i <= N1; ++i)
-			f_dst.vertex(i) = &pnt(f_src.node(i));
+			f_dst.vertex(i) = &pnt(f_src.includedNode(i));
 	}
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
 		const auto &c_src = mesh.cell(i);
 		auto &c_dst = cell(i);
+		c_dst.index = i;
 
 		const auto &centroid_src = c_src.center;
 		auto &centroid_dst = c_dst.center;
@@ -92,15 +94,15 @@ void loadMesh()
 		centroid_dst.y() = centroid_src.y();
 		centroid_dst.z() = centroid_src.z();
 
-		const size_t N1 = c_src.node.size();
+		const size_t N1 = c_src.includedNode.size();
 		c_dst.vertex.resize(N1);
 		for (size_t i = 1; i <= N1; ++i)
-			c_dst.vertex(i) = &pnt(c_src.node(i));
+			c_dst.vertex(i) = &pnt(c_src.includedNode(i));
 
-		const size_t N2 = c_src.face.size();
+		const size_t N2 = c_src.includedFace.size();
 		c_dst.surface.resize(N2);
 		for (size_t i = 1; i <= N2; ++i)
-			c_dst.surface(i) = &face(c_src.face(i));
+			c_dst.surface(i) = &face(c_src.includedFace(i));
 	}
 	size_t NumOfPatch = 0;
 	for (size_t i = 1; i <= mesh.numOfZone(); ++i)
@@ -139,6 +141,129 @@ void loadMesh()
 
 		++cnt;
 	}
+}
+
+void readTECPLOT()
+{
+	// Only the solution part is extracted, and its connectivity
+	// should be consistent with that given by existing mesh.
+
+}
+
+void writeTECPLOT()
+{
+	static const size_t RECORD_PER_LINE = 10;
+
+	const std::string fn = "flow" + std::to_string(iter) + ".dat";
+	std::ofstream fout(fn);
+	if (fout.fail())
+		throw std::runtime_error("Failed to open target output file: \"" + fn + "\"!");
+
+	fout << R"(TITLE="3D Cavity flow at t=)" + std::to_string(t) + R"(s")" << std::endl;
+	fout << "FILETYPE=FULL" << std::endl;
+	fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T")" << std::endl;
+	fout << "ZONE NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL, [4-9]=CELLCENTERED)" << std::endl;
+
+	// X-Coordinates
+	for (size_t i = 1; i <= NumOfPnt; ++i)
+	{
+		fout << '\t' << pnt(i).coordinate.x();
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfPnt % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Y-Coordinates
+	for (size_t i = 1; i <= NumOfPnt; ++i)
+	{
+		fout << '\t' << pnt(i).coordinate.y();
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfPnt % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Z-Coordinates
+	for (size_t i = 1; i <= NumOfPnt; ++i)
+	{
+		fout << '\t' << pnt(i).coordinate.z();
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfPnt % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Density
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		fout << '\t' << cell(i).density;
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfCell % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Velocity-X
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		fout << '\t' << cell(i).velocity.x();
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfCell % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Velocity-Y
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		fout << '\t' << cell(i).velocity.y();
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfCell % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Velocity-Z
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		fout << '\t' << cell(i).velocity.z();
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfCell % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Pressure
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		fout << '\t' << cell(i).pressure;
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfCell % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Temperature
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		fout << '\t' << cell(i).temperature;
+		if (i % RECORD_PER_LINE == 0)
+			fout << std::endl;
+	}
+	if (NumOfCell % RECORD_PER_LINE != 0)
+		fout << std::endl;
+
+	// Connectivity Information
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		const auto v = cell(i).vertex;
+		for (const auto &e : v)
+			fout << '\t' << e->index;
+		fout << std::endl;
+	}
+
+	fout.close();
 }
 
 void IC()
@@ -188,7 +313,7 @@ void BC()
 
 void init()
 {
-	loadMesh();
+	readMSH();
 	IC();
 	BC();
 }
@@ -196,6 +321,7 @@ void init()
 void solve()
 {
 	bool converged = false;
+	writeTECPLOT();
 	while (!converged)
 	{
 

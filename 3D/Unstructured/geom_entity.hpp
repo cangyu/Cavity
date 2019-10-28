@@ -7,6 +7,8 @@
 
 struct Point
 {
+	size_t index;
+
 	Vector coordinate;
 
 	Scalar density;
@@ -22,6 +24,8 @@ struct Point
 
 struct Face
 {
+	size_t index;
+
 	Vector center;
 	Scalar area;
 	Array1D<Point*> vertex;
@@ -39,6 +43,8 @@ struct Face
 
 struct Cell
 {
+	size_t index;
+
 	Vector center;
 	Array1D<Point*> vertex;
 	Array1D<Face*> surface;
