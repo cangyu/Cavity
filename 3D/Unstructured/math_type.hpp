@@ -5,9 +5,7 @@
 #include <utility>
 #include <cmath>
 
-inline int kronecker(bool equivalence) { return equivalence ? 1 : 0; }
-
-inline int kronecker(int i, int j) { return kronecker(i == j); }
+inline int kronecker(int i, int j) { return i == j ? 1 : 0; }
 
 inline int eddington(int r, int s, int t)
 {
@@ -238,6 +236,5 @@ inline Vector cross_product(const Vector &a, const Vector &b)
 	cross_product(a, b, ret);
 	return ret;
 }
-
 
 #endif

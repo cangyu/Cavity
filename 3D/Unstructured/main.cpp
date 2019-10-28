@@ -143,18 +143,11 @@ void readMSH()
 	}
 }
 
-void readTECPLOT()
-{
-	// Only the solution part is extracted, and its connectivity
-	// should be consistent with that given by existing mesh.
-
-}
-
 void writeTECPLOT()
 {
 	static const size_t RECORD_PER_LINE = 10;
 
-	const std::string fn = "flow" + std::to_string(iter) + ".dat";
+	const std::string fn("flow" + std::to_string(iter) + ".dat");
 	std::ofstream fout(fn);
 	if (fout.fail())
 		throw std::runtime_error("Failed to open target output file: \"" + fn + "\"!");
@@ -264,6 +257,59 @@ void writeTECPLOT()
 	}
 
 	fout.close();
+}
+
+// Extract the solution only. Both size and 
+// connectivity should be consistent with existing mesh.
+void readTECPLOT()
+{
+	const std::string fn("flow0.dat");
+	std::ifstream fin(fn);
+	if (fin.fail())
+		throw std::runtime_error("Failed to open target input file \"" + fn + "\"!");
+
+	std::string tmp;
+	Scalar var;
+
+	/* Skip header */
+	std::getline(fin, tmp);
+	std::getline(fin, tmp);
+	std::getline(fin, tmp);
+	std::getline(fin, tmp);
+
+	/* Skip coordinates */
+	for (int k = 0; k < 3; ++k)
+		for (size_t i = 1; i <= NumOfPnt; ++i)
+			fin >> var;
+
+	/* Load cell-centered data */
+	// Density
+	for (size_t i = 1; i <= NumOfCell; ++i)
+		fin >> cell(i).density;
+
+	// Velocity-X
+	for (size_t i = 1; i <= NumOfCell; ++i)
+		fin >> cell(i).velocity.x();
+
+	// Velocity-Y
+	for (size_t i = 1; i <= NumOfCell; ++i)
+		fin >> cell(i).velocity.y();
+
+	// Velocity-Z
+	for (size_t i = 1; i <= NumOfCell; ++i)
+		fin >> cell(i).velocity.z();
+
+	// Pressure
+	for (size_t i = 1; i <= NumOfCell; ++i)
+		fin >> cell(i).pressure;
+
+	// Temperature
+	for (size_t i = 1; i <= NumOfCell; ++i)
+		fin >> cell(i).temperature;
+
+	/* Skip connectivity info */
+	// Finalize
+	fin.close();
 }
 
 void IC()
