@@ -5,22 +5,6 @@
 #include "xf.hpp"
 #include "geom_entity.hpp"
 
-// 1st-order derivative using central difference.
-inline double fder1(double fl, double fm, double fr, double dxl, double dxr)
-{
-	const double dxrl = dxr / dxl;
-	const double dxlr = dxl / dxr;
-	return (dxlr*fr - dxrl * fl - (dxlr - dxrl)*fm) / (dxl + dxr);
-}
-
-// 2nd-order derivative using central difference.
-inline double fder2(double fl, double fm, double fr, double dxl, double dxr)
-{
-	const double inv_dxl = 1.0 / dxl;
-	const double inv_dxr = 1.0 / dxr;
-	return 2.0 / (dxl + dxr) * (fl * inv_dxl + fr * inv_dxr - fm * (inv_dxl + inv_dxr));
-}
-
 const Scalar T0 = 300.0; // K
 const Scalar P0 = 101325.0; // Pa
 const Scalar rho0 = 1.225; //kg/m^3
@@ -38,7 +22,7 @@ Scalar dt = 0.0, t = 0.0; // s
 const Scalar MAX_TIME = 100.0; // s
 
 // Grid
-const XF::MESH mesh("grid/fluent.msh");
+const XF::MESH mesh("grid/grid1.msh");
 const size_t NumOfPnt = mesh.numOfNode();
 const size_t NumOfFace = mesh.numOfFace();
 const size_t NumOfCell = mesh.numOfCell();
@@ -155,7 +139,7 @@ void writeTECPLOT()
 	fout << R"(TITLE="3D Cavity flow at t=)" + std::to_string(t) + R"(s")" << std::endl;
 	fout << "FILETYPE=FULL" << std::endl;
 	fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T")" << std::endl;
-	fout << "ZONE NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL, [4-9]=CELLCENTERED)" << std::endl;
+	fout << "ZONE T=\"Interior\", NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL, [4-9]=CELLCENTERED)" << std::endl;
 
 	// X-Coordinates
 	for (size_t i = 1; i <= NumOfPnt; ++i)
@@ -261,9 +245,8 @@ void writeTECPLOT()
 
 // Extract the solution only. Both size and 
 // connectivity should be consistent with existing mesh.
-void readTECPLOT()
+void readTECPLOT(const std::string &fn)
 {
-	const std::string fn("flow0.dat");
 	std::ifstream fin(fn);
 	if (fin.fail())
 		throw std::runtime_error("Failed to open target input file \"" + fn + "\"!");
@@ -364,14 +347,54 @@ void init()
 	BC();
 }
 
+Scalar calcTimeStep()
+{
+	Scalar ret = 0.0;
+
+	return ret;
+}
+
+bool checkConvergence()
+{
+	bool ret = false;
+
+	return ret;
+}
+
+void calcGradients()
+{
+
+}
+
+void PISO()
+{
+	/********************************************** Prediction Step ***************************************************/
+
+	/********************************************** Correction Step1 **************************************************/
+
+	/********************************************** Correction Step2 **************************************************/
+
+	/*********************************************** Update u and v ***************************************************/
+}
+
 void solve()
 {
+	static const size_t OUTPUT_GAP = 100;
+
 	bool converged = false;
 	writeTECPLOT();
 	while (!converged)
 	{
-
+		std::cout << "Iter" << ++iter << ":" << std::endl;
+		dt = calcTimeStep();
+		std::cout << "\tt=" << t << "s, dt=" << dt << "s" << std::endl;
+		PISO();
+		t += dt;
+		converged = checkConvergence();
+		if (converged || !(iter % OUTPUT_GAP))
+			writeTECPLOT();
 	}
+	std::cout << "Converged!" << std::endl;
 }
 
 int main(int argc, char *argv[])
