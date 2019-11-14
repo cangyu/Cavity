@@ -27,6 +27,7 @@ public:
 	Vector() : std::array<Scalar, 3>{ 0.0, 0.0, 0.0 } {}
 	Vector(Scalar val) : std::array<Scalar, 3>{ val, val, val } {}
 	Vector(Scalar v1, Scalar v2, Scalar v3) : std::array<Scalar, 3>{ v1, v2, v3 } {}
+	Vector(const Vector &rhs) : std::array<Scalar, 3>{ rhs.x(), rhs.y(), rhs.z() } {}
 
 	// 1-based indexing
 	const Scalar &operator()(int idx) const { return at(idx - 1); }
@@ -40,6 +41,58 @@ public:
 	Scalar &x() { return at(0); }
 	Scalar &y() { return at(1); }
 	Scalar &z() { return at(2); }
+
+	// Operator
+	Vector &operator=(const Vector &rhs)
+	{
+		this->x() = rhs.x();
+		this->y() = rhs.y();
+		this->z() = rhs.z();
+	}
+	Vector &operator+=(const Vector &rhs)
+	{
+		this->x() += rhs.x();
+		this->y() += rhs.y();
+		this->z() += rhs.z();
+		return *this;
+	}
+	Vector &operator-=(const Vector &rhs)
+	{
+		this->x() -= rhs.x();
+		this->y() -= rhs.y();
+		this->z() -= rhs.z();
+		return *this;
+	}
+	Vector &operator*=(const Scalar &rhs)
+	{
+		this->x() *= rhs;
+		this->y() *= rhs;
+		this->z() *= rhs;
+		return *this;
+	}
+	Vector &operator/=(const Scalar &rhs)
+	{
+		this->x() /= rhs;
+		this->y() /= rhs;
+		this->z() /= rhs;
+		return *this;
+	}
+	Vector operator+(const Vector &rhs)
+	{
+		return Vector(this->x() + rhs.x(), this->y() + rhs.y(), this->z() + rhs.z());
+	}
+	Vector operator-(const Vector &rhs)
+	{
+		return Vector(this->x() - rhs.x(), this->y() - rhs.y(), this->z() - rhs.z());
+	}
+	Vector operator*(const Scalar &rhs)
+	{
+		return Vector(this->x() * rhs, this->y() * rhs, this->z() * rhs);
+	}
+	Vector operator/(const Scalar &rhs)
+	{
+		return Vector(this->x() / rhs, this->y() / rhs, this->z() / rhs);
+	}
 };
 
 class Tensor

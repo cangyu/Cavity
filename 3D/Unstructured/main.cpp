@@ -1,9 +1,92 @@
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <vector>
 #include <cassert>
 #include "xf.hpp"
-#include "geom_entity.hpp"
+#include "Eigen/Dense"
+#include "natural_array.hpp"
+#include "math_type.hpp"
+
+struct Cell;
+
+struct Point
+{
+	size_t index;
+
+	Vector coordinate;
+
+	Scalar density;
+	Vector velocity;
+	Scalar pressure;
+	Scalar temperature;
+
+	Vector density_gradient;
+	Tensor velocity_gradient;
+	Vector pressure_gradient;
+	Vector temperature_gradient;
+};
+
+struct Face
+{
+	size_t index;
+	bool atBdry;
+
+	Vector center;
+	Scalar area;
+	Array1D<Point*> vertex;
+	Cell *c0, *c1;
+	Vector r0, r1;
+
+	Scalar density;
+	Vector velocity;
+	Scalar pressure;
+	Scalar temperature;
+
+	Vector density_gradient;
+	Tensor velocity_gradient;
+	Vector pressure_gradient;
+	Vector temperature_gradient;
+
+	Tensor tau;
+
+	Vector rhoU;
+};
+
+struct Cell
+{
+	size_t index;
+
+	Vector center;
+	Scalar volume;
+	Array1D<Point*> vertex;
+	Array1D<Face*> surface;
+	Array1D<Vector> S;
+	Array1D<Cell *> adjCell;
+
+	Scalar density;
+	Vector velocity;
+	Scalar pressure;
+	Scalar temperature;
+
+	Vector density_gradient;
+	Tensor velocity_gradient;
+	Vector pressure_gradient;
+	Vector temperature_gradient;
+
+	Vector rhoU;
+	Vector rhoU_star;
+
+	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J; // Used for computing gradients using Least-squares approach.
+	Eigen::HouseholderQR<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>> QR;
+};
+
+struct Patch
+{
+	std::string name;
+	int BC;
+	Array1D<Face*> surface;
+};
 
 const Scalar T0 = 300.0; // K
 const Scalar P0 = 101325.0; // Pa
@@ -22,72 +105,140 @@ Scalar dt = 0.0, t = 0.0; // s
 const Scalar MAX_TIME = 100.0; // s
 
 // Grid
-const XF::MESH mesh("grid/grid1.msh");
-const size_t NumOfPnt = mesh.numOfNode();
-const size_t NumOfFace = mesh.numOfFace();
-const size_t NumOfCell = mesh.numOfCell();
+size_t NumOfPnt = 0;
+size_t NumOfFace = 0;
+size_t NumOfCell = 0;
 
 // Physical variables located at geom entities
-Array1D<Point> pnt(NumOfPnt);
-Array1D<Face> face(NumOfFace);
-Array1D<Cell> cell(NumOfCell);
+Array1D<Point> pnt;
+Array1D<Face> face;
+Array1D<Cell> cell;
 Array1D<Patch> patch; // The group of boundary faces
 
 void readMSH()
 {
+	// Load ANSYS Fluent mesh using external independent package.
+	const XF::MESH mesh("D:/grid/grid0.msh");
+
+	// Update counting of geom elements.
+	NumOfPnt = mesh.numOfNode();
+	NumOfFace = mesh.numOfFace();
+	NumOfCell = mesh.numOfCell();
+
+	// Allocate memory for geom information and related physical variables.
+	pnt.resize(NumOfPnt);
+	face.resize(NumOfFace);
+	cell.resize(NumOfCell);
+
+	// Update point information.
 	for (size_t i = 1; i <= NumOfPnt; ++i)
 	{
 		const auto &n_src = mesh.node(i);
 		auto &n_dst = pnt(i);
+
+		// Assign node index.
 		n_dst.index = i;
 
 		const auto &c_src = n_src.coordinate;
 		auto &c_dst = n_dst.coordinate;
+
+		// Node location.
 		c_dst.x() = c_src.x();
 		c_dst.y() = c_src.y();
 		c_dst.z() = c_src.z();
 	}
+
+	// Update face information.
 	for (size_t i = 1; i <= NumOfFace; ++i)
 	{
 		const auto &f_src = mesh.face(i);
 		auto &f_dst = face(i);
+
+		// Assign face index.
 		f_dst.index = i;
+		f_dst.atBdry = f_src.atBdry;
 
 		const auto &c_src = f_src.center;
 		auto &c_dst = f_dst.center;
+
+		// Face center location.
 		c_dst.x() = c_src.x();
 		c_dst.y() = c_src.y();
 		c_dst.z() = c_src.z();
 
+		// Face area.
 		f_dst.area = f_src.area;
 
+		// Face included nodes.
 		const size_t N1 = f_src.includedNode.size();
 		f_dst.vertex.resize(N1);
 		for (size_t i = 1; i <= N1; ++i)
 			f_dst.vertex(i) = &pnt(f_src.includedNode(i));
+
+		// Face adjacent 2 cells.
+		f_dst.c0 = f_src.leftCell ? &cell(f_src.leftCell) : nullptr;
+		f_dst.c1 = f_src.rightCell ? &cell(f_src.rightCell) : nullptr;
 	}
+
+	// Update cell information.
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
 		const auto &c_src = mesh.cell(i);
 		auto &c_dst = cell(i);
+
+		// Assign cell index.
 		c_dst.index = i;
 
 		const auto &centroid_src = c_src.center;
 		auto &centroid_dst = c_dst.center;
+
+		// Cell center location.
 		centroid_dst.x() = centroid_src.x();
 		centroid_dst.y() = centroid_src.y();
 		centroid_dst.z() = centroid_src.z();
 
+		// Cell included nodes.
 		const size_t N1 = c_src.includedNode.size();
 		c_dst.vertex.resize(N1);
 		for (size_t i = 1; i <= N1; ++i)
 			c_dst.vertex(i) = &pnt(c_src.includedNode(i));
 
+		// Cell included faces.
 		const size_t N2 = c_src.includedFace.size();
 		c_dst.surface.resize(N2);
 		for (size_t i = 1; i <= N2; ++i)
 			c_dst.surface(i) = &face(c_src.includedFace(i));
+
+		// Cell adjacent cells.
+		c_dst.adjCell.resize(N2);
+		for (size_t i = 1; i <= N2; ++i)
+		{
+			auto adjIdx = c_src.adjacentCell(i);
+			c_dst.adjCell(i) = adjIdx ? &cell(adjIdx) : nullptr;
+		}
 	}
+
+	// Cell center to face center vectors 
+	for (size_t i = 1; i <= NumOfFace; ++i)
+	{
+		auto &f_dst = face(i);
+
+		if (f_dst.c0)
+		{
+			f_dst.r0.x() = f_dst.center.x() - f_dst.c0->center.x();
+			f_dst.r0.y() = f_dst.center.y() - f_dst.c0->center.y();
+			f_dst.r0.z() = f_dst.center.z() - f_dst.c0->center.z();
+		}
+
+		if (f_dst.c1)
+		{
+			f_dst.r1.x() = f_dst.center.x() - f_dst.c1->center.x();
+			f_dst.r1.y() = f_dst.center.y() - f_dst.c1->center.y();
+			f_dst.r1.z() = f_dst.center.z() - f_dst.c1->center.z();
+		}
+	}
+
+	// Count valid patches.
 	size_t NumOfPatch = 0;
 	for (size_t i = 1; i <= mesh.numOfZone(); ++i)
 	{
@@ -105,6 +256,8 @@ void readMSH()
 		if (XF::BC::INTERIOR != XF::BC::str2idx(z_src.type))
 			++NumOfPatch;
 	}
+
+	// Update boundary patch information.
 	patch.resize(NumOfPatch);
 	size_t cnt = 0;
 	for (int curZoneIdx = 1; curZoneIdx <= mesh.numOfZone(); ++curZoneIdx)
@@ -345,6 +498,26 @@ void init()
 	readMSH();
 	IC();
 	BC();
+
+	// Compute J and its QR decomposition for each cell
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		auto &c = cell(i);
+		auto &curJ = c.J;
+		const size_t nF = c.surface.size();
+		curJ.resize(nF, Eigen::NoChange);
+		for (size_t j = 1; j <= nF; ++j)
+		{
+			auto curFace = c.surface(j);
+			auto curCell = c.adjCell(j);
+
+			if (curFace->atBdry)
+				curJ.row(j - 1) << curFace->center.x() - c.center.x(), curFace->center.y() - c.center.y(), curFace->center.z() - c.center.z();
+			else
+				curJ.row(j - 1) << curCell->center.x() - c.center.x(), curCell->center.y() - c.center.y(), curCell->center.z() - c.center.z();
+		}
+		c.QR = curJ.householderQr();
+	}
 }
 
 Scalar calcTimeStep()
@@ -363,18 +536,61 @@ bool checkConvergence()
 
 void calcGradients()
 {
+	for (auto &c : cell)
+	{
+		const size_t nF = c.surface.size();
+		Eigen::VectorXd dphi(nF);
 
+		// Gradient of Density.
+		for (size_t i = 1; i <= nF; ++i)
+		{
+			auto curFace = c.surface(i);
+			auto curCell = c.adjCell(i);
+
+			if (curFace->atBdry)
+				dphi(i - 1) = curFace->density - c.density;
+			else
+				dphi(i - 1) = curCell->density - c.density;
+		}
+		auto drho = c.QR.solve(dphi);
+		c.density_gradient.x() = drho(0);
+		c.density_gradient.y() = drho(1);
+		c.density_gradient.z() = drho(2);
+	}
 }
 
-void PISO()
+void SIMPLE()
 {
 	/********************************************** Prediction Step ***************************************************/
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		auto &c = cell(i);
+		const size_t Nf = c.surface.size();
 
-	/********************************************** Correction Step1 **************************************************/
+		Vector convection_flux;
+		Vector pressure_flux;
+		Vector viscous_flux;
+		for (size_t j = 1; j <= Nf; ++j)
+		{
+			const auto curFace = c.surface(j);
 
-	/********************************************** Correction Step2 **************************************************/
+			convection_flux += curFace->rhoU * dot_product(curFace->velocity, c.S(j));
 
-	/*********************************************** Update u and v ***************************************************/
+			pressure_flux -= c.S(j) * curFace->pressure;
+
+			Vector tmp;
+			dot_product(c.S(j), curFace->tau, tmp);
+			viscous_flux += tmp;
+		}
+
+		c.rhoU_star = c.rhoU + (pressure_flux + viscous_flux - convection_flux) * (dt / c.volume);
+	}
+
+	/********************************************** Correction Step ***************************************************/
+	
+
+	/*************************************************** Update *******************************************************/
+
 }
 
 void solve()
@@ -388,7 +604,8 @@ void solve()
 		std::cout << "Iter" << ++iter << ":" << std::endl;
 		dt = calcTimeStep();
 		std::cout << "\tt=" << t << "s, dt=" << dt << "s" << std::endl;
-		PISO();
+		calcGradients();
+		SIMPLE();
 		t += dt;
 		converged = checkConvergence();
 		if (converged || !(iter % OUTPUT_GAP))
