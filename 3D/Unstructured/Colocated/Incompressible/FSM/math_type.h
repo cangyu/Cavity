@@ -48,6 +48,7 @@ public:
 		this->x() = rhs.x();
 		this->y() = rhs.y();
 		this->z() = rhs.z();
+		return *this;
 	}
 	Vector &operator+=(const Vector &rhs)
 	{

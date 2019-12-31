@@ -1,11 +1,11 @@
-#ifndef __NATURAL_ARRAY_HPP__
-#define __NATURAL_ARRAY_HPP__
+#ifndef __NATURAL_ARRAY_H__
+#define __NATURAL_ARRAY_H__
 
 #include <vector>
 #include <cstddef>
 
 template<typename T>
-class Array1D : public std::vector<T>
+class Array1D : protected std::vector<T>
 {
 public:
 	Array1D(size_t n = 0) : std::vector<T>(n) {}
@@ -18,7 +18,7 @@ public:
 };
 
 template<typename T>
-class Array2D : public std::vector<T>
+class Array2D : protected std::vector<T>
 {
 private:
 	size_t m_Nx, m_Ny;
@@ -52,7 +52,7 @@ private:
 };
 
 template<typename T>
-class Array3D : public std::vector<T>
+class Array3D : protected std::vector<T>
 {
 private:
 	size_t m_Nx, m_Ny, m_Nz;

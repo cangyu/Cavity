@@ -3,34 +3,99 @@
 #include <string>
 #include <vector>
 #include <cassert>
-#include "xf.hpp"
+#include "xf.h"
 #include "Eigen/Dense"
-#include "natural_array.hpp"
-#include "math_type.hpp"
+
+using namespace GridTool;
+
+typedef double Scalar;
+typedef Eigen::Matrix<Scalar, 3, 1> Vector;
+
+struct Tensor : public Eigen::Matrix<Scalar, 3, 3>
+{
+	Scalar xx() const { return this->operator()(0, 0); }
+	Scalar xy() const { return this->operator()(0, 1); }
+	Scalar xz() const { return this->operator()(0, 2); }
+	Scalar yx() const { return this->operator()(1, 0); }
+	Scalar yy() const { return this->operator()(1, 1); }
+	Scalar yz() const { return this->operator()(1, 2); }
+	Scalar zx() const { return this->operator()(2, 0); }
+	Scalar zy() const { return this->operator()(2, 1); }
+	Scalar zz() const { return this->operator()(2, 2); }
+
+	Scalar &xx() { return this->operator()(0, 0); }
+	Scalar &xy() { return this->operator()(0, 1); }
+	Scalar &xz() { return this->operator()(0, 2); }
+	Scalar &yx() { return this->operator()(1, 0); }
+	Scalar &yy() { return this->operator()(1, 1); }
+	Scalar &yz() { return this->operator()(1, 2); }
+	Scalar &zx() { return this->operator()(2, 0); }
+	Scalar &zy() { return this->operator()(2, 1); }
+	Scalar &zz() { return this->operator()(2, 2); }
+};
+
+template<typename T>
+class Array1D : public std::vector<T>
+{
+public:
+	Array1D(size_t n = 0) : std::vector<T>(n) {}
+	Array1D(size_t n, const T &val) : std::vector<T>(n, val) {}
+	~Array1D() = default;
+
+	/* 1-based indexing */
+	T &operator()(int i)
+	{
+		if (i >= 1)
+			return std::vector<T>::at(i - 1);
+		else if (i <= -1)
+			return std::vector<T>::at(std::vector<T>::size() + i);
+		else
+			throw std::invalid_argument("Invalid index.");
+	}
+	const T &operator()(int i) const
+	{
+		if (i >= 1)
+			return std::vector<T>::at(i - 1);
+		else if (i <= -1)
+			return std::vector<T>::at(std::vector<T>::size() + i);
+		else
+			throw std::invalid_argument("Invalid index.");
+	}
+};
 
 struct Cell;
 
 struct Point
 {
-	size_t index;
+	size_t index; // 1-based global index.	
+	Vector coordinate; // 3D Location.
 
-	Vector coordinate;
+	Scalar rho;
+	Vector U;
+	Scalar p;
+	Scalar T;
 
-	Scalar density;
-	Vector velocity;
-	Scalar pressure;
-	Scalar temperature;
+	Vector grad_rho;
+	Tensor grad_U;
+	Vector grad_T;
 
-	Vector density_gradient;
-	Tensor velocity_gradient;
-	Vector pressure_gradient;
-	Vector temperature_gradient;
+	Vector rhoU;
 };
 
 struct Face
 {
+	// 1-based global index.
 	size_t index;
+
 	bool atBdry;
+	bool rho_isDirichletBC;
+	bool U_isDirichletBC;
+	bool p_isDirichletBC;
+	bool T_isDirichletBC;
+	Scalar rho_ghost;
+	Vector U_ghost;
+	Scalar p_ghost;
+	Scalar T_ghost;
 
 	Vector center;
 	Scalar area;
@@ -38,20 +103,26 @@ struct Face
 	Cell *c0, *c1;
 	Vector r0, r1;
 
-	Scalar density;
-	Vector velocity;
-	Scalar pressure;
-	Scalar temperature;
+	Scalar rho;
+	Vector U;
+	Scalar p;
+	Scalar T;
 
-	Vector density_gradient;
-	Tensor velocity_gradient;
-	Vector pressure_gradient;
-	Vector temperature_gradient;
-
-	Tensor tau;
+	Vector grad_rho;
+	Tensor grad_U;
+	Vector grad_T;
 
 	Vector rhoU;
+
+	Tensor tau;
 };
+
+const size_t NumOfTimeLevel = 3;
+size_t curTimeLevel = 0;
+size_t iter = 0;
+const size_t MAX_ITER = 2000;
+Scalar dt = 0.0, t = 0.0; // s
+const Scalar MAX_TIME = 100.0; // s
 
 struct Cell
 {
@@ -62,23 +133,26 @@ struct Cell
 	Array1D<Point*> vertex;
 	Array1D<Face*> surface;
 	Array1D<Vector> S;
-	Array1D<Cell *> adjCell;
+	Array1D<Cell*> adjCell;
 
-	Scalar density;
-	Vector velocity;
-	Scalar pressure;
-	Scalar temperature;
+	Scalar rho[NumOfTimeLevel];
+	Vector U[NumOfTimeLevel];
+	Scalar p[NumOfTimeLevel];
+	Scalar T[NumOfTimeLevel];
 
-	Vector density_gradient;
-	Tensor velocity_gradient;
-	Vector pressure_gradient;
-	Vector temperature_gradient;
+	Vector grad_rho;
+	Tensor grad_U;
+	Vector grad_p;
+	Vector grad_T;
 
 	Vector rhoU;
 	Vector rhoU_star;
 
-	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J; // Used for computing gradients using Least-squares approach.
-	Eigen::HouseholderQR<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>> QR;
+	/* Compute gradients using Least-squares approach */
+	Eigen::HouseholderQR<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>> rho_QR;
+	Eigen::HouseholderQR<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>> U_QR;
+	Eigen::HouseholderQR<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>> p_QR;
+	Eigen::HouseholderQR<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>> T_QR;
 };
 
 struct Patch
@@ -99,11 +173,6 @@ const Scalar nu = 1e-5; //m^2/s
 const Scalar g = 9.80665; // m/s^2
 const Vector f(0.0, 0.0, -g);
 
-size_t iter = 0;
-const size_t MAX_ITER = 2000;
-Scalar dt = 0.0, t = 0.0; // s
-const Scalar MAX_TIME = 100.0; // s
-
 // Grid
 size_t NumOfPnt = 0;
 size_t NumOfFace = 0;
@@ -113,12 +182,14 @@ size_t NumOfCell = 0;
 Array1D<Point> pnt;
 Array1D<Face> face;
 Array1D<Cell> cell;
-Array1D<Patch> patch; // The group of boundary faces
+
+// The group of boundary faces
+Array1D<Patch> patch; 
 
 void readMSH()
 {
 	// Load ANSYS Fluent mesh using external independent package.
-	const XF::MESH mesh("D:/grid/grid0.msh");
+	const XF::MESH mesh("grid0.msh");
 
 	// Update counting of geom elements.
 	NumOfPnt = mesh.numOfNode();
@@ -224,18 +295,10 @@ void readMSH()
 		auto &f_dst = face(i);
 
 		if (f_dst.c0)
-		{
-			f_dst.r0.x() = f_dst.center.x() - f_dst.c0->center.x();
-			f_dst.r0.y() = f_dst.center.y() - f_dst.c0->center.y();
-			f_dst.r0.z() = f_dst.center.z() - f_dst.c0->center.z();
-		}
+			f_dst.r0 = f_dst.center - f_dst.c0->center;
 
 		if (f_dst.c1)
-		{
-			f_dst.r1.x() = f_dst.center.x() - f_dst.c1->center.x();
-			f_dst.r1.y() = f_dst.center.y() - f_dst.c1->center.y();
-			f_dst.r1.z() = f_dst.center.z() - f_dst.c1->center.z();
-		}
+			f_dst.r1 = f_dst.center - f_dst.c1->center;
 	}
 
 	// Count valid patches.
@@ -327,7 +390,7 @@ void writeTECPLOT()
 	// Density
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).density;
+		fout << '\t' << cell(i).rho[curTimeLevel];
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -337,7 +400,7 @@ void writeTECPLOT()
 	// Velocity-X
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).velocity.x();
+		fout << '\t' << cell(i).U[curTimeLevel].x();
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -347,7 +410,7 @@ void writeTECPLOT()
 	// Velocity-Y
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).velocity.y();
+		fout << '\t' << cell(i).U[curTimeLevel].y();
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -357,7 +420,7 @@ void writeTECPLOT()
 	// Velocity-Z
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).velocity.z();
+		fout << '\t' << cell(i).U[curTimeLevel].z();
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -367,7 +430,7 @@ void writeTECPLOT()
 	// Pressure
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).pressure;
+		fout << '\t' << cell(i).p[curTimeLevel];
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -377,7 +440,7 @@ void writeTECPLOT()
 	// Temperature
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).temperature;
+		fout << '\t' << cell(i).T[curTimeLevel];
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -396,8 +459,8 @@ void writeTECPLOT()
 	fout.close();
 }
 
-// Extract the solution only. Both size and 
-// connectivity should be consistent with existing mesh.
+/// Extract the solution only. Both size and 
+/// connectivity should be consistent with existing mesh.
 void readTECPLOT(const std::string &fn)
 {
 	std::ifstream fin(fn);
@@ -421,27 +484,27 @@ void readTECPLOT(const std::string &fn)
 	/* Load cell-centered data */
 	// Density
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).density;
+		fin >> cell(i).rho[curTimeLevel];
 
 	// Velocity-X
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).velocity.x();
+		fin >> cell(i).U[curTimeLevel].x();
 
 	// Velocity-Y
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).velocity.y();
+		fin >> cell(i).U[curTimeLevel].y();
 
 	// Velocity-Z
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).velocity.z();
+		fin >> cell(i).U[curTimeLevel].z();
 
 	// Pressure
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).pressure;
+		fin >> cell(i).p[curTimeLevel];
 
 	// Temperature
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).temperature;
+		fin >> cell(i).T[curTimeLevel];
 
 	/* Skip connectivity info */
 	// Finalize
@@ -453,26 +516,26 @@ void IC()
 	for (size_t i = 1; i <= NumOfPnt; ++i)
 	{
 		auto &n_dst = pnt(i);
-		n_dst.density = rho0;
-		n_dst.velocity = { 0, 0, 0 };
-		n_dst.pressure = P0;
-		n_dst.temperature = T0;
+		n_dst.rho = rho0;
+		n_dst.U = { 0, 0, 0 };
+		n_dst.p = P0;
+		n_dst.T = T0;
 	}
 	for (size_t i = 1; i <= NumOfFace; ++i)
 	{
 		auto &f_dst = face(i);
-		f_dst.density = rho0;
-		f_dst.velocity = { 0, 0, 0 };
-		f_dst.pressure = P0;
-		f_dst.temperature = T0;
+		f_dst.rho = rho0;
+		f_dst.U = { 0, 0, 0 };
+		f_dst.p = P0;
+		f_dst.T = T0;
 	}
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
 		auto &c_dst = cell(i);
-		c_dst.density = rho0;
-		c_dst.velocity = { 0, 0, 0 };
-		c_dst.pressure = P0;
-		c_dst.temperature = T0;
+		c_dst.rho[curTimeLevel] = rho0;
+		c_dst.U[curTimeLevel] = { 0, 0, 0 };
+		c_dst.p[curTimeLevel] = P0;
+		c_dst.T[curTimeLevel] = T0;
 	}
 }
 
@@ -483,12 +546,12 @@ void BC()
 		if (e.name == "UP")
 		{
 			for (auto f : e.surface)
-				f->velocity = { U0, V0, W0 };
+				f->U = { U0, V0, W0 };
 		}
 		else
 		{
 			for (auto f : e.surface)
-				f->velocity = { 0.0, 0.0, 0.0 };
+				f->U = { 0.0, 0.0, 0.0 };
 		}
 	}
 }
@@ -503,20 +566,65 @@ void init()
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
 		auto &c = cell(i);
-		auto &curJ = c.J;
 		const size_t nF = c.surface.size();
-		curJ.resize(nF, Eigen::NoChange);
+		Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_rho, J_U, J_p, J_T;
+		J_rho.resize(nF, Eigen::NoChange);
+		J_U.resize(nF, Eigen::NoChange);
+		J_p.resize(nF, Eigen::NoChange);
+		J_T.resize(nF, Eigen::NoChange);
+
 		for (size_t j = 1; j <= nF; ++j)
 		{
 			auto curFace = c.surface(j);
 			auto curCell = c.adjCell(j);
 
 			if (curFace->atBdry)
-				curJ.row(j - 1) << curFace->center.x() - c.center.x(), curFace->center.y() - c.center.y(), curFace->center.z() - c.center.z();
+			{
+				const Scalar dx = curFace->center.x() - c.center.x();
+				const Scalar dy = curFace->center.y() - c.center.y();
+				const Scalar dz = curFace->center.z() - c.center.z();
+
+				const Scalar dx2 = 2 * dx;
+				const Scalar dy2 = 2 * dy;
+				const Scalar dz2 = 2 * dz;
+
+				if (curFace->rho_isDirichletBC)
+					J_rho.row(j - 1) << dx, dy, dz;
+				else
+					J_rho.row(j - 1) << dx2, dy2, dz2;
+
+				if (curFace->U_isDirichletBC)
+					J_U.row(j - 1) << dx, dy, dz;
+				else
+					J_U.row(j - 1) << dx2, dy2, dz2;
+
+				if (curFace->p_isDirichletBC)
+					J_p.row(j - 1) << dx, dy, dz;
+				else
+					J_p.row(j - 1) << dx2, dy2, dz2;
+
+				if (curFace->T_isDirichletBC)
+					J_T.row(j - 1) << dx, dy, dz;
+				else
+					J_T.row(j - 1) << dx2, dy2, dz2;
+			}
 			else
-				curJ.row(j - 1) << curCell->center.x() - c.center.x(), curCell->center.y() - c.center.y(), curCell->center.z() - c.center.z();
+			{
+				const Scalar dx = curCell->center.x() - c.center.x();
+				const Scalar dy = curCell->center.y() - c.center.y();
+				const Scalar dz = curCell->center.z() - c.center.z();
+
+				J_rho.row(j - 1) << dx, dy, dz;
+				J_U.row(j - 1) << dx, dy, dz;
+				J_p.row(j - 1) << dx, dy, dz;
+				J_T.row(j - 1) << dx, dy, dz;
+			}
 		}
-		c.QR = curJ.householderQr();
+
+		c.rho_QR = J_rho.householderQr();
+		c.U_QR = J_U.householderQr();
+		c.p_QR = J_p.householderQr();
+		c.T_QR = J_T.householderQr();
 	}
 }
 
@@ -534,28 +642,138 @@ bool checkConvergence()
 	return ret;
 }
 
-void calcGradients()
+void calcCellGradients()
 {
 	for (auto &c : cell)
 	{
 		const size_t nF = c.surface.size();
-		Eigen::VectorXd dphi(nF);
+		Eigen::VectorXd dphi(nF), gphi(nF);
 
-		// Gradient of Density.
+		/* Gradient of density */
 		for (size_t i = 1; i <= nF; ++i)
 		{
 			auto curFace = c.surface(i);
 			auto curCell = c.adjCell(i);
 
 			if (curFace->atBdry)
-				dphi(i - 1) = curFace->density - c.density;
+			{
+				if (curFace->rho_isDirichletBC)
+					dphi(i - 1) = curFace->rho - c.rho[curTimeLevel];
+				else
+					dphi(i - 1) = curFace->rho_ghost - c.rho[curTimeLevel];
+			}
 			else
-				dphi(i - 1) = curCell->density - c.density;
+				dphi(i - 1) = curCell->rho[curTimeLevel] - c.rho[curTimeLevel];
 		}
-		auto drho = c.QR.solve(dphi);
-		c.density_gradient.x() = drho(0);
-		c.density_gradient.y() = drho(1);
-		c.density_gradient.z() = drho(2);
+		gphi = c.rho_QR.solve(dphi);
+		c.grad_rho.x() = gphi(0);
+		c.grad_rho.y() = gphi(1);
+		c.grad_rho.z() = gphi(2);
+
+		/* Gradient of x-dim velocity */
+		for (size_t i = 1; i <= nF; ++i)
+		{
+			auto curFace = c.surface(i);
+			auto curCell = c.adjCell(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->U_isDirichletBC)
+					dphi(i - 1) = curFace->U.x() - c.U[curTimeLevel].x();
+				else
+					dphi(i - 1) = curFace->U_ghost.x() - c.U[curTimeLevel].x();
+			}
+			else
+				dphi(i - 1) = curCell->U[curTimeLevel].x() - c.U[curTimeLevel].x();
+		}
+		gphi = c.U_QR.solve(dphi);
+		c.grad_U.xx() = gphi(0);
+		c.grad_U.yx() = gphi(1);
+		c.grad_U.zx() = gphi(2);
+
+		/* Gradient of y-dim velocity */
+		for (size_t i = 1; i <= nF; ++i)
+		{
+			auto curFace = c.surface(i);
+			auto curCell = c.adjCell(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->U_isDirichletBC)
+					dphi(i - 1) = curFace->U.y() - c.U[curTimeLevel].y();
+				else
+					dphi(i - 1) = curFace->U_ghost.y() - c.U[curTimeLevel].y();
+			}
+			else
+				dphi(i - 1) = curCell->U[curTimeLevel].y() - c.U[curTimeLevel].y();
+		}
+		gphi = c.U_QR.solve(dphi);
+		c.grad_U.xy() = gphi(0);
+		c.grad_U.yy() = gphi(1);
+		c.grad_U.zy() = gphi(2);
+
+		/* Gradient of z-dim velocity */
+		for (size_t i = 1; i <= nF; ++i)
+		{
+			auto curFace = c.surface(i);
+			auto curCell = c.adjCell(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->U_isDirichletBC)
+					dphi(i - 1) = curFace->U.z() - c.U[curTimeLevel].z();
+				else
+					dphi(i - 1) = curFace->U_ghost.z() - c.U[curTimeLevel].z();
+			}
+			else
+				dphi(i - 1) = curCell->U[curTimeLevel].z() - c.U[curTimeLevel].z();
+		}
+		gphi = c.U_QR.solve(dphi);
+		c.grad_U.xz() = gphi(0);
+		c.grad_U.yz() = gphi(1);
+		c.grad_U.zz() = gphi(2);
+
+		/* Gradient of pressure */
+		for (size_t i = 1; i <= nF; ++i)
+		{
+			auto curFace = c.surface(i);
+			auto curCell = c.adjCell(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->p_isDirichletBC)
+					dphi(i - 1) = curFace->p - c.p[curTimeLevel];
+				else
+					dphi(i - 1) = curFace->p_ghost - c.p[curTimeLevel];
+			}
+			else
+				dphi(i - 1) = curCell->p[curTimeLevel] - c.p[curTimeLevel];
+		}
+		gphi = c.p_QR.solve(dphi);
+		c.grad_p.x() = gphi(0);
+		c.grad_p.y() = gphi(1);
+		c.grad_p.z() = gphi(2);
+
+		/* Gradient of temperature */
+		for (size_t i = 1; i <= nF; ++i)
+		{
+			auto curFace = c.surface(i);
+			auto curCell = c.adjCell(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->T_isDirichletBC)
+					dphi(i - 1) = curFace->T - c.T[curTimeLevel];
+				else
+					dphi(i - 1) = curFace->T_ghost - c.T[curTimeLevel];
+			}
+			else
+				dphi(i - 1) = curCell->T[curTimeLevel] - c.T[curTimeLevel];
+		}
+		gphi = c.T_QR.solve(dphi);
+		c.grad_T.x() = gphi(0);
+		c.grad_T.y() = gphi(1);
+		c.grad_T.z() = gphi(2);
 	}
 }
 
@@ -574,20 +792,17 @@ void SIMPLE()
 		{
 			const auto curFace = c.surface(j);
 
-			convection_flux += curFace->rhoU * dot_product(curFace->velocity, c.S(j));
+			convection_flux += curFace->rhoU * curFace->U.dot(c.S(j));
 
-			pressure_flux -= c.S(j) * curFace->pressure;
+			pressure_flux -= c.S(j) * curFace->p;
 
-			Vector tmp;
-			dot_product(c.S(j), curFace->tau, tmp);
-			viscous_flux += tmp;
 		}
 
 		c.rhoU_star = c.rhoU + (pressure_flux + viscous_flux - convection_flux) * (dt / c.volume);
 	}
 
 	/********************************************** Correction Step ***************************************************/
-	
+
 
 	/*************************************************** Update *******************************************************/
 
@@ -604,7 +819,7 @@ void solve()
 		std::cout << "Iter" << ++iter << ":" << std::endl;
 		dt = calcTimeStep();
 		std::cout << "\tt=" << t << "s, dt=" << dt << "s" << std::endl;
-		calcGradients();
+		calcCellGradients();
 		SIMPLE();
 		t += dt;
 		converged = checkConvergence();
@@ -618,5 +833,6 @@ int main(int argc, char *argv[])
 {
 	init();
 	solve();
+
 	return 0;
 }
