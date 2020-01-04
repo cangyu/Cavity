@@ -3,8 +3,14 @@
 #include <string>
 #include <vector>
 #include <cassert>
+#include <stdexcept>
 #include "xf.h"
 #include "Eigen/Dense"
+
+struct empty_connectivity : public std::runtime_error
+{
+	empty_connectivity(size_t idx) : std::runtime_error("Both c0 and c1 are NULL on face " + std::to_string(idx) + ".") {}
+};
 
 using namespace GridTool;
 
@@ -108,9 +114,10 @@ struct Face
 	Scalar p;
 	Scalar T;
 
-	Vector grad_rho;
-	Tensor grad_U;
-	Vector grad_T;
+	Vector grad_rho, grad_rho_av;
+	Tensor grad_U, grad_U_av;
+	Vector grad_p, grad_p_av;
+	Vector grad_T, grad_T_av;
 
 	Vector rhoU;
 
@@ -155,7 +162,7 @@ struct Cell
 	Eigen::HouseholderQR<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>> T_QR;
 };
 
-struct Patch
+struct Zone
 {
 	std::string name;
 	int BC;
@@ -184,7 +191,13 @@ Array1D<Face> face;
 Array1D<Cell> cell;
 
 // The group of boundary faces
-Array1D<Patch> patch; 
+Array1D<Zone> patch;
+
+template<typename T>
+static T relaxation(const T &a, const T &b, Scalar x)
+{
+	return (1.0 - x) * a + x * b;
+}
 
 void readMSH()
 {
@@ -556,13 +569,9 @@ void BC()
 	}
 }
 
-void init()
+// Compute J and its QR decomposition for each cell
+void calcLeastSquareCoef()
 {
-	readMSH();
-	IC();
-	BC();
-
-	// Compute J and its QR decomposition for each cell
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
 		auto &c = cell(i);
@@ -628,6 +637,14 @@ void init()
 	}
 }
 
+void init()
+{
+	readMSH();
+	IC();
+	BC();
+	calcLeastSquareCoef();
+}
+
 Scalar calcTimeStep()
 {
 	Scalar ret = 0.0;
@@ -642,7 +659,7 @@ bool checkConvergence()
 	return ret;
 }
 
-void calcCellGradients()
+void calcCellGradient_LeastSquares()
 {
 	for (auto &c : cell)
 	{
@@ -777,9 +794,289 @@ void calcCellGradients()
 	}
 }
 
+Vector interpGradientToFace(const Vector &grad_phi_f_av, Scalar phi_C, Scalar phi_F, const Vector &e_CF, Scalar d_CF)
+{
+	return grad_phi_f_av + ((phi_F - phi_C) / d_CF - grad_phi_f_av.dot(e_CF))*e_CF;
+}
+
+void calcFaceAveragedGradient()
+{
+	for (auto &f : face)
+	{
+		if (f.atBdry)
+		{
+			/* Averaged gradients at boundary face */
+			if (f.c0)
+			{
+				// density
+				if (f.rho_isDirichletBC)
+					f.grad_rho_av = f.c0->grad_rho;
+
+				// velocity
+				if (f.U_isDirichletBC)
+					f.grad_U_av = f.c0->grad_U;
+
+				// pressure
+				if (f.p_isDirichletBC)
+					f.grad_p_av = f.c0->grad_p;
+
+				// temperature
+				if (f.T_isDirichletBC)
+					f.grad_T_av = f.c0->grad_T;
+			}
+			else if (f.c1)
+			{
+				// density
+				if (f.rho_isDirichletBC)
+					f.grad_rho_av = f.c1->grad_rho;
+
+				// velocity
+				if (f.U_isDirichletBC)
+					f.grad_U_av = f.c1->grad_U;
+
+				// pressure
+				if (f.p_isDirichletBC)
+					f.grad_p_av = f.c1->grad_p;
+
+				// temperature
+				if (f.T_isDirichletBC)
+					f.grad_T_av = f.c1->grad_T;
+			}
+			else
+				throw empty_connectivity(f.index);
+		}
+		else
+		{
+			/* Averaged gradients at internal face */
+			const Scalar ksi = f.r1.norm() / (f.r0.norm() + f.r1.norm());
+
+			// density
+			f.grad_rho_av = relaxation(f.c0->grad_rho, f.c1->grad_rho, ksi);
+
+			// velocity-x
+			f.grad_U_av = relaxation(f.c0->grad_U, f.c1->grad_U, ksi);
+
+			// pressure
+			f.grad_p_av = relaxation(f.c0->grad_p, f.c1->grad_p, ksi);
+
+			// temperature
+			f.grad_T_av = relaxation(f.c0->grad_T, f.c1->grad_T, ksi);
+		}
+	}
+}
+
+void calcFaceGradient()
+{
+	for (auto &f : face)
+	{
+		if (f.atBdry)
+		{
+			/* Gradients at boundary face */
+			if (f.c0)
+			{
+				const Vector &r_C = f.c0->center;
+				const Vector &r_F = f.center;
+				Vector e_CF = r_F - r_C;
+				const Scalar d_CF = e_CF.norm();
+				e_CF /= d_CF;
+
+				// density
+				if (f.rho_isDirichletBC)
+				{
+					const Scalar rho_C = f.c0->rho[curTimeLevel];
+					const Scalar rho_F = f.rho;
+					f.grad_rho = interpGradientToFace(f.grad_rho_av, rho_C, rho_F, e_CF, d_CF);
+				}
+
+				// velocity-x
+				if (f.U_isDirichletBC)
+				{
+					const Scalar u_C = f.c0->U[curTimeLevel].x();
+					const Scalar u_F = f.U.x();
+					f.grad_U.col(0) = interpGradientToFace(f.grad_U_av.col(0), u_C, u_F, e_CF, d_CF);
+				}
+
+				// velocity-y
+				if (f.U_isDirichletBC)
+				{
+					const Scalar v_C = f.c0->U[curTimeLevel].y();
+					const Scalar v_F = f.U.y();
+					f.grad_U.col(1) = interpGradientToFace(f.grad_U_av.col(1), v_C, v_F, e_CF, d_CF);
+				}
+
+				// velocity-z
+				if (f.U_isDirichletBC)
+				{
+					const Scalar w_C = f.c0->U[curTimeLevel].z();
+					const Scalar w_F = f.U.z();
+					f.grad_U.col(2) = interpGradientToFace(f.grad_U_av.col(2), w_C, w_F, e_CF, d_CF);
+				}
+
+				// pressure
+				if (f.p_isDirichletBC)
+				{
+					const Scalar p_C = f.c0->p[curTimeLevel];
+					const Scalar p_F = f.p;
+					f.grad_p = interpGradientToFace(f.grad_p_av, p_C, p_F, e_CF, d_CF);
+				}
+
+				// temperature
+				if (f.T_isDirichletBC)
+				{
+					const Scalar T_C = f.c0->T[curTimeLevel];
+					const Scalar T_F = f.T;
+					f.grad_T = interpGradientToFace(f.grad_T_av, T_C, T_F, e_CF, d_CF);
+				}
+			}
+			else if (f.c1)
+			{
+				const Vector &r_C = f.c1->center;
+				const Vector &r_F = f.center;
+				Vector e_CF = r_F - r_C;
+				const Scalar d_CF = e_CF.norm();
+				e_CF /= d_CF;
+
+				// density
+				if (f.rho_isDirichletBC)
+				{
+					const Scalar rho_C = f.c1->rho[curTimeLevel];
+					const Scalar rho_F = f.rho;
+					f.grad_rho = interpGradientToFace(f.grad_rho_av, rho_C, rho_F, e_CF, d_CF);
+				}
+
+				// velocity-x
+				if (f.U_isDirichletBC)
+				{
+					const Scalar u_C = f.c1->U[curTimeLevel].x();
+					const Scalar u_F = f.U.x();
+					f.grad_U.col(0) = interpGradientToFace(f.grad_U_av.col(0), u_C, u_F, e_CF, d_CF);
+				}
+
+				// velocity-y
+				if (f.U_isDirichletBC)
+				{
+					const Scalar v_C = f.c1->U[curTimeLevel].y();
+					const Scalar v_F = f.U.y();
+					f.grad_U.col(1) = interpGradientToFace(f.grad_U_av.col(1), v_C, v_F, e_CF, d_CF);
+				}
+
+				// velocity-z
+				if (f.U_isDirichletBC)
+				{
+					const Scalar w_C = f.c1->U[curTimeLevel].z();
+					const Scalar w_F = f.U.z();
+					f.grad_U.col(2) = interpGradientToFace(f.grad_U_av.col(2), w_C, w_F, e_CF, d_CF);
+				}
+
+				// pressure
+				if (f.p_isDirichletBC)
+				{
+					const Scalar p_C = f.c1->p[curTimeLevel];
+					const Scalar p_F = f.p;
+					f.grad_p = interpGradientToFace(f.grad_p_av, p_C, p_F, e_CF, d_CF);
+				}
+
+				// temperature
+				if (f.T_isDirichletBC)
+				{
+					const Scalar T_C = f.c1->T[curTimeLevel];
+					const Scalar T_F = f.T;
+					f.grad_T = interpGradientToFace(f.grad_T_av, T_C, T_F, e_CF, d_CF);
+				}
+			}
+			else
+				throw empty_connectivity(f.index);
+		}
+		else
+		{
+			/* Gradients at internal face */
+			const Vector &r_C = f.c0->center;
+			const Vector &r_F = f.c1->center;
+			Vector e_CF = r_F - r_C;
+			const Scalar d_CF = e_CF.norm();
+			e_CF /= d_CF;
+
+			// density
+			const Scalar rho_C = f.c0->rho[curTimeLevel];
+			const Scalar rho_F = f.c1->rho[curTimeLevel];
+			f.grad_rho = interpGradientToFace(f.grad_rho_av, rho_C, rho_F, e_CF, d_CF);
+
+			// velocity-x
+			const Scalar u_C = f.c0->U[curTimeLevel].x();
+			const Scalar u_F = f.c1->U[curTimeLevel].x();
+			f.grad_U.col(0) = interpGradientToFace(f.grad_U_av.col(0), u_C, u_F, e_CF, d_CF);
+
+			// velocity-y
+			const Scalar v_C = f.c0->U[curTimeLevel].y();
+			const Scalar v_F = f.c1->U[curTimeLevel].y();
+			f.grad_U.col(1) = interpGradientToFace(f.grad_U_av.col(1), v_C, v_F, e_CF, d_CF);
+
+			// velocity-z
+			const Scalar w_C = f.c0->U[curTimeLevel].z();
+			const Scalar w_F = f.c1->U[curTimeLevel].z();
+			f.grad_U.col(2) = interpGradientToFace(f.grad_U_av.col(2), w_C, w_F, e_CF, d_CF);
+
+			// pressure
+			const Scalar p_C = f.c0->p[curTimeLevel];
+			const Scalar p_F = f.c1->p[curTimeLevel];
+			f.grad_p = interpGradientToFace(f.grad_p_av, p_C, p_F, e_CF, d_CF);
+
+			// temperature
+			const Scalar T_C = f.c0->T[curTimeLevel];
+			const Scalar T_F = f.c1->T[curTimeLevel];
+			f.grad_T = interpGradientToFace(f.grad_T_av, T_C, T_F, e_CF, d_CF);
+		}
+	}
+}
+
+// Spatial discretization
+void calcFaceValue()
+{
+	for (auto &f : face)
+	{
+		if (f.atBdry)
+		{
+
+		}
+		else
+		{
+			// weighting coefficient
+			const Scalar ksi = f.r1.norm() / (f.r0.norm() + f.r1.norm());
+
+			// pressure
+			const Scalar p_0 = f.c0->p[curTimeLevel] + f.c0->grad_p.dot(f.r0);
+			const Scalar p_1 = f.c1->p[curTimeLevel] + f.c1->grad_p.dot(f.r1);
+			f.p = relaxation(p_0, p_1, 0.5);
+
+			// temperature
+			const Scalar T_0 = f.c0->T[curTimeLevel] + f.c0->grad_T.dot(f.r0);
+			const Scalar T_1 = f.c1->T[curTimeLevel] + f.c1->grad_T.dot(f.r1);
+			f.T = relaxation(T_0, T_1, ksi);
+
+			// velocity
+
+
+			// density
+
+		}
+	}
+}
+
 void SIMPLE()
 {
-	/********************************************** Prediction Step ***************************************************/
+	/* Update ghost values if any */
+	// TODO
+
+	/* Compute gradients of each cell at current time level */
+	calcCellGradient_LeastSquares();
+
+	/* Compute gradients of each face at current time level */
+	calcFaceAveragedGradient();
+	calcFaceGradient();
+
+	/* Interpolate values on each face at current time level */
+	calcFaceValue();
+
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
 		auto &c = cell(i);
@@ -819,7 +1116,7 @@ void solve()
 		std::cout << "Iter" << ++iter << ":" << std::endl;
 		dt = calcTimeStep();
 		std::cout << "\tt=" << t << "s, dt=" << dt << "s" << std::endl;
-		calcCellGradients();
+		calcCellGradient_LeastSquares();
 		SIMPLE();
 		t += dt;
 		converged = checkConvergence();
