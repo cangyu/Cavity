@@ -7,8 +7,10 @@
 #include <stdexcept>
 #include "xf.h"
 #include "Eigen/Dense"
+#include "Eigen/Sparse"
 
-/************************************************ Global types and variables *****************************************/
+/************************************************** Global Types *****************************************************/
+
 /* Math types */
 typedef double Scalar;
 typedef Eigen::Matrix<Scalar, 3, 1> Vector;
@@ -72,7 +74,6 @@ struct Point
 };
 struct Face
 {
-
 	// 1-based global index
 	int index;
 
@@ -81,8 +82,9 @@ struct Face
 
 	// Area of the face element
 	Scalar area;
+	Vector n01, n10;
 
-	/* Connectivity */
+	// Connectivity
 	NaturalArray<Point*> vertex;
 	Cell *c0 = nullptr, *c1 = nullptr;
 
@@ -109,25 +111,12 @@ struct Face
 	Scalar T;
 	Vector rhoU;
 
-	// Averaged physical variables
-	Scalar rho_av;
-	Vector U_av;
-	Scalar p_av;
-	Scalar T_av;
-
 	// Gradient of physical variables
 	Vector grad_rho;
 	Tensor grad_U;
 	Vector grad_p;
 	Vector grad_T;
 	Tensor tau;
-
-	// Averaged gradient of physical variables.
-	// In general, they function as prediction of true gradients.
-	Vector grad_rho_av;
-	Tensor grad_U_av;
-	Vector grad_p_av;
-	Vector grad_T_av;
 
 	// Physical properties
 	Scalar mu;
@@ -159,29 +148,27 @@ struct Cell
 
 	/* Variables at current time-level */
 	// Physical variables
+	Scalar rho0;
+	Vector U0;
+	Scalar p0;
+	Scalar T0;
+	Vector rhoU0;
+
+	/* Runge-Kutta temporary variables */
+	// Physical properties
+	Scalar mu;
+
+	// Physical variables
 	Scalar rho;
 	Vector U;
 	Scalar p;
 	Scalar T;
-	Vector rhoU;
-	Scalar rhoE;
-	Scalar rhoH;
-
-	/* Runge-Kutta temporary variables */
-	// Physical properties
-	Scalar mu_rk;
-
-	// Physical variables
-	Scalar rho_rk;
-	Vector U_rk;
-	Scalar p_rk;
-	Scalar T_rk;
 
 	// Gradients
-	Vector grad_rho_rk;
-	Tensor grad_U_rk;
-	Vector grad_p_rk;
-	Vector grad_T_rk;
+	Vector grad_rho;
+	Tensor grad_U;
+	Vector grad_p;
+	Vector grad_T;
 
 	// Equation residuals
 	Scalar continuity_res;
@@ -201,6 +188,25 @@ struct Patch
 	int BC;
 	NaturalArray<Face*> surface;
 };
+
+/********************************************* Errors and Exceptions *************************************************/
+
+struct failed_to_open_file : public std::runtime_error
+{
+	explicit failed_to_open_file(const std::string &fn) : std::runtime_error("Failed to open target file: \"" + fn + "\".") {}
+};
+
+struct unsupported_boundary_condition : public std::invalid_argument
+{
+	explicit unsupported_boundary_condition(BC_Category x) : std::invalid_argument(std::to_string((int)x) + ".") {}
+};
+
+struct empty_connectivity : public std::runtime_error
+{
+	explicit empty_connectivity(int idx) : std::runtime_error("Both c0 and c1 are NULL on face " + std::to_string(idx) + ".") {}
+};
+
+/*************************************************** Global Variables ************************************************/
 
 /* Iteration timing and counting */
 int iter = 0;
@@ -224,24 +230,12 @@ NaturalArray<Face> face; // Face objects
 NaturalArray<Cell> cell; // Cell objects
 NaturalArray<Patch> patch; // Group of boundary faces
 
-/********************************************* Errors and Exceptions *************************************************/
-struct failed_to_open_file : public std::runtime_error
-{
-	failed_to_open_file(const std::string &fn) : std::runtime_error("Failed to open target file: \"" + fn + "\".") {}
-};
-
-struct unsupported_boundary_condition : public std::invalid_argument
-{
-	unsupported_boundary_condition(BC_Category x) : std::invalid_argument(std::to_string((int)x) + ".") {}
-};
-
-struct empty_connectivity : public std::runtime_error
-{
-	empty_connectivity(int idx) : std::runtime_error("Both c0 and c1 are NULL on face " + std::to_string(idx) + ".") {}
-};
-
 /*************************************************** File I/O ********************************************************/
-/// Load mesh.
+
+/**
+ * Load mesh.
+ * @param MESH_PATH
+ */
 void readMSH(const std::string &MESH_PATH)
 {
 	using namespace GridTool;
@@ -392,8 +386,12 @@ void readMSH(const std::string &MESH_PATH)
 	}
 }
 
-/// Output computation results.
-/// Nodal values are exported, including boundary variables.
+/**
+ * Output computation results.
+ * Nodal values are exported, including boundary variables.
+ * @param fn
+ * @param title
+ */
 void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
 {
 	static const size_t RECORD_PER_LINE = 10;
@@ -513,9 +511,13 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
 	fout.close();
 }
 
-/// Output computation results.
-/// Cell-Centered values are exported, boundary variables are NOT included.
-/// Only for continuation purpose.
+/**
+ * Output computation results.
+ * Cell-Centered values are exported, boundary variables are NOT included.
+ * Only for continuation purpose.
+ * @param fn
+ * @param title
+ */
 void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
 {
 	static const size_t RECORD_PER_LINE = 10;
@@ -564,7 +566,7 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
 	// Density
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).rho;
+		fout << '\t' << cell(i).rho0;
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -574,7 +576,7 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
 	// Velocity-X
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).U.x();
+		fout << '\t' << cell(i).U0.x();
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -584,7 +586,7 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
 	// Velocity-Y
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).U.y();
+		fout << '\t' << cell(i).U0.y();
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -594,7 +596,7 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
 	// Velocity-Z
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).U.z();
+		fout << '\t' << cell(i).U0.z();
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -604,7 +606,7 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
 	// Pressure
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).p;
+		fout << '\t' << cell(i).p0;
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -614,7 +616,7 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
 	// Temperature
 	for (size_t i = 1; i <= NumOfCell; ++i)
 	{
-		fout << '\t' << cell(i).T;
+		fout << '\t' << cell(i).T0;
 		if (i % RECORD_PER_LINE == 0)
 			fout << std::endl;
 	}
@@ -635,8 +637,11 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
 	fout.close();
 }
 
-/// Extract NODAL solution variables only.
-/// Should be consistent with existing mesh!!!
+/**
+ * Extract NODAL solution variables only.
+ * Should be consistent with existing mesh!!!
+ * @param fn
+ */
 void readTECPLOT_Nodal(const std::string &fn)
 {
 	std::ifstream fin(fn);
@@ -687,9 +692,12 @@ void readTECPLOT_Nodal(const std::string &fn)
 	fin.close();
 }
 
-/// Extract CELL-CENTERED solution variables only.
-/// Should be consistent with existing mesh!!!
-/// Only for continuation purpose.
+/**
+ * Extract CELL-CENTERED solution variables only.
+ * Should be consistent with existing mesh!!!
+ * Only for continuation purpose.
+ * @param fn
+ */
 void readTECPLOT_CellCentered(const std::string &fn)
 {
 	std::ifstream fin(fn);
@@ -714,45 +722,67 @@ void readTECPLOT_CellCentered(const std::string &fn)
 	/* Load data */
 	// Density
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).rho;
+		fin >> cell(i).rho0;
 
 	// Velocity-X
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).U.x();
+		fin >> cell(i).U0.x();
 
 	// Velocity-Y
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).U.y();
+		fin >> cell(i).U0.y();
 
 	// Velocity-Z
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).U.z();
+		fin >> cell(i).U0.z();
 
 	// Pressure
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).p;
+		fin >> cell(i).p0;
 
 	// Temperature
 	for (size_t i = 1; i <= NumOfCell; ++i)
-		fin >> cell(i).T;
+		fin >> cell(i).T0;
 
 	/* Finalize */
 	fin.close();
 }
 
-/*************************************************** Functions *******************************************************/
-/// QR decomposition matrix of each cell.
-/// For boundary cells, ghost cells are used when the B.C. of related faces are set to Neumann type.
-void calcLeastSquareCoef()
-{
-	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_rho;
-	std::array<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>, 3> J_U;
-	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_p;
-	Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_T;
+/*********************************************** Least-Squares Method ************************************************/
 
+/**
+ * Convert Eigen's intrinsic QR decomposition matrix into R^-1 * Q^T
+ * @param J
+ * @param J_INV
+ */
+static void extractQRMatrix(const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J, Eigen::Matrix<Scalar, 3, Eigen::Dynamic> &J_INV)
+{
+	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> Mat;
+
+	auto QR = J.householderQr();
+	const Mat Q = QR.householderQ();
+	const Mat R = QR.matrixQR().triangularView<Eigen::Upper>();
+
+	const Mat Q0 = Q.block(0, 0, J.rows(), 3);
+	const Mat R0 = R.block<3, 3>(0, 0);
+
+	J_INV = R0.inverse() * Q0.transpose();
+}
+
+/**
+ * QR decomposition matrix of each cell.
+ * Ghost cells are used when the B.C. of boundary faces are set to Neumann type.
+ */
+void calcLeastSquareCoefficients()
+{
 	for (auto &c : cell)
 	{
 		const size_t nF = c.surface.size();
+
+		Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_rho;
+		std::array<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>, 3> J_U;
+		Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_p;
+		Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_T;
 
 		J_rho.resize(nF, Eigen::NoChange);
 		J_U[0].resize(nF, Eigen::NoChange);
@@ -892,26 +922,1055 @@ void calcLeastSquareCoef()
 			}
 		}
 
+		// Density
+		extractQRMatrix(J_rho, c.J_INV_rho);
 
-		auto Q = J_rho.householderQr().matrixQR();
+		// Velocity-X
+		extractQRMatrix(J_U[0], c.J_INV_U[0]);
 
-		/*
-		c.rho_QR = J_rho.householderQr();
-		c.U_QR[0] = J_U.householderQr();
-		c.p_QR = J_p.householderQr();
-		c.T_QR = J_T.householderQr();
-		*/
+		// Velocity-Y
+		extractQRMatrix(J_U[1], c.J_INV_U[1]);
+
+		// Velocity-Z
+		extractQRMatrix(J_U[2], c.J_INV_U[2]);
+
+		// Pressure
+		extractQRMatrix(J_p, c.J_INV_p);
+
+		// Temperature
+		extractQRMatrix(J_T, c.J_INV_T);
 	}
 }
 
-/// Dynamic viscosity of ideal gas.
+/************************************************ Physical properties ************************************************/
+
+/**
+ * Dynamic viscosity of ideal gas.
+ * @param T
+ * @return
+ */
 Scalar Sutherland(Scalar T)
 {
 	return 1.45e-6 * std::pow(T, 1.5) / (T + 110.0);
 }
 
+/***************************************************** I.C. & B.C. ***************************************************/
 
+/**
+ * Initial conditions on all nodes, faces and cells.
+ */
+void IC()
+{
+	// Node
+	for (size_t i = 1; i <= NumOfPnt; ++i)
+	{
+		auto &n_dst = pnt(i);
+		n_dst.rho = rho0;
+		n_dst.U = { 0, 0, 0 };
+		n_dst.p = P0;
+		n_dst.T = T0;
+	}
 
+	// Face
+	for (size_t i = 1; i <= NumOfFace; ++i)
+	{
+		auto &f_dst = face(i);
+		f_dst.rho = rho0;
+		f_dst.U = { 0, 0, 0 };
+		f_dst.p = P0;
+		f_dst.T = T0;
+	}
+
+	// Cell
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		auto &c_dst = cell(i);
+		c_dst.rho0 = rho0;
+		c_dst.U0 = { 0, 0, 0 };
+		c_dst.p0 = P0;
+		c_dst.T0 = T0;
+	}
+}
+
+/**
+ * Boundary conditions on all related nodes and faces.
+ */
+void BC()
+{
+	// Face
+	for (auto &e : patch)
+	{
+		if (e.name == "UP")
+		{
+			for (auto f : e.surface)
+				f->U = U0;
+		}
+		else
+		{
+			for (auto f : e.surface)
+				f->U = { 0.0, 0.0, 0.0 };
+		}
+	}
+
+	// Node
+	std::vector<bool> visited(NumOfPnt + 1, false);
+	for (auto &e : patch)
+	{
+		if (e.name == "UP")
+		{
+			for (auto f : e.surface)
+				for (auto v : f->vertex)
+					if (!visited[v->index])
+					{
+						v->U = U0;
+						visited[v->index] = true;
+					}
+		}
+	}
+	for (auto & e : patch)
+	{
+		if (e.name != "UP")
+		{
+			for (auto f : e.surface)
+				for (auto v : f->vertex)
+					if (!visited[v->index])
+					{
+						v->U = { 0.0, 0.0, 0.0 };
+						visited[v->index] = true;
+					}
+		}
+	}
+}
+
+/*********************************************** Spatial Discretization **********************************************/
+
+void calcCellProperty()
+{
+	for (auto &c : cell)
+	{
+		// Dynamic viscosity
+		c.mu = Sutherland(c.T);
+	}
+}
+
+void calcFaceGhostVariable()
+{
+	for (auto &f : face)
+	{
+		if (f.atBdry)
+		{
+			if (f.c0)
+			{
+				// density
+				switch (f.rho_BC)
+				{
+				case Neumann:
+					f.rho_ghost = f.c0->rho + 2 * f.grad_rho.dot(f.r0);
+					break;
+				case Dirichlet:
+					f.rho_ghost = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-x
+				switch (f.U_BC[0])
+				{
+				case Neumann:
+					f.U_ghost.x() = f.c0->U[0] + 2 * f.grad_U.col(0).dot(f.r0);
+					break;
+				case Dirichlet:
+					f.U_ghost.x() = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-y
+				switch (f.U_BC[1])
+				{
+				case Neumann:
+					f.U_ghost.y() = f.c0->U[1] + 2 * f.grad_U.col(1).dot(f.r0);
+					break;
+				case Dirichlet:
+					f.U_ghost.y() = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-z
+				switch (f.U_BC[2])
+				{
+				case Neumann:
+					f.U_ghost.z() = f.c0->U[2] + 2 * f.grad_U.col(2).dot(f.r0);
+					break;
+				case Dirichlet:
+					f.U_ghost.z() = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// pressure
+				switch (f.p_BC)
+				{
+				case Neumann:
+					f.p_ghost = f.c0->p + 2 * f.grad_p.dot(f.r0);
+					break;
+				case Dirichlet:
+					f.p_ghost = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// temperature
+				switch (f.T_BC)
+				{
+				case Neumann:
+					f.T_ghost = f.c0->T + 2 * f.grad_T.dot(f.r0);
+					break;
+				case Dirichlet:
+					f.p_ghost = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+			}
+			else if (f.c1)
+			{
+				// density
+				switch (f.rho_BC)
+				{
+				case Neumann:
+					f.rho_ghost = f.c1->rho + 2 * f.grad_rho.dot(f.r1);
+					break;
+				case Dirichlet:
+					f.rho_ghost = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-x
+				switch (f.U_BC[0])
+				{
+				case Neumann:
+					f.U_ghost.x() = f.c1->U[0] + 2 * f.grad_U.col(0).dot(f.r1);
+					break;
+				case Dirichlet:
+					f.U_ghost.x() = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-y
+				switch (f.U_BC[1])
+				{
+				case Neumann:
+					f.U_ghost.y() = f.c1->U[1] + 2 * f.grad_U.col(1).dot(f.r1);
+					break;
+				case Dirichlet:
+					f.U_ghost.y() = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-z
+				switch (f.U_BC[2])
+				{
+				case Neumann:
+					f.U_ghost.z() = f.c1->U[2] + 2 * f.grad_U.col(2).dot(f.r1);
+					break;
+				case Dirichlet:
+					f.U_ghost.z() = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// pressure
+				switch (f.p_BC)
+				{
+				case Neumann:
+					f.p_ghost = f.c1->p + 2 * f.grad_p.dot(f.r1);
+					break;
+				case Dirichlet:
+					f.p_ghost = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// temperature
+				switch (f.T_BC)
+				{
+				case Neumann:
+					f.T_ghost = f.c1->T + 2 * f.grad_T.dot(f.r1);
+					break;
+				case Dirichlet:
+					f.T_ghost = 0.0;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+			}
+			else
+				throw empty_connectivity(f.index);
+		}
+	}
+}
+
+void calcCellGradient()
+{
+	for (auto &c : cell)
+	{
+		const size_t nF = c.surface.size();
+		Eigen::VectorXd dphi(nF);
+
+		/* Gradient of density */
+		for (size_t i = 0; i < nF; ++i)
+		{
+			auto curFace = c.surface.at(i);
+			auto curAdjCell = c.adjCell.at(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->rho_BC == Dirichlet)
+					dphi(i) = curFace->rho - c.rho;
+				else
+					dphi(i) = curFace->rho_ghost - c.rho;
+			}
+			else
+				dphi(i) = curAdjCell->rho - c.rho;
+		}
+		c.grad_rho = c.J_INV_rho * dphi;
+
+		/* Gradient of x-dim velocity */
+		for (size_t i = 0; i < nF; ++i)
+		{
+			auto curFace = c.surface.at(i);
+			auto curAdjCell = c.adjCell.at(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->U_BC[0] == Dirichlet)
+					dphi(i) = curFace->U.x() - c.U.x();
+				else
+					dphi(i) = curFace->U_ghost.x() - c.U.x();
+			}
+			else
+				dphi(i) = curAdjCell->U.x() - c.U.x();
+		}
+		c.grad_U.col(0) = c.J_INV_U[0] * dphi;
+
+		/* Gradient of y-dim velocity */
+		for (size_t i = 0; i < nF; ++i)
+		{
+			auto curFace = c.surface.at(i);
+			auto curAdjCell = c.adjCell.at(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->U_BC[1] == Dirichlet)
+					dphi(i) = curFace->U.y() - c.U.y();
+				else
+					dphi(i) = curFace->U_ghost.y() - c.U.y();
+			}
+			else
+				dphi(i) = curAdjCell->U.y() - c.U.y();
+		}
+		c.grad_U.col(1) = c.J_INV_U[1] * dphi;
+
+		/* Gradient of z-dim velocity */
+		for (size_t i = 0; i < nF; ++i)
+		{
+			auto curFace = c.surface.at(i);
+			auto curAdjCell = c.adjCell.at(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->U_BC[2] == Dirichlet)
+					dphi(i) = curFace->U.z() - c.U.z();
+				else
+					dphi(i) = curFace->U_ghost.z() - c.U.z();
+			}
+			else
+				dphi(i) = curAdjCell->U.z() - c.U.z();
+		}
+		c.grad_U.col(2) = c.J_INV_U[2] * dphi;
+
+		/* Gradient of pressure */
+		for (size_t i = 0; i < nF; ++i)
+		{
+			auto curFace = c.surface.at(i);
+			auto curAdjCell = c.adjCell.at(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->p_BC == Dirichlet)
+					dphi(i) = curFace->p - c.p;
+				else
+					dphi(i) = curFace->p_ghost - c.p;
+			}
+			else
+				dphi(i) = curAdjCell->p - c.p;
+		}
+		c.grad_p = c.J_INV_p * dphi;
+
+		/* Gradient of temperature */
+		for (size_t i = 0; i < nF; ++i)
+		{
+			auto curFace = c.surface.at(i);
+			auto curAdjCell = c.adjCell.at(i);
+
+			if (curFace->atBdry)
+			{
+				if (curFace->T_BC == Dirichlet)
+					dphi(i) = curFace->T - c.T;
+				else
+					dphi(i) = curFace->T_ghost - c.T;
+			}
+			else
+				dphi(i) = curAdjCell->T - c.T;
+		}
+		c.grad_T = c.J_INV_T * dphi;
+	}
+}
+
+inline Vector interpGradientToFace(const Vector &predict_grad_phi_f, Scalar phi_C, Scalar phi_F, const Vector &e_CF, Scalar d_CF)
+{
+	return predict_grad_phi_f + ((phi_F - phi_C) / d_CF - predict_grad_phi_f.dot(e_CF))*e_CF;
+}
+
+void calcFaceGradient()
+{
+	for (auto &f : face)
+	{
+		if (f.atBdry)
+		{
+			/* Gradients at boundary face */
+			if (f.c0)
+			{
+				const Vector &r_C = f.c0->center;
+				const Vector &r_F = f.center;
+				Vector e_CF = r_F - r_C;
+				const Scalar d_CF = e_CF.norm();
+				e_CF /= d_CF;
+
+				// density
+				switch (f.rho_BC)
+				{
+				case Dirichlet:
+					f.grad_rho = interpGradientToFace(f.c0->grad_rho, f.c0->rho, f.rho, e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-x
+				switch (f.U_BC[0])
+				{
+				case Dirichlet:
+					f.grad_U.col(0) = interpGradientToFace(f.c0->grad_U.col(0), f.c0->U.x(), f.U.x(), e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-y
+				switch (f.U_BC[1])
+				{
+				case Dirichlet:
+					f.grad_U.col(1) = interpGradientToFace(f.c0->grad_U.col(1), f.c0->U.y(), f.U.y(), e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-z
+				switch (f.U_BC[2])
+				{
+				case Dirichlet:
+					f.grad_U.col(2) = interpGradientToFace(f.c0->grad_U.col(2), f.c0->U.z(), f.U.z(), e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// pressure
+				switch (f.p_BC)
+				{
+				case Dirichlet:
+					f.grad_p = interpGradientToFace(f.c0->grad_p, f.c0->p, f.p, e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// temperature
+				switch (f.T_BC)
+				{
+				case Dirichlet:
+					f.grad_T = interpGradientToFace(f.c0->grad_T, f.c0->T, f.T, e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+			}
+			else if (f.c1)
+			{
+				const Vector &r_C = f.c1->center;
+				const Vector &r_F = f.center;
+				Vector e_CF = r_F - r_C;
+				const Scalar d_CF = e_CF.norm();
+				e_CF /= d_CF;
+
+				// density
+				switch (f.rho_BC)
+				{
+				case Dirichlet:
+					f.grad_rho = interpGradientToFace(f.c1->grad_rho, f.c1->rho, f.rho, e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-x
+				switch (f.U_BC[0])
+				{
+				case Dirichlet:
+					f.grad_U.col(0) = interpGradientToFace(f.c1->grad_U.col(0), f.c1->U.x(), f.U.x(), e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-y
+				switch (f.U_BC[1])
+				{
+				case Dirichlet:
+					f.grad_U.col(1) = interpGradientToFace(f.c1->grad_U.col(1), f.c1->U.y(), f.U.y(), e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-z
+				switch (f.U_BC[2])
+				{
+				case Dirichlet:
+					f.grad_U.col(2) = interpGradientToFace(f.c1->grad_U.col(2), f.c1->U.z(), f.U.z(), e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// pressure
+				switch (f.p_BC)
+				{
+				case Dirichlet:
+					f.grad_p = interpGradientToFace(f.c1->grad_p, f.c1->p, f.p, e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// temperature
+				switch (f.T_BC)
+				{
+				case Dirichlet:
+					f.grad_T = interpGradientToFace(f.c1->grad_T, f.c1->T, f.T, e_CF, d_CF);
+					break;
+				case Neumann:
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+			}
+			else
+				throw empty_connectivity(f.index);
+		}
+		else
+		{
+			/* Gradients at internal face */
+			const Vector &r_C = f.c0->center;
+			const Vector &r_F = f.c1->center;
+			Vector e_CF = r_F - r_C;
+			const Scalar d_CF = e_CF.norm();
+			e_CF /= d_CF;
+
+			const Scalar ksi = f.r1.norm() / (f.r0.norm() + f.r1.norm());
+
+			// density
+			const Vector predicted_grad_rho = ksi * f.c0->grad_rho + (1 - ksi) * f.c1->grad_rho;
+			const Scalar rho_C = f.c0->rho;
+			const Scalar rho_F = f.c1->rho;
+			f.grad_rho = interpGradientToFace(predicted_grad_rho, rho_C, rho_F, e_CF, d_CF);
+
+			// velocity-x
+			const Vector predicted_grad_u = ksi * f.c0->grad_U.col(0) + (1 - ksi) * f.c1->grad_U.col(0);
+			const Scalar u_C = f.c0->U.x();
+			const Scalar u_F = f.c1->U.x();
+			f.grad_U.col(0) = interpGradientToFace(predicted_grad_u, u_C, u_F, e_CF, d_CF);
+
+			// velocity-y
+			const Vector predicted_grad_v = ksi * f.c0->grad_U.col(1) + (1 - ksi) * f.c1->grad_U.col(1);
+			const Scalar v_C = f.c0->U.y();
+			const Scalar v_F = f.c1->U.y();
+			f.grad_U.col(1) = interpGradientToFace(predicted_grad_v, v_C, v_F, e_CF, d_CF);
+
+			// velocity-z
+			const Vector predicted_grad_w = ksi * f.c0->grad_U.col(2) + (1 - ksi) * f.c1->grad_U.col(2);
+			const Scalar w_C = f.c0->U.z();
+			const Scalar w_F = f.c1->U.z();
+			f.grad_U.col(2) = interpGradientToFace(predicted_grad_w, w_C, w_F, e_CF, d_CF);
+
+			// pressure
+			const Vector predicted_grad_p = ksi * f.c0->grad_p + (1 - ksi) * f.c1->grad_p;
+			const Scalar p_C = f.c0->p;
+			const Scalar p_F = f.c1->p;
+			f.grad_p = interpGradientToFace(predicted_grad_p, p_C, p_F, e_CF, d_CF);
+
+			// temperature
+			const Vector predicted_grad_T = ksi * f.c0->grad_T + (1 - ksi) * f.c1->grad_T;
+			const Scalar T_C = f.c0->T;
+			const Scalar T_F = f.c1->T;
+			f.grad_T = interpGradientToFace(predicted_grad_T, T_C, T_F, e_CF, d_CF);
+		}
+	}
+}
+
+void calcFaceValue()
+{
+	for (auto &f : face)
+	{
+		if (f.atBdry)
+		{
+			if (f.c0)
+			{
+				// density
+				switch (f.rho_BC)
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.rho = f.c0->rho + (f.grad_rho + f.c0->grad_rho).dot(f.r0) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-x
+				switch (f.U_BC[0])
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.U.x() = f.c0->U.x() + (f.grad_U.col(0) + f.c0->grad_U.col(0)).dot(f.r0) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-y
+				switch (f.U_BC[1])
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.U.y() = f.c0->U.y() + (f.grad_U.col(1) + f.c0->grad_U.col(1)).dot(f.r0) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-z
+				switch (f.U_BC[2])
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.U.z() = f.c0->U.z() + (f.grad_U.col(2) + f.c0->grad_U.col(2)).dot(f.r0) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// pressure
+				switch (f.p_BC)
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.p = f.c0->p + (f.grad_p + f.c0->grad_p).dot(f.r0) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// temperature
+				switch (f.T_BC)
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.T = f.c0->T + (f.grad_T + f.c0->grad_T).dot(f.r0) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+			}
+			else if (f.c1)
+			{
+				// density
+				switch (f.rho_BC)
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.rho = f.c1->rho + (f.grad_rho + f.c1->grad_rho).dot(f.r1) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-x
+				switch (f.U_BC[0])
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.U.x() = f.c1->U.x() + (f.grad_U.col(0) + f.c1->grad_U.col(0)).dot(f.r1) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-y
+				switch (f.U_BC[1])
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.U.y() = f.c1->U.y() + (f.grad_U.col(1) + f.c1->grad_U.col(1)).dot(f.r1) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// velocity-z
+				switch (f.U_BC[2])
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.U.z() = f.c1->U.z() + (f.grad_U.col(2) + f.c1->grad_U.col(2)).dot(f.r1) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// pressure
+				switch (f.p_BC)
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.p = f.c1->p + (f.grad_p + f.c1->grad_p).dot(f.r1) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// temperature
+				switch (f.T_BC)
+				{
+				case Dirichlet:
+					break;
+				case Neumann:
+					f.T = f.c1->T + (f.grad_T + f.c1->grad_T).dot(f.r1) / 2;
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+			}
+			else
+				throw empty_connectivity(f.index);
+		}
+		else
+		{
+			// weighting coefficient
+			const Scalar ksi = f.r1.norm() / (f.r0.norm() + f.r1.norm());
+
+			// pressure
+			const Scalar p_0 = f.c0->p + f.c0->grad_p.dot(f.r0);
+			const Scalar p_1 = f.c1->p + f.c1->grad_p.dot(f.r1);
+			f.p = 0.5 * (p_0 + p_1);
+
+			// temperature
+			const Scalar T_0 = f.c0->T + f.c0->grad_T.dot(f.r0);
+			const Scalar T_1 = f.c1->T + f.c1->grad_T.dot(f.r1);
+			f.T = ksi * T_0 + (1.0 - ksi) * T_1;
+
+			// velocity
+			if (f.U.dot(f.n01) > 0)
+			{
+				const Scalar u_0 = f.c0->U.x() + f.c0->grad_U.col(0).dot(f.r0);
+				const Scalar v_0 = f.c0->U.y() + f.c0->grad_U.col(1).dot(f.r0);
+				const Scalar w_0 = f.c0->U.z() + f.c0->grad_U.col(2).dot(f.r0);
+
+				f.U = { u_0, v_0, w_0 };
+			}
+			else
+			{
+				const Scalar u_1 = f.c1->U.x() + f.c1->grad_U.col(0).dot(f.r1);
+				const Scalar v_1 = f.c1->U.y() + f.c1->grad_U.col(1).dot(f.r1);
+				const Scalar w_1 = f.c1->U.z() + f.c1->grad_U.col(2).dot(f.r1);
+
+				f.U = { u_1, v_1, w_1 };
+			}
+
+			// density
+			if (f.U.dot(f.n01) > 0)
+				f.rho = f.c0->rho + f.c0->grad_rho.dot(f.r0);
+			else
+				f.rho = f.c1->rho + f.c1->grad_rho.dot(f.r1);
+		}
+	}
+}
+
+void calcFaceProperty()
+{
+	for (auto &f : face)
+	{
+		// Dynamic viscosity
+		f.mu = Sutherland(f.T);
+	}
+}
+
+void calcCellFlux()
+{
+	// Continuity equation
+	// TODO
+
+	// Momentum equation
+	for (auto &c : cell)
+	{
+		c.pressure_flux.setZero();
+		c.convection_flux.setZero();
+		c.viscous_flux.setZero();
+
+		for (size_t j = 0; j < c.S.size(); ++j)
+		{
+			auto f = c.surface.at(j);
+			const auto &Sf = c.S.at(j);
+
+			// pressure term
+			const Vector cur_pressure_flux = f->p * Sf;
+			c.pressure_flux += cur_pressure_flux;
+
+			// convection term
+			const Vector cur_convection_flux = f->rhoU * f->U.dot(Sf);
+			c.convection_flux += cur_convection_flux;
+
+			// viscous term
+			const Vector cur_viscous_flux = { Sf.dot(f->tau.col(0)), Sf.dot(f->tau.col(1)), Sf.dot(f->tau.col(2)) };
+			c.viscous_flux += cur_viscous_flux;
+		}
+	}
+
+	// Energy equation
+	// TODO
+}
+
+/*********************************************** Temporal Discretization *********************************************/
+
+/**
+ * Explicit Fractional-Step Method.
+ * @param TimeStep
+ */
+void FSM(Scalar TimeStep)
+{
+	BC();
+
+	// Physical properties at centroid of each cell
+	calcCellProperty();
+
+	// Boundary ghost values if any
+	calcFaceGhostVariable();
+
+	// Gradients at centroid of each cell
+	calcCellGradient();
+
+	// Gradients at centroid of each face
+	calcFaceGradient();
+
+	// Interpolate values on each face
+	calcFaceValue();
+
+	// Physical properties at centroid of each face
+	calcFaceProperty();
+
+	calcCellFlux();
+
+	// Prediction
+	for (auto &c : cell)
+		c.rhoU_star = c.rhoU0 + TimeStep / c.volume * (c.pressure_flux + c.viscous_flux - c.convection_flux);
+
+	// Correction
+	// TODO
+
+	// Update
+	// TODO
+}
+
+/**
+ * 4-step Runge-Kutta time-marching.
+ * @param TimeStep
+ */
+void RK4(Scalar TimeStep)
+{
+	/* Init */
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		auto &c = cell(i);
+		c.rho = c.rho0;
+		c.U = c.U0;
+		c.p = c.p0;
+		c.T = c.T0;
+	}
+
+	static const std::array<Scalar, 4> alpha = { 1.0 / 4, 1.0 / 3, 1.0 / 2, 1.0 };
+
+	/* Step 1-4 */
+	for (size_t m = 0; m < 4; ++m)
+	{
+		const Scalar cur_dt = alpha[m] * TimeStep;
+
+		// Update pressure-velocity coupling, and compute residuals.
+		FSM(cur_dt);
+
+		// Update scalars
+		for (size_t i = 1; i <= NumOfCell; ++i)
+		{
+			auto &c = cell(i);
+			c.rho = c.rho0 + cur_dt * c.continuity_res;
+			c.T = c.T0 + cur_dt * c.energy_res;
+		}
+	}
+
+	/* Update */
+	for (size_t i = 1; i <= NumOfCell; ++i)
+	{
+		auto &c = cell(i);
+		c.rho0 = c.rho;
+		c.U0 = c.U;
+		c.p0 = c.p;
+		c.T0 = c.T;
+		c.rhoU0 = c.rho0 * c.U0;
+	}
+}
+
+/***************************************************** Solution Control **********************************************/
 
 bool diagnose()
 {
@@ -927,70 +1986,17 @@ Scalar calcTimeStep()
 	return ret;
 }
 
-/// Initial conditions.
-void IC()
-{
-	for (size_t i = 1; i <= NumOfPnt; ++i)
-	{
-		auto &n_dst = pnt(i);
-		n_dst.rho = rho0;
-		n_dst.U = { 0, 0, 0 };
-		n_dst.p = P0;
-		n_dst.T = T0;
-	}
-	for (size_t i = 1; i <= NumOfFace; ++i)
-	{
-		auto &f_dst = face(i);
-		f_dst.rho = rho0;
-		f_dst.U = { 0, 0, 0 };
-		f_dst.p = P0;
-		f_dst.T = T0;
-	}
-	for (size_t i = 1; i <= NumOfCell; ++i)
-	{
-		auto &c_dst = cell(i);
-		c_dst.rho = rho0;
-		c_dst.U = { 0, 0, 0 };
-		c_dst.p = P0;
-		c_dst.T = T0;
-	}
-}
-
-/// Boundary conditions.
-void BC()
-{
-	for (auto &e : patch)
-	{
-		if (e.name == "UP")
-		{
-			for (auto f : e.surface)
-			{
-				f->U = U0;
-				for (auto v : f->vertex)
-					v->U = U0;
-			}
-		}
-		else
-		{
-			for (auto f : e.surface)
-				f->U = { 0.0, 0.0, 0.0 };
-		}
-	}
-}
-
 void solve(std::ostream &fout = std::cout)
 {
 	static const size_t OUTPUT_GAP = 100;
 
 	bool done = false;
-
-
 	while (!done)
 	{
 		fout << "Iter" << ++iter << ":" << std::endl;
 		dt = calcTimeStep();
 		fout << "\tt=" << t << "s, dt=" << dt << "s" << std::endl;
-		//RK4(dt);
+		RK4(dt);
 		t += dt;
 		done = diagnose();
 		if (done || !(iter % OUTPUT_GAP))
@@ -1003,14 +2009,8 @@ void solve(std::ostream &fout = std::cout)
 void init()
 {
 	readMSH("grid0.msh");
-	calcLeastSquareCoef();
-
-
+	calcLeastSquareCoefficients();
 	IC();
-	BC();
-	writeTECPLOT_Nodal("flow0.dat", "3D Cavity");
-	exit(-1);
-
 }
 
 int main(int argc, char *argv[])
@@ -1020,3 +2020,5 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
+
+/********************************************************* END *******************************************************/
