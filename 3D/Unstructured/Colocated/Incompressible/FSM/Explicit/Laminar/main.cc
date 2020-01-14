@@ -209,9 +209,7 @@ struct empty_connectivity : public std::runtime_error
 /*************************************************** Global Variables ************************************************/
 
 /* Iteration timing and counting */
-int iter = 0;
 const int MAX_ITER = 2000;
-Scalar dt = 0.0, t = 0.0; // s
 const Scalar MAX_TIME = 100.0; // s
 
 /* Constant field variables */
@@ -775,14 +773,16 @@ static void extractQRMatrix(const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J, E
  */
 void calcLeastSquareCoefficients()
 {
+	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 3> Mat;
+
+	Mat J_rho;
+	std::array<Mat, 3> J_U;
+	Mat J_p;
+	Mat J_T;
+
 	for (auto &c : cell)
 	{
 		const size_t nF = c.surface.size();
-
-		Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_rho;
-		std::array<Eigen::Matrix<Scalar, Eigen::Dynamic, 3>, 3> J_U;
-		Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_p;
-		Eigen::Matrix<Scalar, Eigen::Dynamic, 3> J_T;
 
 		J_rho.resize(nF, Eigen::NoChange);
 		J_U[0].resize(nF, Eigen::NoChange);
@@ -1366,9 +1366,9 @@ void calcCellGradient()
 	}
 }
 
-inline Vector interpGradientToFace(const Vector &predict_grad_phi_f, Scalar phi_C, Scalar phi_F, const Vector &e_CF, Scalar d_CF)
+inline Vector interpGradientToFace(const Vector &predicted_grad_phi_f, Scalar phi_C, Scalar phi_F, const Vector &e_CF, Scalar d_CF)
 {
-	return predict_grad_phi_f + ((phi_F - phi_C) / d_CF - predict_grad_phi_f.dot(e_CF))*e_CF;
+	return predicted_grad_phi_f + ((phi_F - phi_C) / d_CF - predicted_grad_phi_f.dot(e_CF))*e_CF;
 }
 
 void calcFaceGradient()
@@ -1981,7 +1981,7 @@ bool diagnose()
 
 Scalar calcTimeStep()
 {
-	Scalar ret = 0.0;
+	Scalar ret = 1e-5;
 
 	return ret;
 }
@@ -1990,6 +1990,9 @@ void solve(std::ostream &fout = std::cout)
 {
 	static const size_t OUTPUT_GAP = 100;
 
+	int iter = 0;
+	Scalar dt = 0.0; // s
+	Scalar t = 0.0; // s
 	bool done = false;
 	while (!done)
 	{
@@ -2005,7 +2008,9 @@ void solve(std::ostream &fout = std::cout)
 	fout << "Finished!" << std::endl;
 }
 
-/// Initialize the compuation environment.
+/**
+ * Initialize the compuation environment.
+ */
 void init()
 {
 	readMSH("grid0.msh");
@@ -2013,6 +2018,12 @@ void init()
 	IC();
 }
 
+/**
+ * Solver entrance.
+ * @param argc
+ * @param argv
+ * @return
+ */
 int main(int argc, char *argv[])
 {
 	init();
