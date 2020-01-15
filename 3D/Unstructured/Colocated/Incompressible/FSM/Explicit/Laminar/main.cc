@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <map>
 #include <cmath>
 #include <cassert>
 #include <stdexcept>
@@ -1882,6 +1883,102 @@ void calcCellFlux()
 	// TODO
 }
 
+void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs)
+{
+	rhs.setZero();
+	std::vector<Eigen::Triplet<Scalar>> coef;
+	
+	for(const auto &C : cell)
+	{
+		const Scalar Omega_C = C.volume;
+
+		// Initialize coefficient baseline.
+		std::map<int, double> cur_coef;
+		cur_coef[C.index] = 0.0;
+		for (auto F : C.adjCell)
+		{
+			if (F)
+			{
+				cur_coef[F->index] = 0.0;
+				for (auto FF : F->adjCell)
+					cur_coef[FF->index] = 0.0;
+			}
+		}
+
+		// Compute coefficient contributions.
+		const auto N_C = C.surface.size();
+		for (auto f = 1; f <= N_C; ++f)
+		{
+			const auto &S_f = C.S(f);
+			auto curFace = C.surface(f);
+			if (curFace->atBdry)
+			{
+				auto F = C.adjCell(f);
+				const auto N_F = F->surface.size();
+
+				const Vector r_C = curFace->center - C.center;
+				const Vector r_F = curFace->center - F->center;
+				const Scalar d_f = (F->center - C.center).norm();
+				const Vector e_f = (r_C - r_F) / d_f;
+				const Scalar ksi_f = 1.0 / (1.0 + r_F.norm() / r_C.norm());
+				const Scalar x_f = e_f.dot(S_f);
+				const Vector y_f = S_f - x_f * e_f;
+
+				const Eigen::VectorXd J_C = ksi_f * y_f.transpose() * C.J_INV_p;
+				const Eigen::VectorXd J_F = (1.0 - ksi_f) * y_f.transpose() * F->J_INV_p;
+
+				// Part1
+				cur_coef[F->index] += x_f / d_f;
+				cur_coef[C.index] -= x_f / d_f;
+
+				// Part2
+				for (auto i = 0; i < N_C; ++i)
+				{
+					auto C_i = C.adjCell.at(i);
+					if (C_i)
+					{
+						cur_coef[C_i->index] += J_C(i);
+						cur_coef[C.index] -= J_C(i);
+					}
+					else
+					{
+						// No need to treate this condition as zero-gradient is assumed.
+					}
+				}
+
+				// Part3
+				for (auto i = 0; i < N_F; ++i)
+				{
+					auto F_i = F->adjCell.at(i);
+					if (F_i)
+					{
+						cur_coef[F_i->index] += J_F(i);
+						cur_coef[F->index] -= J_F(i);
+					}
+					else
+					{
+						// No need to treate this condition as zero-gradient is assumed.
+					}
+				}
+			}
+			else
+			{
+				// Neumann B.C. for 'dp' by default.
+				// No need to treate it as zero-gradient is assumed.
+			}
+		}
+		
+		// Record current line
+		for (auto it = cur_coef.begin(); it != cur_coef.end(); ++it)
+		{
+			it->second /= Omega_C;
+			coef.emplace_back(C.index - 1, it->first - 1, it->second);
+		}
+	}
+
+	A.setFromTriplets(coef.begin(), coef.end());
+}
+
 /*********************************************** Temporal Discretization *********************************************/
 
 /**
@@ -1917,7 +2014,9 @@ void FSM(Scalar TimeStep)
 		c.rhoU_star = c.rhoU0 + TimeStep / c.volume * (c.pressure_flux + c.viscous_flux - c.convection_flux);
 
 	// Correction
-	// TODO
+	Eigen::SparseMatrix<Scalar> A(NumOfCell, NumOfCell);
+	Eigen::Matrix<Scalar, Eigen::Dynamic, 1> b(NumOfCell);
+	calcPoissonEquationCoefficient(A, b);
 
 	// Update
 	// TODO
