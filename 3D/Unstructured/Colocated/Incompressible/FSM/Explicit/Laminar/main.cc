@@ -101,7 +101,7 @@ struct Face
 
 	// Ghost variables if needed
 	Scalar rho_ghost;
-	Vector U_ghost;
+	Vector U_ghost, U_star_ghost;
 	Scalar p_ghost;
 	Scalar T_ghost;
 
@@ -1887,8 +1887,8 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 {
 	rhs.setZero();
 	std::vector<Eigen::Triplet<Scalar>> coef;
-	
-	for(const auto &C : cell)
+
+	for (const auto &C : cell)
 	{
 		const Scalar Omega_C = C.volume;
 
@@ -1911,6 +1911,10 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 		{
 			const auto &S_f = C.S(f);
 			auto curFace = C.surface(f);
+
+			// Neumann B.C. for 'dp' by default.
+			// No need to handle boundary case as zero-gradient is assumed.
+
 			if (curFace->atBdry)
 			{
 				auto F = C.adjCell(f);
@@ -1935,14 +1939,13 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 				for (auto i = 0; i < N_C; ++i)
 				{
 					auto C_i = C.adjCell.at(i);
+
+					// No need to handle boundary case as zero-gradient is assumed.
+
 					if (C_i)
 					{
 						cur_coef[C_i->index] += J_C(i);
 						cur_coef[C.index] -= J_C(i);
-					}
-					else
-					{
-						// No need to treate this condition as zero-gradient is assumed.
 					}
 				}
 
@@ -1950,33 +1953,97 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 				for (auto i = 0; i < N_F; ++i)
 				{
 					auto F_i = F->adjCell.at(i);
+
+					// No need to handle boundary case as zero-gradient is assumed.
+
 					if (F_i)
 					{
 						cur_coef[F_i->index] += J_F(i);
 						cur_coef[F->index] -= J_F(i);
 					}
-					else
-					{
-						// No need to treate this condition as zero-gradient is assumed.
-					}
+				}
+			}
+		}
+
+		// Record current line
+		for (auto it = cur_coef.begin(); it != cur_coef.end(); ++it)
+			coef.emplace_back(C.index - 1, it->first - 1, it->second);
+
+		// RHS term
+		Eigen::VectorXd drhou(N_C), drhov(N_C), drhow(N_C);
+		for (auto f = 0; f < N_C; ++f)
+		{
+			auto curFace = C.surface.at(f);
+			if (curFace->atBdry)
+			{
+				// Velocity-X
+				switch (curFace->U_BC[0])
+				{
+				case Dirichlet:
+					drhou(f) = curFace->U.x() - C.rhoU_star.x();
+					break;
+				case Neumann:
+					drhou(f) = curFace->U_star_ghost.x() - C.rhoU_star.x();
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// Velocity-Y
+				switch (curFace->U_BC[1])
+				{
+				case Dirichlet:
+					drhov(f) = curFace->U.y() - C.rhoU_star.y();
+					break;
+				case Neumann:
+					drhov(f) = curFace->U_star_ghost.y() - C.rhoU_star.y();
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
+				}
+
+				// Velocity-Z
+				switch (curFace->U_BC[2])
+				{
+				case Dirichlet:
+					drhow(f) = curFace->U.z() - C.rhoU_star.z();
+					break;
+				case Neumann:
+					drhow(f) = curFace->U_star_ghost.z() - C.rhoU_star.z();
+					break;
+				case Robin:
+					throw unsupported_boundary_condition(Robin);
+				default:
+					break;
 				}
 			}
 			else
 			{
-				// Neumann B.C. for 'dp' by default.
-				// No need to treate it as zero-gradient is assumed.
+				// Velocity-X
+				drhou(f) = C.adjCell.at(f)->rhoU_star.x() - C.rhoU_star.x();
+
+				// Velocity-Y
+				drhov(f) = C.adjCell.at(f)->rhoU_star.y() - C.rhoU_star.y();
+
+				// Velocity-Z
+				drhow(f) = C.adjCell.at(f)->rhoU_star.z() - C.rhoU_star.z();
 			}
-		}
-		
-		// Record current line
-		for (auto it = cur_coef.begin(); it != cur_coef.end(); ++it)
-		{
-			it->second /= Omega_C;
-			coef.emplace_back(C.index - 1, it->first - 1, it->second);
+
+			Scalar div_rhoU_star = 0.0;
+			div_rhoU_star += C.J_INV_U[0].row(0).dot(drhou);
+			div_rhoU_star += C.J_INV_U[1].row(1).dot(drhov);
+			div_rhoU_star += C.J_INV_U[2].row(2).dot(drhow);
+
+			rhs(C.index - 1) += Omega_C * div_rhoU_star;
 		}
 	}
 
 	A.setFromTriplets(coef.begin(), coef.end());
+
 }
 
 /*********************************************** Temporal Discretization *********************************************/
@@ -2013,10 +2080,19 @@ void FSM(Scalar TimeStep)
 	for (auto &c : cell)
 		c.rhoU_star = c.rhoU0 + TimeStep / c.volume * (c.pressure_flux + c.viscous_flux - c.convection_flux);
 
+	// Ghost value of U_star
+	// TODO
+
 	// Correction
 	Eigen::SparseMatrix<Scalar> A(NumOfCell, NumOfCell);
 	Eigen::Matrix<Scalar, Eigen::Dynamic, 1> b(NumOfCell);
 	calcPoissonEquationCoefficient(A, b);
+	b /= TimeStep;
+	A.makeCompressed();
+	Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> solver;
+	solver.analyzePattern(A);
+	solver.factorize(A);
+	Eigen::VectorXd dp = solver.solve(b);
 
 	// Update
 	// TODO
