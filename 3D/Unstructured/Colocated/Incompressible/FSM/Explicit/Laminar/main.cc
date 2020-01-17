@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <array>
 #include <vector>
 #include <map>
 #include <cmath>
@@ -10,7 +11,13 @@
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 
-/************************************************** Global Types *****************************************************/
+/***************************************************** Marcos ********************************************************/
+
+#define ZERO_INDEX 0
+#define ZERO_SCALAR 0.0
+#define ZERO_VECTOR {0.0, 0.0, 0.0}
+
+/****************************************************** Types ********************************************************/
 
 /* Math types */
 typedef double Scalar;
@@ -18,7 +25,8 @@ typedef Eigen::Matrix<Scalar, 3, 1> Vector;
 typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
 
 /* BC types */
-enum BC_Category { Dirichlet, Neumann, Robin };
+enum BC_CATEGORY { Dirichlet = 0, Neumann, Robin };
+static const std::array<std::string, 3> BC_CATEGORY_STR = { "Dirichlet", "Neumann", "Robin" };
 
 /* 1-based array */
 template<typename T>
@@ -37,7 +45,7 @@ public:
 	~NaturalArray() = default;
 
 	/* 1-based indexing */
-	T &operator()(long long i)
+	T &operator()(int i)
 	{
 		if (i >= 1)
 			return std::vector<T>::at(i - 1);
@@ -46,7 +54,7 @@ public:
 		else
 			throw index_is_zero();
 	}
-	const T &operator()(long long i) const
+	const T &operator()(int i) const
 	{
 		if (i >= 1)
 			return std::vector<T>::at(i - 1);
@@ -59,57 +67,62 @@ public:
 
 /* Geom elements */
 struct Cell;
+struct Patch;
 struct Point
 {
 	// 1-based global index
-	int index;
+	int index = ZERO_INDEX;
 
 	// 3D Location
-	Vector coordinate;
+	Vector coordinate = ZERO_VECTOR;
 
 	// Physical variables
-	Scalar rho;
-	Vector U;
-	Scalar p;
-	Scalar T;
+	Scalar rho = ZERO_SCALAR;
+	Vector U = ZERO_VECTOR;
+	Scalar p = ZERO_SCALAR;
+	Scalar T = ZERO_SCALAR;
 };
 struct Face
 {
 	// 1-based global index
-	int index;
+	int index = ZERO_INDEX;
 
 	// 3D location of face centroid
-	Vector center;
+	Vector center = ZERO_VECTOR;
 
 	// Area of the face element
-	Scalar area;
-	Vector n01, n10;
+	Scalar area = ZERO_SCALAR;
+	Vector n01 = ZERO_VECTOR, n10 = ZERO_VECTOR;
 
 	// Connectivity
 	NaturalArray<Point*> vertex;
 	Cell *c0 = nullptr, *c1 = nullptr;
 
 	// Displacement vector
-	Vector r0, r1;
+	Vector r0 = ZERO_VECTOR, r1 = ZERO_VECTOR;
 
 	// Boundary flags
 	bool atBdry = false;
-	BC_Category rho_BC = Dirichlet;
-	std::array<BC_Category, 3> U_BC = { Dirichlet, Dirichlet, Dirichlet };
-	BC_Category p_BC = Neumann;
-	BC_Category T_BC = Neumann;
+	Patch *parent = nullptr;
+	BC_CATEGORY rho_BC = Dirichlet;
+	std::array<BC_CATEGORY, 3> U_BC = { Dirichlet, Dirichlet, Dirichlet };
+	BC_CATEGORY p_BC = Neumann;
+	BC_CATEGORY T_BC = Neumann;
 
 	// Ghost variables if needed
 	Scalar rho_ghost;
-	Vector U_ghost, U_star_ghost;
+	Vector U_ghost = ZERO_VECTOR;
 	Scalar p_ghost;
 	Scalar T_ghost;
 
+	// Physical properties
+	Scalar mu = ZERO_SCALAR;
+
 	// Physical variables
-	Scalar rho;
-	Vector U;
-	Scalar p;
-	Scalar T;
+	Scalar rho = ZERO_SCALAR;
+	Vector U = ZERO_VECTOR;
+	Scalar p = ZERO_SCALAR;
+	Scalar T = ZERO_SCALAR;
 	Vector rhoU;
 
 	// Gradient of physical variables
@@ -119,19 +132,19 @@ struct Face
 	Vector grad_T;
 	Tensor tau;
 
-	// Physical properties
-	Scalar mu;
+	/* Fractional-Step Method temporary variables */
+	Vector rhoU_star;
 };
 struct Cell
 {
 	// 1-based global index
-	int index;
+	int index = ZERO_INDEX;
 
 	// 3D location of cell centroid
-	Vector center;
+	Vector center = ZERO_VECTOR;
 
 	// Volume of the cell element
-	Scalar volume;
+	Scalar volume = ZERO_SCALAR;
 
 	// Surface vector
 	NaturalArray<Vector> S;
@@ -149,21 +162,21 @@ struct Cell
 
 	/* Variables at current time-level */
 	// Physical variables
-	Scalar rho0;
-	Vector U0;
-	Scalar p0;
-	Scalar T0;
-	Vector rhoU0;
+	Scalar rho0 = ZERO_SCALAR;
+	Vector U0 = ZERO_VECTOR;
+	Scalar p0 = ZERO_SCALAR;
+	Scalar T0 = ZERO_SCALAR;
+	Vector rhoU0 = ZERO_VECTOR;
 
 	/* Runge-Kutta temporary variables */
 	// Physical properties
-	Scalar mu;
+	Scalar mu = ZERO_SCALAR;
 
 	// Physical variables
-	Scalar rho;
-	Vector U;
-	Scalar p;
-	Scalar T;
+	Scalar rho = ZERO_SCALAR;
+	Vector U = ZERO_VECTOR;
+	Scalar p = ZERO_SCALAR;
+	Scalar T = ZERO_SCALAR;
 
 	// Gradients
 	Vector grad_rho;
@@ -199,7 +212,7 @@ struct failed_to_open_file : public std::runtime_error
 
 struct unsupported_boundary_condition : public std::invalid_argument
 {
-	explicit unsupported_boundary_condition(BC_Category x) : std::invalid_argument(std::to_string((int)x) + ".") {}
+	explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("\"" + BC_CATEGORY_STR[x] + "\" condition is not supported.") {}
 };
 
 struct empty_connectivity : public std::runtime_error
@@ -207,17 +220,16 @@ struct empty_connectivity : public std::runtime_error
 	explicit empty_connectivity(int idx) : std::runtime_error("Both c0 and c1 are NULL on face " + std::to_string(idx) + ".") {}
 };
 
+struct unexpected_patch : public std::runtime_error
+{
+	unexpected_patch(const std::string &name) : std::runtime_error("Patch \"" + name + "\" is not expected to be a boundary patch.") {}
+};
+
 /*************************************************** Global Variables ************************************************/
 
 /* Iteration timing and counting */
 const int MAX_ITER = 2000;
 const Scalar MAX_TIME = 100.0; // s
-
-/* Constant field variables */
-const Scalar rho0 = 1.225; //kg/m^3
-const Vector U0 = { 1.0, 0.0, 0.0 }; // m/s
-const Scalar P0 = 101325.0; // Pa
-const Scalar T0 = 300.0; // K
 
 /* Grid utilities */
 size_t NumOfPnt = 0;
@@ -282,6 +294,10 @@ void readMSH(const std::string &MESH_PATH)
 
 		// Face area.
 		f_dst.area = f_src.area;
+
+		// Face unit normal.
+		f_dst.n10 = { f_src.n_RL.x(), f_src.n_RL.y(), f_src.n_RL.z() };
+		f_dst.n01 = { f_src.n_LR.x(), f_src.n_LR.y(), f_src.n_LR.z() };
 
 		// Face included nodes.
 		const auto N1 = f_src.includedNode.size();
@@ -379,8 +395,10 @@ void readMSH(const std::string &MESH_PATH)
 		const auto loc_first = curFace->first_index();
 		const auto loc_last = curFace->last_index();
 		for (auto j = loc_first; j <= loc_last; ++j)
+		{
 			p_dst.surface.at(j - loc_first) = &face(j);
-
+			face(j).parent = &p_dst;
+		}
 		cnt += 1;
 	}
 }
@@ -957,17 +975,91 @@ Scalar Sutherland(Scalar T)
 
 /***************************************************** I.C. & B.C. ***************************************************/
 
+void BC_TABLE()
+{
+	for (const auto &e : patch)
+	{
+		if (e.name == "UP")
+		{
+			for (auto f : e.surface)
+			{
+				f->rho_BC = Dirichlet;
+				f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
+				f->p_BC = Neumann;
+				f->T_BC = Dirichlet;
+			}
+		}
+		else if (e.name == "DOWN")
+		{
+			for (auto f : e.surface)
+			{
+				f->rho_BC = Dirichlet;
+				f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
+				f->p_BC = Neumann;
+				f->T_BC = Dirichlet;
+			}
+		}
+		else if (e.name == "LEFT")
+		{
+			for (auto f : e.surface)
+			{
+				f->rho_BC = Dirichlet;
+				f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
+				f->p_BC = Neumann;
+				f->T_BC = Neumann;
+			}
+		}
+		else if (e.name == "RIGHT")
+		{
+			for (auto f : e.surface)
+			{
+				f->rho_BC = Dirichlet;
+				f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
+				f->p_BC = Neumann;
+				f->T_BC = Neumann;
+			}
+		}
+		else if (e.name == "FRONT")
+		{
+			for (auto f : e.surface)
+			{
+				f->rho_BC = Dirichlet;
+				f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
+				f->p_BC = Neumann;
+				f->T_BC = Neumann;
+			}
+		}
+		else if (e.name == "BACK")
+		{
+			for (auto f : e.surface)
+			{
+				f->rho_BC = Dirichlet;
+				f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
+				f->p_BC = Neumann;
+				f->T_BC = Neumann;
+			}
+		}
+		else
+			throw unexpected_patch(e.name);
+	}
+}
+
 /**
  * Initial conditions on all nodes, faces and cells.
+ * Boundary elements are also set same to interior, will be corrected in BC routine.
  */
 void IC()
 {
+	const Scalar rho0 = 1.225; //kg/m^3	
+	const Scalar P0 = 101325.0; // Pa
+	const Scalar T0 = 300.0; // K
+
 	// Node
 	for (size_t i = 1; i <= NumOfPnt; ++i)
 	{
 		auto &n_dst = pnt(i);
 		n_dst.rho = rho0;
-		n_dst.U = { 0, 0, 0 };
+		n_dst.U = ZERO_VECTOR;
 		n_dst.p = P0;
 		n_dst.T = T0;
 	}
@@ -977,7 +1069,7 @@ void IC()
 	{
 		auto &f_dst = face(i);
 		f_dst.rho = rho0;
-		f_dst.U = { 0, 0, 0 };
+		f_dst.U = ZERO_VECTOR;
 		f_dst.p = P0;
 		f_dst.T = T0;
 	}
@@ -987,34 +1079,81 @@ void IC()
 	{
 		auto &c_dst = cell(i);
 		c_dst.rho0 = rho0;
-		c_dst.U0 = { 0, 0, 0 };
+		c_dst.U0 = ZERO_VECTOR;
 		c_dst.p0 = P0;
 		c_dst.T0 = T0;
 	}
 }
 
 /**
- * Boundary conditions on all related nodes and faces.
+ * Boundary conditions on all related nodes and faces for all variables.
  */
 void BC()
 {
-	// Face
-	for (auto &e : patch)
+	const Vector U0 = { 1.0, 0.0, 0.0 }; // m/s
+	const Scalar T_L = 300.0, T_H = 1500.0; // K
+
+	for (const auto &e : patch)
 	{
 		if (e.name == "UP")
 		{
 			for (auto f : e.surface)
+			{
 				f->U = U0;
+				f->T = T_H;
+			}
 		}
-		else
+		else if (e.name == "DOWN")
 		{
 			for (auto f : e.surface)
-				f->U = { 0.0, 0.0, 0.0 };
+			{
+				f->U = ZERO_VECTOR;
+				f->T = T_L;
+			}
 		}
+		else if (e.name == "LEFT")
+		{
+			for (auto f : e.surface)
+			{
+				f->U = ZERO_VECTOR;
+				f->grad_T = ZERO_VECTOR;
+			}
+		}
+		else if (e.name == "RIGTH")
+		{
+			for (auto f : e.surface)
+			{
+				f->U = ZERO_VECTOR;
+				f->grad_T = ZERO_VECTOR;
+			}
+		}
+		else if (e.name == "FRONT")
+		{
+			for (auto f : e.surface)
+			{
+				f->U = ZERO_VECTOR;
+				f->grad_T = ZERO_VECTOR;
+			}
+		}
+		else if (e.name == "BACK")
+		{
+			for (auto f : e.surface)
+			{
+				f->U = ZERO_VECTOR;
+				f->grad_T = ZERO_VECTOR;
+			}
+		}
+		else
+			throw unexpected_patch(e.name);
 	}
+}
 
-	// Node
+void updateNodalValue()
+{
 	std::vector<bool> visited(NumOfPnt + 1, false);
+
+	/* Velocity */
+	const Vector U0 = { 1.0, 0.0, 0.0 }; // m/s
 	for (auto &e : patch)
 	{
 		if (e.name == "UP")
@@ -1883,6 +2022,21 @@ void calcCellFlux()
 	// TODO
 }
 
+void calcFace_rhoU_star()
+{
+	for (auto &f : face)
+	{
+		if (f.atBdry)
+		{
+			f.rhoU_star = f.rhoU;
+		}
+		else
+		{
+			f.rhoU_star = (f.c0->rhoU_star + f.c1->rhoU0) / 2;
+		}
+	}
+}
+
 void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs)
 {
 	rhs.setZero();
@@ -1890,8 +2044,6 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 
 	for (const auto &C : cell)
 	{
-		const Scalar Omega_C = C.volume;
-
 		// Initialize coefficient baseline.
 		std::map<int, double> cur_coef;
 		cur_coef[C.index] = 0.0;
@@ -1970,80 +2122,16 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 			coef.emplace_back(C.index - 1, it->first - 1, it->second);
 
 		// RHS term
-		Eigen::VectorXd drhou(N_C), drhov(N_C), drhow(N_C);
 		for (auto f = 0; f < N_C; ++f)
 		{
-			auto curFace = C.surface.at(f);
-			if (curFace->atBdry)
-			{
-				// Velocity-X
-				switch (curFace->U_BC[0])
-				{
-				case Dirichlet:
-					drhou(f) = curFace->U.x() - C.rhoU_star.x();
-					break;
-				case Neumann:
-					drhou(f) = curFace->U_star_ghost.x() - C.rhoU_star.x();
-					break;
-				case Robin:
-					throw unsupported_boundary_condition(Robin);
-				default:
-					break;
-				}
+			const auto &S_f = C.S(f);
+			auto curFace = C.surface(f);
 
-				// Velocity-Y
-				switch (curFace->U_BC[1])
-				{
-				case Dirichlet:
-					drhov(f) = curFace->U.y() - C.rhoU_star.y();
-					break;
-				case Neumann:
-					drhov(f) = curFace->U_star_ghost.y() - C.rhoU_star.y();
-					break;
-				case Robin:
-					throw unsupported_boundary_condition(Robin);
-				default:
-					break;
-				}
-
-				// Velocity-Z
-				switch (curFace->U_BC[2])
-				{
-				case Dirichlet:
-					drhow(f) = curFace->U.z() - C.rhoU_star.z();
-					break;
-				case Neumann:
-					drhow(f) = curFace->U_star_ghost.z() - C.rhoU_star.z();
-					break;
-				case Robin:
-					throw unsupported_boundary_condition(Robin);
-				default:
-					break;
-				}
-			}
-			else
-			{
-				// Velocity-X
-				drhou(f) = C.adjCell.at(f)->rhoU_star.x() - C.rhoU_star.x();
-
-				// Velocity-Y
-				drhov(f) = C.adjCell.at(f)->rhoU_star.y() - C.rhoU_star.y();
-
-				// Velocity-Z
-				drhow(f) = C.adjCell.at(f)->rhoU_star.z() - C.rhoU_star.z();
-			}
-
-			Scalar div_rhoU_star = 0.0;
-			div_rhoU_star += C.J_INV_U[0].row(0).dot(drhou);
-			div_rhoU_star += C.J_INV_U[1].row(1).dot(drhov);
-			div_rhoU_star += C.J_INV_U[2].row(2).dot(drhow);
-
-			rhs(C.index - 1) += Omega_C * div_rhoU_star;
+			rhs(C.index - 1) += curFace->rhoU_star.dot(S_f);
 		}
 	}
 
 	A.setFromTriplets(coef.begin(), coef.end());
-
 }
 
 /*********************************************** Temporal Discretization *********************************************/
@@ -2080,8 +2168,8 @@ void FSM(Scalar TimeStep)
 	for (auto &c : cell)
 		c.rhoU_star = c.rhoU0 + TimeStep / c.volume * (c.pressure_flux + c.viscous_flux - c.convection_flux);
 
-	// Ghost value of U_star
-	// TODO
+	// rhoU_star at each face
+	calcFace_rhoU_star();
 
 	// Correction
 	Eigen::SparseMatrix<Scalar> A(NumOfCell, NumOfCell);
@@ -2178,17 +2266,22 @@ void solve(std::ostream &fout = std::cout)
 		t += dt;
 		done = diagnose();
 		if (done || !(iter % OUTPUT_GAP))
-			writeTECPLOT_Nodal("flow" + std::to_string(iter) + ".dat", "3D Cavity");
+		{
+			updateNodalValue();
+			writeTECPLOT_Nodal("flow" + std::to_string(iter) + "_NODAL.dat", "3D Cavity");
+			writeTECPLOT_CellCentered("flow" + std::to_string(iter) + "_CELL.dat", "3D Cavity");
+		}
 	}
 	fout << "Finished!" << std::endl;
 }
 
 /**
- * Initialize the compuation environment.
+ * Initialize the computation environment.
  */
 void init()
 {
 	readMSH("grid0.msh");
+	BC_TABLE();
 	calcLeastSquareCoefficients();
 	IC();
 }
