@@ -45,7 +45,7 @@ public:
 	~NaturalArray() = default;
 
 	/* 1-based indexing */
-	T &operator()(int i)
+	T &operator()(long long i)
 	{
 		if (i >= 1)
 			return std::vector<T>::at(i - 1);
@@ -54,7 +54,7 @@ public:
 		else
 			throw index_is_zero();
 	}
-	const T &operator()(int i) const
+	const T &operator()(long long i) const
 	{
 		if (i >= 1)
 			return std::vector<T>::at(i - 1);
@@ -75,6 +75,13 @@ struct Point
 
 	// 3D Location
 	Vector coordinate = ZERO_VECTOR;
+
+	// Boundary flag
+	bool atBdry = false;
+
+	// Connectivity
+	NaturalArray<Cell*> dependentCell;
+	NaturalArray<Scalar> cellWeightingCoef;
 
 	// Physical variables
 	Scalar rho = ZERO_SCALAR;
@@ -270,12 +277,22 @@ void readMSH(const std::string &MESH_PATH)
 		const auto &n_src = mesh.node(i);
 		auto &n_dst = pnt(i);
 
-		// Assign node index.
+		// 1-based global index.
 		n_dst.index = i;
 
-		// Node location.
+		// 3D location.
 		const auto &c_src = n_src.coordinate;
 		n_dst.coordinate = { c_src.x(), c_src.y(), c_src.z() };
+
+		// Boundary flag.
+		n_dst.atBdry = n_src.atBdry;
+
+		// Adjacent cells.
+		// Used for interpolation from cell-centered to nodal.
+		n_dst.dependentCell.resize(n_src.dependentCell.size());
+		n_dst.cellWeightingCoef.resize(n_src.dependentCell.size());
+		for (auto j = 1; j <= n_src.dependentCell.size(); ++j)
+			n_dst.dependentCell(j) = &cell(n_src.dependentCell(j));
 	}
 
 	// Update face information.
@@ -342,6 +359,22 @@ void readMSH(const std::string &MESH_PATH)
 			const auto adjIdx = c_src.adjacentCell(j);
 			c_dst.adjCell(j) = adjIdx ? &cell(adjIdx) : nullptr;
 		}
+	}
+
+	// Nodal interpolation coefficients
+	for (int i = 1; i <= NumOfPnt; ++i)
+	{
+		auto &n_dst = pnt(i);
+		Scalar s = 0.0;
+		for (int j = 1; j <= n_dst.cellWeightingCoef.size(); ++j)
+		{
+			auto curAdjCell = n_dst.dependentCell(j);
+			const Scalar coef = 1.0 / (n_dst.coordinate - curAdjCell->center).norm();
+			n_dst.cellWeightingCoef(j) = coef;
+			s += coef;
+		}
+		for (int j = 1; j <= n_dst.cellWeightingCoef.size(); ++j)
+			n_dst.cellWeightingCoef(j) /= s;
 	}
 
 	// Cell center to face center vectors 
@@ -975,6 +1008,9 @@ Scalar Sutherland(Scalar T)
 
 /***************************************************** I.C. & B.C. ***************************************************/
 
+static const Vector U_UP = { 1.0, 0.0, 0.0 }; // m/s
+static const Scalar T_DOWN = 300.0, T_UP = 1500.0; // K
+
 void BC_TABLE()
 {
 	for (const auto &e : patch)
@@ -1046,7 +1082,7 @@ void BC_TABLE()
 
 /**
  * Initial conditions on all nodes, faces and cells.
- * Boundary elements are also set same to interior, will be corrected in BC routine.
+ * Boundary elements are also set identical to interior, will be corrected in BC routine.
  */
 void IC()
 {
@@ -1090,17 +1126,14 @@ void IC()
  */
 void BC()
 {
-	const Vector U0 = { 1.0, 0.0, 0.0 }; // m/s
-	const Scalar T_L = 300.0, T_H = 1500.0; // K
-
 	for (const auto &e : patch)
 	{
 		if (e.name == "UP")
 		{
 			for (auto f : e.surface)
 			{
-				f->U = U0;
-				f->T = T_H;
+				f->U = U_UP;
+				f->T = T_UP;
 			}
 		}
 		else if (e.name == "DOWN")
@@ -1108,7 +1141,7 @@ void BC()
 			for (auto f : e.surface)
 			{
 				f->U = ZERO_VECTOR;
-				f->T = T_L;
+				f->T = T_DOWN;
 			}
 		}
 		else if (e.name == "LEFT")
@@ -1119,7 +1152,7 @@ void BC()
 				f->grad_T = ZERO_VECTOR;
 			}
 		}
-		else if (e.name == "RIGTH")
+		else if (e.name == "RIGHT")
 		{
 			for (auto f : e.surface)
 			{
@@ -1150,10 +1183,28 @@ void BC()
 
 void updateNodalValue()
 {
+	/* Interpolation */
+	for (auto &n : pnt)
+	{
+		n.rho = ZERO_SCALAR;
+		n.U = ZERO_VECTOR;
+		n.p = ZERO_SCALAR;
+		n.T = ZERO_SCALAR;
+		for (int j = 1; j <= n.cellWeightingCoef.size(); ++j)
+		{
+			const auto curCoef = n.cellWeightingCoef(j);
+			const auto curCell = n.dependentCell(j);
+
+			n.rho += curCoef * curCell->rho0;
+			n.U += curCoef * curCell->U0;
+			n.p += curCoef * curCell->p0;
+			n.T += curCoef * curCell->T0;
+		}
+	}
+
 	std::vector<bool> visited(NumOfPnt + 1, false);
 
 	/* Velocity */
-	const Vector U0 = { 1.0, 0.0, 0.0 }; // m/s
 	for (auto &e : patch)
 	{
 		if (e.name == "UP")
@@ -1162,7 +1213,7 @@ void updateNodalValue()
 				for (auto v : f->vertex)
 					if (!visited[v->index])
 					{
-						v->U = U0;
+						v->U = U_UP;
 						visited[v->index] = true;
 					}
 		}
@@ -1175,7 +1226,36 @@ void updateNodalValue()
 				for (auto v : f->vertex)
 					if (!visited[v->index])
 					{
-						v->U = { 0.0, 0.0, 0.0 };
+						v->U = ZERO_VECTOR;
+						visited[v->index] = true;
+					}
+		}
+	}
+
+	/* Temperature */
+	std::fill(visited.begin(), visited.end(), false);
+	for (auto &e : patch)
+	{
+		if (e.name == "UP")
+		{
+			for (auto f : e.surface)
+				for (auto v : f->vertex)
+					if (!visited[v->index])
+					{
+						v->T = T_UP;
+						visited[v->index] = true;
+					}
+		}
+	}
+	for (auto &e : patch)
+	{
+		if (e.name == "DOWN")
+		{
+			for (auto f : e.surface)
+				for (auto v : f->vertex)
+					if (!visited[v->index])
+					{
+						v->T = T_DOWN;
 						visited[v->index] = true;
 					}
 		}
@@ -2053,7 +2133,10 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 			{
 				cur_coef[F->index] = 0.0;
 				for (auto FF : F->adjCell)
-					cur_coef[FF->index] = 0.0;
+				{
+					if (FF)
+						cur_coef[FF->index] = 0.0;
+				}
 			}
 		}
 
@@ -2280,7 +2363,7 @@ void solve(std::ostream &fout = std::cout)
  */
 void init()
 {
-	readMSH("grid0.msh");
+	readMSH("cube64.msh");
 	BC_TABLE();
 	calcLeastSquareCoefficients();
 	IC();
