@@ -350,7 +350,10 @@ void readMSH(const std::string &MESH_PATH)
 		const auto N2 = c_src.includedFace.size();
 		c_dst.surface.resize(N2);
 		for (int j = 1; j <= N2; ++j)
-			c_dst.surface(j) = &face(c_src.includedFace(j));
+		{
+			const auto cfi = c_src.includedFace(j);
+			c_dst.surface(j) = &face(cfi);
+		}
 
 		// Cell adjacent cells.
 		c_dst.adjCell.resize(N2);
@@ -358,6 +361,14 @@ void readMSH(const std::string &MESH_PATH)
 		{
 			const auto adjIdx = c_src.adjacentCell(j);
 			c_dst.adjCell(j) = adjIdx ? &cell(adjIdx) : nullptr;
+		}
+
+		// Cell surface vectors.
+		c_dst.S.resize(N2);
+		for (int j = 0; j < N2; ++j)
+		{
+			const auto &csv = c_src.S.at(j);
+			c_dst.S.at(j) = { csv.x(), csv.y(), csv.z() };
 		}
 	}
 
@@ -385,12 +396,12 @@ void readMSH(const std::string &MESH_PATH)
 		if (f_dst.c0)
 			f_dst.r0 = f_dst.center - f_dst.c0->center;
 		else
-			f_dst.r0 = { 0, 0, 0 };
+			f_dst.r0 = ZERO_VECTOR;
 
 		if (f_dst.c1)
 			f_dst.r1 = f_dst.center - f_dst.c1->center;
 		else
-			f_dst.r1 = { 0, 0, 0 };
+			f_dst.r1 = ZERO_VECTOR;
 	}
 
 	// Count valid patches.
@@ -823,7 +834,7 @@ static void extractQRMatrix(const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J, E
  * QR decomposition matrix of each cell.
  * Ghost cells are used when the B.C. of boundary faces are set to Neumann type.
  */
-void calcLeastSquareCoefficients()
+void calcLeastSquareCoef()
 {
 	typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 3> Mat;
 
@@ -992,6 +1003,11 @@ void calcLeastSquareCoefficients()
 		// Temperature
 		extractQRMatrix(J_T, c.J_INV_T);
 	}
+}
+
+void calcPoissonEquationCoef()
+{
+	// TODO
 }
 
 /************************************************ Physical properties ************************************************/
@@ -2150,7 +2166,7 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 			// Neumann B.C. for 'dp' by default.
 			// No need to handle boundary case as zero-gradient is assumed.
 
-			if (curFace->atBdry)
+			if (!curFace->atBdry)
 			{
 				auto F = C.adjCell(f);
 				const auto N_F = F->surface.size();
@@ -2207,8 +2223,8 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 		// RHS term
 		for (auto f = 0; f < N_C; ++f)
 		{
-			const auto &S_f = C.S(f);
-			auto curFace = C.surface(f);
+			const auto &S_f = C.S.at(f);
+			auto curFace = C.surface.at(f);
 
 			rhs(C.index - 1) += curFace->rhoU_star.dot(S_f);
 		}
@@ -2365,7 +2381,8 @@ void init()
 {
 	readMSH("cube64.msh");
 	BC_TABLE();
-	calcLeastSquareCoefficients();
+	calcLeastSquareCoef();
+	calcPoissonEquationCoef();
 	IC();
 }
 
