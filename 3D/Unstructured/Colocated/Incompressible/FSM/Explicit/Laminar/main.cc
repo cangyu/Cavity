@@ -216,17 +216,18 @@ struct failed_to_open_file : public std::runtime_error
 {
 	explicit failed_to_open_file(const std::string &fn) : std::runtime_error("Failed to open target file: \"" + fn + "\".") {}
 };
-
 struct unsupported_boundary_condition : public std::invalid_argument
 {
 	explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("\"" + BC_CATEGORY_STR[x] + "\" condition is not supported.") {}
 };
-
 struct empty_connectivity : public std::runtime_error
 {
 	explicit empty_connectivity(int idx) : std::runtime_error("Both c0 and c1 are NULL on face " + std::to_string(idx) + ".") {}
 };
-
+struct inconsistent_connectivity : public std::runtime_error
+{
+	explicit inconsistent_connectivity(const std::string &msg) : std::runtime_error(msg) {}
+};
 struct unexpected_patch : public std::runtime_error
 {
 	unexpected_patch(const std::string &name) : std::runtime_error("Patch \"" + name + "\" is not expected to be a boundary patch.") {}
@@ -247,6 +248,11 @@ NaturalArray<Point> pnt; // Node objects
 NaturalArray<Face> face; // Face objects
 NaturalArray<Cell> cell; // Cell objects
 NaturalArray<Patch> patch; // Group of boundary faces
+
+/* Pressure-Corrrection equation coefficients */
+Eigen::SparseMatrix<Scalar> A_dp;
+Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp;
+Eigen::SparseLU<Eigen::SparseMatrix<Scalar>, Eigen::COLAMDOrdering<int>> dp_solver;
 
 /*************************************************** File I/O ********************************************************/
 
@@ -1005,9 +1011,107 @@ void calcLeastSquareCoef()
 	}
 }
 
-void calcPoissonEquationCoef()
+void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
 {
-	// TODO
+	std::vector<Eigen::Triplet<Scalar>> coef;
+
+	for (const auto &C : cell)
+	{
+		// Initialize coefficient baseline.
+		std::map<int, Scalar> cur_coef;
+		cur_coef[C.index] = 0.0;
+		for (auto F : C.adjCell)
+		{
+			if (F)
+			{
+				cur_coef[F->index] = 0.0;
+				for (auto FF : F->adjCell)
+				{
+					if (FF)
+						cur_coef[FF->index] = 0.0;
+				}
+			}
+		}
+
+		// Compute coefficient contributions.
+		const auto N_C = C.surface.size();
+		for (int f = 1; f <= N_C; ++f)
+		{
+			const auto &S_f = C.S(f);
+			auto curFace = C.surface(f);
+
+			if (curFace->atBdry)
+			{
+				// No need to handle boundary faces as zero-gradient B.C. is assumed for dp.
+				continue;
+			}
+			else
+			{
+				auto F = C.adjCell(f);
+				if (!F)
+					throw inconsistent_connectivity("Cell shouldn't be empty!");
+
+				const auto N_F = F->surface.size();
+
+				const Vector r_C = curFace->center - C.center;
+				const Vector r_F = curFace->center - F->center;
+				const Scalar d_f = (F->center - C.center).norm();
+				const Vector e_f = (r_C - r_F) / d_f;
+				const Scalar ksi_f = 1.0 / (1.0 + r_C.norm() / r_F.norm());
+				const Scalar x_f = e_f.dot(S_f);
+				const Vector y_f = S_f - x_f * e_f;
+
+				const Eigen::VectorXd J_C = ksi_f * y_f.transpose() * C.J_INV_p;
+				const Eigen::VectorXd J_F = (1.0 - ksi_f) * y_f.transpose() * F->J_INV_p;
+
+				// Part1
+				const auto p1_coef = x_f / d_f;
+				cur_coef[F->index] += p1_coef;
+				cur_coef[C.index] -= p1_coef;
+
+				// Part2
+				for (int i = 0; i < N_C; ++i)
+				{
+					auto C_i = C.adjCell.at(i);
+					if (C_i)
+					{
+						const auto p2_coef = J_C(i);
+						cur_coef[C_i->index] += p2_coef;
+						cur_coef[C.index] -= p2_coef;
+					}
+					else
+					{
+						// No need to handle boundary faces as zero-gradient B.C. is assumed for dp.
+						continue;
+					}
+				}
+
+				// Part3
+				for (auto i = 0; i < N_F; ++i)
+				{
+					auto F_i = F->adjCell.at(i);
+					if (F_i)
+					{
+						const auto p3_coef = J_F(i);
+						cur_coef[F_i->index] += p3_coef;
+						cur_coef[F->index] -= p3_coef;
+					}
+					else
+					{
+						// No need to handle boundary faces as zero-gradient B.C. is assumed for dp.
+						continue;
+					}
+				}
+			}
+		}
+
+		// Record current line.
+		// Convert index to 0-based.
+		for (auto it = cur_coef.begin(); it != cur_coef.end(); ++it)
+			coef.emplace_back(C.index - 1, it->first - 1, it->second);
+	}
+
+	A.setFromTriplets(coef.begin(), coef.end());
 }
 
 /************************************************ Physical properties ************************************************/
@@ -2133,95 +2237,14 @@ void calcFace_rhoU_star()
 	}
 }
 
-void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs)
+void calcPoissonEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs)
 {
 	rhs.setZero();
-	std::vector<Eigen::Triplet<Scalar>> coef;
 
 	for (const auto &C : cell)
 	{
-		// Initialize coefficient baseline.
-		std::map<int, double> cur_coef;
-		cur_coef[C.index] = 0.0;
-		for (auto F : C.adjCell)
-		{
-			if (F)
-			{
-				cur_coef[F->index] = 0.0;
-				for (auto FF : F->adjCell)
-				{
-					if (FF)
-						cur_coef[FF->index] = 0.0;
-				}
-			}
-		}
-
-		// Compute coefficient contributions.
 		const auto N_C = C.surface.size();
-		for (auto f = 1; f <= N_C; ++f)
-		{
-			const auto &S_f = C.S(f);
-			auto curFace = C.surface(f);
-
-			// Neumann B.C. for 'dp' by default.
-			// No need to handle boundary case as zero-gradient is assumed.
-
-			if (!curFace->atBdry)
-			{
-				auto F = C.adjCell(f);
-				const auto N_F = F->surface.size();
-
-				const Vector r_C = curFace->center - C.center;
-				const Vector r_F = curFace->center - F->center;
-				const Scalar d_f = (F->center - C.center).norm();
-				const Vector e_f = (r_C - r_F) / d_f;
-				const Scalar ksi_f = 1.0 / (1.0 + r_F.norm() / r_C.norm());
-				const Scalar x_f = e_f.dot(S_f);
-				const Vector y_f = S_f - x_f * e_f;
-
-				const Eigen::VectorXd J_C = ksi_f * y_f.transpose() * C.J_INV_p;
-				const Eigen::VectorXd J_F = (1.0 - ksi_f) * y_f.transpose() * F->J_INV_p;
-
-				// Part1
-				cur_coef[F->index] += x_f / d_f;
-				cur_coef[C.index] -= x_f / d_f;
-
-				// Part2
-				for (auto i = 0; i < N_C; ++i)
-				{
-					auto C_i = C.adjCell.at(i);
-
-					// No need to handle boundary case as zero-gradient is assumed.
-
-					if (C_i)
-					{
-						cur_coef[C_i->index] += J_C(i);
-						cur_coef[C.index] -= J_C(i);
-					}
-				}
-
-				// Part3
-				for (auto i = 0; i < N_F; ++i)
-				{
-					auto F_i = F->adjCell.at(i);
-
-					// No need to handle boundary case as zero-gradient is assumed.
-
-					if (F_i)
-					{
-						cur_coef[F_i->index] += J_F(i);
-						cur_coef[F->index] -= J_F(i);
-					}
-				}
-			}
-		}
-
-		// Record current line
-		for (auto it = cur_coef.begin(); it != cur_coef.end(); ++it)
-			coef.emplace_back(C.index - 1, it->first - 1, it->second);
-
-		// RHS term
-		for (auto f = 0; f < N_C; ++f)
+		for (int f = 0; f < N_C; ++f)
 		{
 			const auto &S_f = C.S.at(f);
 			auto curFace = C.surface.at(f);
@@ -2229,8 +2252,6 @@ void calcPoissonEquationCoefficient(Eigen::SparseMatrix<Scalar> &A, Eigen::Matri
 			rhs(C.index - 1) += curFace->rhoU_star.dot(S_f);
 		}
 	}
-
-	A.setFromTriplets(coef.begin(), coef.end());
 }
 
 /*********************************************** Temporal Discretization *********************************************/
@@ -2271,15 +2292,9 @@ void FSM(Scalar TimeStep)
 	calcFace_rhoU_star();
 
 	// Correction
-	Eigen::SparseMatrix<Scalar> A(NumOfCell, NumOfCell);
-	Eigen::Matrix<Scalar, Eigen::Dynamic, 1> b(NumOfCell);
-	calcPoissonEquationCoefficient(A, b);
-	b /= TimeStep;
-	A.makeCompressed();
-	Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> solver;
-	solver.analyzePattern(A);
-	solver.factorize(A);
-	Eigen::VectorXd dp = solver.solve(b);
+	calcPoissonEquationRHS(Q_dp);
+	Q_dp /= TimeStep;
+	Eigen::VectorXd dp = dp_solver.solve(Q_dp);
 
 	// Update
 	// TODO
@@ -2379,10 +2394,24 @@ void solve(std::ostream &fout = std::cout)
  */
 void init()
 {
-	readMSH("cube64.msh");
+	// Load mesh.
+	readMSH("cube32.msh");
+
+	// Set B.C. of each variable.
 	BC_TABLE();
+
+	// Least-Square coefficients used to calculate gradients.
 	calcLeastSquareCoef();
-	calcPoissonEquationCoef();
+
+	// Pressure-Correction equation coefficients.
+	A_dp.resize(NumOfCell, NumOfCell);
+	Q_dp.resize(NumOfCell, Eigen::NoChange);
+	calcPressureCorrectionEquationCoef(A_dp);
+	A_dp.makeCompressed();
+	dp_solver.analyzePattern(A_dp);
+	dp_solver.factorize(A_dp);
+
+	// Set I.C. of each variable.
 	IC();
 }
 
