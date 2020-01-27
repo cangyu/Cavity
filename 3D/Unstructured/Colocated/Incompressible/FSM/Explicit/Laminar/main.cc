@@ -164,7 +164,7 @@ struct Cell
 	// Least-squares method variables
 	Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_rho;
 	std::array<Eigen::Matrix<Scalar, 3, Eigen::Dynamic>, 3> J_INV_U;
-	Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_p;
+	Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_p, J_INV_p_prime;
 	Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_T;
 
 	/* Variables at current time-level */
@@ -202,6 +202,9 @@ struct Cell
 	Vector convection_flux;
 	Vector viscous_flux;
 	Vector rhoU_star;
+	Scalar p_prime;
+	Vector grad_p_prime;
+
 };
 struct Patch
 {
@@ -2254,6 +2257,27 @@ void calcPoissonEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs)
 	}
 }
 
+void calcPressureCorrectionGradient()
+{
+	for (auto &c : cell)
+	{
+		const size_t nF = c.surface.size();
+		Eigen::VectorXd dphi(nF);
+
+		for (size_t i = 0; i < nF; ++i)
+		{
+			auto curFace = c.surface.at(i);
+			auto curAdjCell = c.adjCell.at(i);
+
+			if (curFace->atBdry)
+				dphi(i) = 0.0;
+			else
+				dphi(i) = curAdjCell->rho - c.rho;
+		}
+		c.grad_p_prime = c.J_INV_p_prime * dphi;
+	}
+}
+
 /*********************************************** Temporal Discretization *********************************************/
 
 /**
@@ -2297,7 +2321,14 @@ void FSM(Scalar TimeStep)
 	Eigen::VectorXd dp = dp_solver.solve(Q_dp);
 
 	// Update
-	// TODO
+	calcPressureCorrectionGradient();
+	for (int i = 0; i < NumOfCell; ++i)
+	{
+		auto &c = cell.at(i);
+		c.p_prime = dp(i);
+		c.p += c.p_prime;
+		c.U = (c.rhoU_star - TimeStep * c.grad_p_prime) / c.rho;
+	}
 }
 
 /**
