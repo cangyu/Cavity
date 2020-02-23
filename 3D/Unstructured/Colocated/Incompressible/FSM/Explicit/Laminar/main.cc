@@ -1,246 +1,16 @@
 #include <iostream>
-#include <fstream>
-#include <string>
-#include <array>
-#include <vector>
 #include <map>
 #include <cmath>
 #include <cassert>
-#include <stdexcept>
 #include "xf.h"
-#include "Eigen/Dense"
-#include "Eigen/Sparse"
+#include "custom_type.h"
+#include "CHEM.h"
+#include "IO.h"
+#include "BC.h"
+#include "IC.h"
 
-/***************************************************** Marcos ********************************************************/
-
-#define ZERO_INDEX 0
-#define ZERO_SCALAR 0.0
-#define ZERO_VECTOR {0.0, 0.0, 0.0}
-
-/****************************************************** Types ********************************************************/
-
-/* Math types */
-typedef double Scalar;
-typedef Eigen::Matrix<Scalar, 3, 1> Vector;
-typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
-
-/* BC types */
-enum BC_CATEGORY { Dirichlet = 0, Neumann, Robin };
-static const std::array<std::string, 3> BC_CATEGORY_STR = { "Dirichlet", "Neumann", "Robin" };
-
-/* 1-based array */
-template<typename T>
-class NaturalArray : public std::vector<T>
-{
-private:
-    struct index_is_zero : public std::invalid_argument
-    {
-        index_is_zero() : std::invalid_argument("0 is invalid when using 1-based index.") {}
-    };
-
-public:
-    NaturalArray() : std::vector<T>() {}
-    explicit NaturalArray(size_t n) : std::vector<T>(n) {}
-    NaturalArray(size_t n, const T &val) : std::vector<T>(n, val) {}
-    ~NaturalArray() = default;
-
-    /* 1-based indexing */
-    T &operator()(long long i)
-    {
-        if (i >= 1)
-            return std::vector<T>::at(i - 1);
-        else if (i <= -1)
-            return std::vector<T>::at(std::vector<T>::size() + i);
-        else
-            throw index_is_zero();
-    }
-    const T &operator()(long long i) const
-    {
-        if (i >= 1)
-            return std::vector<T>::at(i - 1);
-        else if (i <= -1)
-            return std::vector<T>::at(std::vector<T>::size() + i);
-        else
-            throw index_is_zero();
-    }
-};
-
-/* Geom elements */
-struct Cell;
-struct Patch;
-struct Point
-{
-    // 1-based global index
-    int index = ZERO_INDEX;
-
-    // 3D Location
-    Vector coordinate = ZERO_VECTOR;
-
-    // Boundary flag
-    bool atBdry = false;
-
-    // Connectivity
-    NaturalArray<Cell*> dependentCell;
-    NaturalArray<Scalar> cellWeightingCoef;
-
-    // Physical variables
-    Scalar rho = ZERO_SCALAR;
-    Vector U = ZERO_VECTOR;
-    Scalar p = ZERO_SCALAR;
-    Scalar T = ZERO_SCALAR;
-};
-struct Face
-{
-    // 1-based global index
-    int index = ZERO_INDEX;
-
-    // 3D location of face centroid
-    Vector center = ZERO_VECTOR;
-
-    // Area of the face element
-    Scalar area = ZERO_SCALAR;
-    Vector n01 = ZERO_VECTOR, n10 = ZERO_VECTOR;
-
-    // Connectivity
-    NaturalArray<Point*> vertex;
-    Cell *c0 = nullptr, *c1 = nullptr;
-
-    // Displacement vector
-    Vector r0 = ZERO_VECTOR, r1 = ZERO_VECTOR;
-
-    // Boundary flags
-    bool atBdry = false;
-    Patch *parent = nullptr;
-    BC_CATEGORY rho_BC = Dirichlet;
-    std::array<BC_CATEGORY, 3> U_BC = { Dirichlet, Dirichlet, Dirichlet };
-    BC_CATEGORY p_BC = Neumann;
-    BC_CATEGORY T_BC = Neumann;
-
-    // Ghost variables if needed
-    Scalar rho_ghost;
-    Vector U_ghost = ZERO_VECTOR;
-    Scalar p_ghost;
-    Scalar T_ghost;
-
-    // Physical properties
-    Scalar mu = ZERO_SCALAR;
-
-    // Physical variables
-    Scalar rho = ZERO_SCALAR;
-    Vector U = ZERO_VECTOR;
-    Scalar p = ZERO_SCALAR;
-    Scalar T = ZERO_SCALAR;
-    Vector rhoU;
-
-    // Gradient of physical variables
-    Vector grad_rho;
-    Tensor grad_U;
-    Vector grad_p;
-    Vector grad_T;
-    Tensor tau;
-
-    /* Fractional-Step Method temporary variables */
-    Vector rhoU_star;
-};
-struct Cell
-{
-    // 1-based global index
-    int index = ZERO_INDEX;
-
-    // 3D location of cell centroid
-    Vector center = ZERO_VECTOR;
-
-    // Volume of the cell element
-    Scalar volume = ZERO_SCALAR;
-
-    // Surface vector
-    NaturalArray<Vector> S;
-
-    // Connectivity
-    NaturalArray<Point*> vertex;
-    NaturalArray<Face*> surface;
-    NaturalArray<Cell*> adjCell;
-
-    // Least-squares method variables
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_rho;
-    std::array<Eigen::Matrix<Scalar, 3, Eigen::Dynamic>, 3> J_INV_U;
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_p, J_INV_p_prime;
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_T;
-
-    /* Variables at current time-level */
-    // Physical variables
-    Scalar rho0 = ZERO_SCALAR;
-    Vector U0 = ZERO_VECTOR;
-    Scalar p0 = ZERO_SCALAR;
-    Scalar T0 = ZERO_SCALAR;
-    Vector rhoU0 = ZERO_VECTOR;
-
-    /* Runge-Kutta temporary variables */
-    // Physical properties
-    Scalar mu = ZERO_SCALAR;
-
-    // Physical variables
-    Scalar rho = ZERO_SCALAR;
-    Vector U = ZERO_VECTOR;
-    Scalar p = ZERO_SCALAR;
-    Scalar T = ZERO_SCALAR;
-
-    // Gradients
-    Vector grad_rho;
-    Tensor grad_U;
-    Vector grad_p;
-    Vector grad_T;
-
-    // Equation residuals
-    Scalar continuity_res;
-    Vector momentum_res;
-    Scalar energy_res;
-
-    /* Fractional-Step Method temporary variables */
-    // Momentum equation
-    Vector pressure_flux;
-    Vector convection_flux;
-    Vector viscous_flux;
-    Vector rhoU_star;
-    Scalar p_prime;
-    Vector grad_p_prime;
-
-};
-struct Patch
-{
-    std::string name;
-    int BC;
-    NaturalArray<Face*> surface;
-};
-
-/********************************************* Errors and Exceptions *************************************************/
-
-struct failed_to_open_file : public std::runtime_error
-{
-    explicit failed_to_open_file(const std::string &fn) : std::runtime_error("Failed to open target file: \"" + fn + "\".") {}
-};
-struct unsupported_boundary_condition : public std::invalid_argument
-{
-    explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("\"" + BC_CATEGORY_STR[x] + "\" condition is not supported.") {}
-};
-struct empty_connectivity : public std::runtime_error
-{
-    explicit empty_connectivity(int idx) : std::runtime_error("Both c0 and c1 are NULL on face " + std::to_string(idx) + ".") {}
-};
-struct inconsistent_connectivity : public std::runtime_error
-{
-    explicit inconsistent_connectivity(const std::string &msg) : std::runtime_error(msg) {}
-};
-struct unexpected_patch : public std::runtime_error
-{
-    unexpected_patch(const std::string &name) : std::runtime_error("Patch \"" + name + "\" is not expected to be a boundary patch.") {}
-};
 
 /*************************************************** Global Variables ************************************************/
-
-/* Iteration timing and counting */
-const int MAX_ITER = 2000;
-const Scalar MAX_TIME = 100.0; // s
 
 /* Grid utilities */
 size_t NumOfPnt = 0;
@@ -255,568 +25,8 @@ NaturalArray<Patch> patch; // Group of boundary faces
 /* Pressure-Corrrection equation coefficients */
 Eigen::SparseMatrix<Scalar> A_dp;
 Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp;
-Eigen::SparseLU<Eigen::SparseMatrix<Scalar>, Eigen::COLAMDOrdering<int>> dp_solver;
+Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar, int>> dp_solver;
 
-/*************************************************** File I/O ********************************************************/
-
-/**
- * Load mesh.
- * @param MESH_PATH
- */
-void readMESH(const std::string &MESH_PATH)
-{
-    using namespace GridTool;
-
-    // Load ANSYS Fluent mesh using external independent package.
-    const XF::MESH mesh(MESH_PATH);
-
-    // Update counting of geom elements.
-    NumOfPnt = mesh.numOfNode();
-    NumOfFace = mesh.numOfFace();
-    NumOfCell = mesh.numOfCell();
-
-    // Allocate memory for geom information and related physical variables.
-    pnt.resize(NumOfPnt);
-    face.resize(NumOfFace);
-    cell.resize(NumOfCell);
-
-    // Update point information.
-    for (int i = 1; i <= NumOfPnt; ++i)
-    {
-        const auto &n_src = mesh.node(i);
-        auto &n_dst = pnt(i);
-
-        // 1-based global index.
-        n_dst.index = i;
-
-        // 3D location.
-        const auto &c_src = n_src.coordinate;
-        n_dst.coordinate = { c_src.x(), c_src.y(), c_src.z() };
-
-        // Boundary flag.
-        n_dst.atBdry = n_src.atBdry;
-
-        // Adjacent cells.
-        // Used for interpolation from cell-centered to nodal.
-        n_dst.dependentCell.resize(n_src.dependentCell.size());
-        n_dst.cellWeightingCoef.resize(n_src.dependentCell.size());
-        for (auto j = 1; j <= n_src.dependentCell.size(); ++j)
-            n_dst.dependentCell(j) = &cell(n_src.dependentCell(j));
-    }
-
-    // Update face information.
-    for (int i = 1; i <= NumOfFace; ++i)
-    {
-        const auto &f_src = mesh.face(i);
-        auto &f_dst = face(i);
-
-        // Assign face index.
-        f_dst.index = i;
-        f_dst.atBdry = f_src.atBdry;
-
-        // Face center location.
-        const auto &c_src = f_src.center;
-        f_dst.center = { c_src.x(), c_src.y(), c_src.z() };
-
-        // Face area.
-        f_dst.area = f_src.area;
-
-        // Face unit normal.
-        f_dst.n10 = { f_src.n_RL.x(), f_src.n_RL.y(), f_src.n_RL.z() };
-        f_dst.n01 = { f_src.n_LR.x(), f_src.n_LR.y(), f_src.n_LR.z() };
-
-        // Face included nodes.
-        const auto N1 = f_src.includedNode.size();
-        f_dst.vertex.resize(N1);
-        for (int j = 1; j <= N1; ++j)
-            f_dst.vertex(j) = &pnt(f_src.includedNode(j));
-
-        // Face adjacent 2 cells.
-        f_dst.c0 = f_src.leftCell ? &cell(f_src.leftCell) : nullptr;
-        f_dst.c1 = f_src.rightCell ? &cell(f_src.rightCell) : nullptr;
-    }
-
-    // Update cell information.
-    for (int i = 1; i <= NumOfCell; ++i)
-    {
-        const auto &c_src = mesh.cell(i);
-        auto &c_dst = cell(i);
-
-        // Assign cell index.
-        c_dst.index = i;
-
-        // Cell center location.
-        const auto &centroid_src = c_src.center;
-        c_dst.center = { centroid_src.x(), centroid_src.y(), centroid_src.z() };
-
-        // Cell included nodes.
-        const auto N1 = c_src.includedNode.size();
-        c_dst.vertex.resize(N1);
-        for (int j = 1; j <= N1; ++j)
-            c_dst.vertex(j) = &pnt(c_src.includedNode(j));
-
-        // Cell included faces.
-        const auto N2 = c_src.includedFace.size();
-        c_dst.surface.resize(N2);
-        for (int j = 1; j <= N2; ++j)
-        {
-            const auto cfi = c_src.includedFace(j);
-            c_dst.surface(j) = &face(cfi);
-        }
-
-        // Cell adjacent cells.
-        c_dst.adjCell.resize(N2);
-        for (int j = 1; j <= N2; ++j)
-        {
-            const auto adjIdx = c_src.adjacentCell(j);
-            c_dst.adjCell(j) = adjIdx ? &cell(adjIdx) : nullptr;
-        }
-
-        // Cell surface vectors.
-        c_dst.S.resize(N2);
-        for (int j = 0; j < N2; ++j)
-        {
-            const auto &csv = c_src.S.at(j);
-            c_dst.S.at(j) = { csv.x(), csv.y(), csv.z() };
-        }
-    }
-
-    // Nodal interpolation coefficients
-    for (int i = 1; i <= NumOfPnt; ++i)
-    {
-        auto &n_dst = pnt(i);
-        Scalar s = 0.0;
-        for (int j = 1; j <= n_dst.cellWeightingCoef.size(); ++j)
-        {
-            auto curAdjCell = n_dst.dependentCell(j);
-            const Scalar coef = 1.0 / (n_dst.coordinate - curAdjCell->center).norm();
-            n_dst.cellWeightingCoef(j) = coef;
-            s += coef;
-        }
-        for (int j = 1; j <= n_dst.cellWeightingCoef.size(); ++j)
-            n_dst.cellWeightingCoef(j) /= s;
-    }
-
-    // Cell center to face center vectors 
-    for (int i = 1; i <= NumOfFace; ++i)
-    {
-        auto &f_dst = face(i);
-
-        if (f_dst.c0)
-            f_dst.r0 = f_dst.center - f_dst.c0->center;
-        else
-            f_dst.r0 = ZERO_VECTOR;
-
-        if (f_dst.c1)
-            f_dst.r1 = f_dst.center - f_dst.c1->center;
-        else
-            f_dst.r1 = ZERO_VECTOR;
-    }
-
-    // Count valid patches.
-    size_t NumOfPatch = 0;
-    for (int i = 1; i <= mesh.numOfZone(); ++i)
-    {
-        const auto &z_src = mesh.zone(i);
-
-        const auto curZoneIdx = z_src.ID;
-        auto curZonePtr = z_src.obj;
-        auto curFace = dynamic_cast<XF::FACE*>(curZonePtr);
-        if (curFace)
-        {
-            if (curFace->identity() != XF::SECTION::FACE || curFace->zone() != curZoneIdx)
-                throw std::runtime_error("Inconsistency detected.");
-
-            if (XF::BC::str2idx(z_src.type) != XF::BC::INTERIOR)
-                ++NumOfPatch;
-        }
-    }
-
-    // Update boundary patch information.
-    patch.resize(NumOfPatch);
-    for (int i = 1, cnt = 0; i <= mesh.numOfZone(); ++i)
-    {
-        const auto &curZone = mesh.zone(i);
-        auto curFace = dynamic_cast<XF::FACE*>(curZone.obj);
-        if (curFace == nullptr || XF::BC::str2idx(curZone.type) == XF::BC::INTERIOR)
-            continue;
-
-        auto &p_dst = patch[cnt];
-        p_dst.name = curZone.name;
-        p_dst.BC = XF::BC::str2idx(curZone.type);
-        p_dst.surface.resize(curFace->num());
-        const auto loc_first = curFace->first_index();
-        const auto loc_last = curFace->last_index();
-        for (auto j = loc_first; j <= loc_last; ++j)
-        {
-            p_dst.surface.at(j - loc_first) = &face(j);
-            face(j).parent = &p_dst;
-        }
-        cnt += 1;
-    }
-}
-
-/**
- * Output computation results.
- * Nodal values are exported, including boundary variables.
- * @param fn
- * @param title
- */
-void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
-{
-    static const size_t RECORD_PER_LINE = 10;
-
-    std::ofstream fout(fn);
-    if (fout.fail())
-        throw failed_to_open_file(fn);
-
-    fout << R"(TITLE=")" << title << "\"" << std::endl;
-    fout << "FILETYPE=FULL" << std::endl;
-    fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T")" << std::endl;
-
-    fout << R"(ZONE T="Nodal")" << std::endl;
-    fout << "NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-9]=NODAL)" << std::endl;
-
-    // X-Coordinates
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).coordinate.x();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Y-Coordinates
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).coordinate.y();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Z-Coordinates
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).coordinate.z();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Density
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).rho;
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Velocity-X
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).U.x();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Velocity-Y
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).U.y();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Velocity-Z
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).U.z();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Pressure
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).p;
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Temperature
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).T;
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Connectivity Information
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        const auto v = cell(i).vertex;
-        for (const auto &e : v)
-            fout << '\t' << e->index;
-        fout << std::endl;
-    }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    fout.close();
-}
-
-/**
- * Output computation results.
- * Cell-Centered values are exported, boundary variables are NOT included.
- * Only for continuation purpose.
- * @param fn
- * @param title
- */
-void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
-{
-    static const size_t RECORD_PER_LINE = 10;
-
-    std::ofstream fout(fn);
-    if (fout.fail())
-        throw failed_to_open_file(fn);
-
-    fout << R"(TITLE=")" << title << "\"" << std::endl;
-    fout << "FILETYPE=FULL" << std::endl;
-    fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T")" << std::endl;
-
-    fout << R"(ZONE T="Cell-Centroid")" << std::endl;
-    fout << "NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL, [4-9]=CELLCENTERED)" << std::endl;
-
-    // X-Coordinates
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).coordinate.x();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Y-Coordinates
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).coordinate.y();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Z-Coordinates
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        fout << '\t' << pnt(i).coordinate.z();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfPnt % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Density
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        fout << '\t' << cell(i).rho0;
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Velocity-X
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        fout << '\t' << cell(i).U0.x();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Velocity-Y
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        fout << '\t' << cell(i).U0.y();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Velocity-Z
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        fout << '\t' << cell(i).U0.z();
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Pressure
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        fout << '\t' << cell(i).p0;
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Temperature
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        fout << '\t' << cell(i).T0;
-        if (i % RECORD_PER_LINE == 0)
-            fout << std::endl;
-    }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    // Connectivity Information
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        const auto v = cell(i).vertex;
-        for (const auto &e : v)
-            fout << '\t' << e->index;
-        fout << std::endl;
-    }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
-
-    fout.close();
-}
-
-/**
- * Extract NODAL solution variables only.
- * Should be consistent with existing mesh!!!
- * @param fn
- */
-void readTECPLOT_Nodal(const std::string &fn)
-{
-    std::ifstream fin(fn);
-    if (fin.fail())
-        throw failed_to_open_file(fn);
-
-    /* Skip header */
-    for (int i = 0; i < 5; ++i)
-    {
-        std::string tmp;
-        std::getline(fin, tmp);
-    }
-
-    /* Skip coordinates */
-    for (int k = 0; k < 3; ++k)
-    {
-        Scalar var;
-        for (size_t i = 1; i <= NumOfPnt; ++i)
-            fin >> var;
-    }
-
-    /* Load data */
-    // Density
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-        fin >> pnt(i).rho;
-
-    // Velocity-X
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-        fin >> pnt(i).U.x();
-
-    // Velocity-Y
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-        fin >> pnt(i).U.y();
-
-    // Velocity-Z
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-        fin >> pnt(i).U.z();
-
-    // Pressure
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-        fin >> pnt(i).p;
-
-    // Temperature
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-        fin >> pnt(i).T;
-
-    /* Finalize */
-    fin.close();
-}
-
-/**
- * Extract CELL-CENTERED solution variables only.
- * Should be consistent with existing mesh!!!
- * Only for continuation purpose.
- * @param fn
- */
-void readTECPLOT_CellCentered(const std::string &fn)
-{
-    std::ifstream fin(fn);
-    if (fin.fail())
-        throw failed_to_open_file(fn);
-
-    /* Skip header */
-    for (int i = 0; i < 5; ++i)
-    {
-        std::string tmp;
-        std::getline(fin, tmp);
-    }
-
-    /* Skip coordinates */
-    for (int k = 0; k < 3; ++k)
-    {
-        Scalar var;
-        for (size_t i = 1; i <= NumOfPnt; ++i)
-            fin >> var;
-    }
-
-    /* Load data */
-    // Density
-    for (size_t i = 1; i <= NumOfCell; ++i)
-        fin >> cell(i).rho0;
-
-    // Velocity-X
-    for (size_t i = 1; i <= NumOfCell; ++i)
-        fin >> cell(i).U0.x();
-
-    // Velocity-Y
-    for (size_t i = 1; i <= NumOfCell; ++i)
-        fin >> cell(i).U0.y();
-
-    // Velocity-Z
-    for (size_t i = 1; i <= NumOfCell; ++i)
-        fin >> cell(i).U0.z();
-
-    // Pressure
-    for (size_t i = 1; i <= NumOfCell; ++i)
-        fin >> cell(i).p0;
-
-    // Temperature
-    for (size_t i = 1; i <= NumOfCell; ++i)
-        fin >> cell(i).T0;
-
-    /* Finalize */
-    fin.close();
-}
 
 /*********************************************** Least-Squares Method ************************************************/
 
@@ -1117,275 +327,7 @@ void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
     A.setFromTriplets(coef.begin(), coef.end());
 }
 
-/************************************************ Physical properties ************************************************/
-
-/**
- * Dynamic viscosity of ideal gas.
- * @param T
- * @return
- */
-Scalar Sutherland(Scalar T)
-{
-    return 1.45e-6 * std::pow(T, 1.5) / (T + 110.0);
-}
-
-/***************************************************** I.C. & B.C. ***************************************************/
-
-static const Vector U_UP = { 1.0, 0.0, 0.0 }; // m/s
-static const Scalar T_DOWN = 300.0, T_UP = 1500.0; // K
-
-void BC_TABLE()
-{
-    for (const auto &e : patch)
-    {
-        if (e.name == "UP")
-        {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->T_BC = Dirichlet;
-            }
-        }
-        else if (e.name == "DOWN")
-        {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->T_BC = Dirichlet;
-            }
-        }
-        else if (e.name == "LEFT")
-        {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->T_BC = Neumann;
-            }
-        }
-        else if (e.name == "RIGHT")
-        {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->T_BC = Neumann;
-            }
-        }
-        else if (e.name == "FRONT")
-        {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->T_BC = Neumann;
-            }
-        }
-        else if (e.name == "BACK")
-        {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->T_BC = Neumann;
-            }
-        }
-        else
-            throw unexpected_patch(e.name);
-    }
-}
-
-/**
- * Initial conditions on all nodes, faces and cells.
- * Boundary elements are also set identical to interior, will be corrected in BC routine.
- */
-void IC()
-{
-    const Scalar rho0 = 1.225; //kg/m^3	
-    const Scalar P0 = 101325.0; // Pa
-    const Scalar T0 = 300.0; // K
-
-    // Node
-    for (size_t i = 1; i <= NumOfPnt; ++i)
-    {
-        auto &n_dst = pnt(i);
-        n_dst.rho = rho0;
-        n_dst.U = ZERO_VECTOR;
-        n_dst.p = P0;
-        n_dst.T = T0;
-    }
-
-    // Face
-    for (size_t i = 1; i <= NumOfFace; ++i)
-    {
-        auto &f_dst = face(i);
-        f_dst.rho = rho0;
-        f_dst.U = ZERO_VECTOR;
-        f_dst.p = P0;
-        f_dst.T = T0;
-    }
-
-    // Cell
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        auto &c_dst = cell(i);
-        c_dst.rho0 = rho0;
-        c_dst.U0 = ZERO_VECTOR;
-        c_dst.p0 = P0;
-        c_dst.T0 = T0;
-    }
-}
-
-/**
- * Boundary conditions on all related nodes and faces for all variables.
- */
-void BC()
-{
-    for (const auto &e : patch)
-    {
-        if (e.name == "UP")
-        {
-            for (auto f : e.surface)
-            {
-                f->U = U_UP;
-                f->T = T_UP;
-            }
-        }
-        else if (e.name == "DOWN")
-        {
-            for (auto f : e.surface)
-            {
-                f->U = ZERO_VECTOR;
-                f->T = T_DOWN;
-            }
-        }
-        else if (e.name == "LEFT")
-        {
-            for (auto f : e.surface)
-            {
-                f->U = ZERO_VECTOR;
-                f->grad_T = ZERO_VECTOR;
-            }
-        }
-        else if (e.name == "RIGHT")
-        {
-            for (auto f : e.surface)
-            {
-                f->U = ZERO_VECTOR;
-                f->grad_T = ZERO_VECTOR;
-            }
-        }
-        else if (e.name == "FRONT")
-        {
-            for (auto f : e.surface)
-            {
-                f->U = ZERO_VECTOR;
-                f->grad_T = ZERO_VECTOR;
-            }
-        }
-        else if (e.name == "BACK")
-        {
-            for (auto f : e.surface)
-            {
-                f->U = ZERO_VECTOR;
-                f->grad_T = ZERO_VECTOR;
-            }
-        }
-        else
-            throw unexpected_patch(e.name);
-    }
-}
-
-void updateNodalValue()
-{
-    /* Interpolation */
-    for (auto &n : pnt)
-    {
-        n.rho = ZERO_SCALAR;
-        n.U = ZERO_VECTOR;
-        n.p = ZERO_SCALAR;
-        n.T = ZERO_SCALAR;
-        for (int j = 1; j <= n.cellWeightingCoef.size(); ++j)
-        {
-            const auto curCoef = n.cellWeightingCoef(j);
-            const auto curCell = n.dependentCell(j);
-
-            n.rho += curCoef * curCell->rho0;
-            n.U += curCoef * curCell->U0;
-            n.p += curCoef * curCell->p0;
-            n.T += curCoef * curCell->T0;
-        }
-    }
-
-    std::vector<bool> visited(NumOfPnt + 1, false);
-
-    /* Velocity */
-    for (auto &e : patch)
-    {
-        if (e.name == "UP")
-        {
-            for (auto f : e.surface)
-                for (auto v : f->vertex)
-                    if (!visited[v->index])
-                    {
-                        v->U = U_UP;
-                        visited[v->index] = true;
-                    }
-        }
-    }
-    for (auto & e : patch)
-    {
-        if (e.name != "UP")
-        {
-            for (auto f : e.surface)
-                for (auto v : f->vertex)
-                    if (!visited[v->index])
-                    {
-                        v->U = ZERO_VECTOR;
-                        visited[v->index] = true;
-                    }
-        }
-    }
-
-    /* Temperature */
-    std::fill(visited.begin(), visited.end(), false);
-    for (auto &e : patch)
-    {
-        if (e.name == "UP")
-        {
-            for (auto f : e.surface)
-                for (auto v : f->vertex)
-                    if (!visited[v->index])
-                    {
-                        v->T = T_UP;
-                        visited[v->index] = true;
-                    }
-        }
-    }
-    for (auto &e : patch)
-    {
-        if (e.name == "DOWN")
-        {
-            for (auto f : e.surface)
-                for (auto v : f->vertex)
-                    if (!visited[v->index])
-                    {
-                        v->T = T_DOWN;
-                        visited[v->index] = true;
-                    }
-        }
-    }
-}
-
-/*********************************************** Spatial Discretization **********************************************/
+/****************************************************** Property *****************************************************/
 
 void calcCellProperty()
 {
@@ -1395,6 +337,17 @@ void calcCellProperty()
         c.mu = Sutherland(c.T);
     }
 }
+
+void calcFaceProperty()
+{
+    for (auto &f : face)
+    {
+        // Dynamic viscosity
+        f.mu = Sutherland(f.T);
+    }
+}
+
+/*********************************************** Spatial Discretization **********************************************/
 
 void calcFaceGhostVariable()
 {
@@ -2181,21 +1134,13 @@ void calcFaceValue()
     }
 }
 
-void calcFaceProperty()
+void calcCellContinuityFlux()
 {
-    for (auto &f : face)
-    {
-        // Dynamic viscosity
-        f.mu = Sutherland(f.T);
-    }
+    // TODO
 }
 
-void calcCellFlux()
+void calcCellMomentumFlux()
 {
-    // Continuity equation
-    // TODO
-
-    // Momentum equation
     for (auto &c : cell)
     {
         c.pressure_flux.setZero();
@@ -2207,33 +1152,43 @@ void calcCellFlux()
             auto f = c.surface.at(j);
             const auto &Sf = c.S.at(j);
 
-            // pressure term
-            const Vector cur_pressure_flux = f->p * Sf;
-            c.pressure_flux += cur_pressure_flux;
-
             // convection term
             const Vector cur_convection_flux = f->rhoU * f->U.dot(Sf);
             c.convection_flux += cur_convection_flux;
+
+            // pressure term
+            const Vector cur_pressure_flux = f->p * Sf;
+            c.pressure_flux += cur_pressure_flux;
 
             // viscous term
             const Vector cur_viscous_flux = { Sf.dot(f->tau.col(0)), Sf.dot(f->tau.col(1)), Sf.dot(f->tau.col(2)) };
             c.viscous_flux += cur_viscous_flux;
         }
     }
+}
 
-    // Energy equation
+void calcCellEnergyFlux()
+{
     // TODO
 }
 
-void calcFace_rhoU_star()
+void calcCellFlux()
+{
+    // Continuity equation
+    calcCellContinuityFlux();
+
+    // Momentum equation
+    calcCellMomentumFlux();
+
+    // Energy equation
+    calcCellEnergyFlux();
+}
+
+void calcInternalFace_rhoU_star()
 {
     for (auto &f : face)
     {
-        if (f.atBdry)
-        {
-            f.rhoU_star = f.rhoU;
-        }
-        else
+        if (!f.atBdry)
         {
             f.rhoU_star = (f.c0->rhoU_star + f.c1->rhoU0) / 2;
         }
@@ -2252,7 +1207,7 @@ void calcPoissonEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs)
             const auto &S_f = C.S.at(f);
             auto curFace = C.surface.at(f);
 
-            rhs(C.index - 1) += curFace->rhoU_star.dot(S_f);
+            rhs(C.index - 1) += curFace->atBdry ? curFace->rhoU.dot(S_f) : curFace->rhoU_star.dot(S_f);
         }
     }
 }
@@ -2272,7 +1227,7 @@ void calcPressureCorrectionGradient()
             if (curFace->atBdry)
                 dphi(i) = 0.0;
             else
-                dphi(i) = curAdjCell->rho - c.rho;
+                dphi(i) = curAdjCell->p_prime - c.p_prime;
         }
         c.grad_p_prime = c.J_INV_p_prime * dphi;
     }
@@ -2310,32 +1265,40 @@ void FSM(Scalar TimeStep)
 
     // Prediction
     for (auto &c : cell)
-        c.rhoU_star = c.rhoU0 + TimeStep / c.volume * (c.pressure_flux + c.viscous_flux - c.convection_flux);
+        c.rhoU_star = c.rhoU0 + TimeStep / c.volume * (-c.convection_flux - c.pressure_flux + c.viscous_flux);
 
     // rhoU_star at each face
-    calcFace_rhoU_star();
+    calcInternalFace_rhoU_star();
 
     // Correction
     calcPoissonEquationRHS(Q_dp);
     Q_dp /= TimeStep;
     Eigen::VectorXd dp = dp_solver.solve(Q_dp);
-
-    // Update
-    calcPressureCorrectionGradient();
     for (int i = 0; i < NumOfCell; ++i)
     {
         auto &c = cell.at(i);
         c.p_prime = dp(i);
+    }
+    calcPressureCorrectionGradient();
+
+    // Update
+    for (int i = 0; i < NumOfCell; ++i)
+    {
+        auto &c = cell.at(i);
+
         c.p += c.p_prime;
         c.U = (c.rhoU_star - TimeStep * c.grad_p_prime) / c.rho;
+
+        c.continuity_res = 0.0;
+        c.energy_res = 0.0;
     }
 }
 
 /**
- * 4-step Runge-Kutta time-marching.
+ * Forward Euler time-marching.
  * @param TimeStep
  */
-void RK4(Scalar TimeStep)
+void Euler(Scalar TimeStep)
 {
     /* Init */
     for (size_t i = 1; i <= NumOfCell; ++i)
@@ -2347,29 +1310,17 @@ void RK4(Scalar TimeStep)
         c.T = c.T0;
     }
 
-    static const std::array<Scalar, 4> alpha = { 1.0 / 4, 1.0 / 3, 1.0 / 2, 1.0 };
-
-    /* Step 1-4 */
-    for (size_t m = 0; m < 4; ++m)
-    {
-        const Scalar cur_dt = alpha[m] * TimeStep;
-
-        // Update pressure-velocity coupling, and compute residuals.
-        FSM(cur_dt);
-
-        // Update scalars
-        for (size_t i = 1; i <= NumOfCell; ++i)
-        {
-            auto &c = cell(i);
-            c.rho = c.rho0 + cur_dt * c.continuity_res;
-            c.T = c.T0 + cur_dt * c.energy_res;
-        }
-    }
+    /* Pressure-Velocity coupling */
+    FSM(TimeStep);
 
     /* Update */
     for (size_t i = 1; i <= NumOfCell; ++i)
     {
         auto &c = cell(i);
+
+        c.rho = c.rho0 + TimeStep * c.continuity_res;
+        c.T = c.T0 + TimeStep * c.energy_res;
+
         c.rho0 = c.rho;
         c.U0 = c.U;
         c.p0 = c.p;
@@ -2379,6 +1330,10 @@ void RK4(Scalar TimeStep)
 }
 
 /***************************************************** Solution Control **********************************************/
+
+/* Iteration timing and counting */
+const int MAX_ITER = 2000;
+const Scalar MAX_TIME = 100.0; // s
 
 bool diagnose()
 {
@@ -2407,7 +1362,7 @@ void solve(std::ostream &fout = std::cout)
         fout << "Iter" << ++iter << ":" << std::endl;
         dt = calcTimeStep();
         fout << "\tt=" << t << "s, dt=" << dt << "s" << std::endl;
-        RK4(dt);
+        Euler(dt);
         t += dt;
         done = diagnose();
         if (done || !(iter % OUTPUT_GAP))
@@ -2439,8 +1394,7 @@ void init()
     Q_dp.resize(NumOfCell, Eigen::NoChange);
     calcPressureCorrectionEquationCoef(A_dp);
     A_dp.makeCompressed();
-    dp_solver.analyzePattern(A_dp);
-    dp_solver.factorize(A_dp);
+    dp_solver.compute(A_dp);
 
     // Set I.C. of each variable.
     IC();
