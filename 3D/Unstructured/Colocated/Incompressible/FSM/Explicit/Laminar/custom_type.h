@@ -9,22 +9,25 @@
 #include "Eigen/Dense"
 #include "Eigen/Sparse"
 
+/***************************************************** Math types ****************************************************/
+
+typedef double Scalar;
+typedef Eigen::Matrix<Scalar, 3, 1> Vector;
+typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
+
 /***************************************************** Marcos ********************************************************/
 
 #define ZERO_INDEX 0
 #define ZERO_SCALAR 0.0
 #define ZERO_VECTOR {0.0, 0.0, 0.0}
+#define ZERO_TENSOR Tensor::Zero()
 
-/****************************************************** Types ********************************************************/
+/****************************************************** BC types ******************************************************/
 
-/* Math types */
-typedef double Scalar;
-typedef Eigen::Matrix<Scalar, 3, 1> Vector;
-typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
-
-/* BC types */
 enum BC_CATEGORY { Dirichlet = 0, Neumann, Robin };
 static const std::array<std::string, 3> BC_CATEGORY_STR = { "Dirichlet", "Neumann", "Robin" };
+
+/****************************************************** Types ********************************************************/
 
 /* 1-based array */
 template<typename T>
@@ -62,6 +65,8 @@ public:
             throw index_is_zero();
     }
 };
+
+/****************************************************** Types ********************************************************/
 
 /* Geom elements */
 struct Cell;
@@ -132,10 +137,10 @@ struct Face
 
     // Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
-    Tensor grad_U;
+    Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
-    Tensor tau;
+    Tensor tau = ZERO_TENSOR;
 
     /* Fractional-Step Method temporary variables */
     Vector rhoU_star = ZERO_VECTOR;
@@ -233,6 +238,8 @@ struct unexpected_patch : public std::runtime_error
 {
     unexpected_patch(const std::string &name) : std::runtime_error("Patch \"" + name + "\" is not expected to be a boundary patch.") {}
 };
+
+/***************************************************** END ***********************************************************/
 
 
 #endif

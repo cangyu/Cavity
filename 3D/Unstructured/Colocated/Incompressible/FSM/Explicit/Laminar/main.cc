@@ -1134,6 +1134,22 @@ void calcFaceValue()
     }
 }
 
+void calcFaceViscousStress()
+{
+    for (auto &f : face)
+    {
+        const Scalar loc_div3 = (f.grad_U(0, 0) + f.grad_U(1, 1) + f.grad_U(2, 2)) / 3.0;
+
+        f.tau(0, 0) = 2 * f.mu * (f.grad_U(0, 0) - loc_div3);
+        f.tau(1, 1) = 2 * f.mu * (f.grad_U(1, 1) - loc_div3);
+        f.tau(2, 2) = 2 * f.mu * (f.grad_U(2, 2) - loc_div3);
+
+        f.tau(0, 1) = f.tau(1, 0) = f.mu * (f.grad_U(0, 1) + f.grad_U(1, 0));
+        f.tau(1, 2) = f.tau(2, 1) = f.mu * (f.grad_U(1, 2) + f.grad_U(2, 1));
+        f.tau(2, 0) = f.tau(0, 2) = f.mu * (f.grad_U(2, 0) + f.grad_U(0, 2));
+    }
+}
+
 void calcCellContinuityFlux()
 {
     // TODO
@@ -1261,6 +1277,8 @@ void FSM(Scalar TimeStep)
     // Physical properties at centroid of each face
     calcFaceProperty();
 
+    calcFaceViscousStress();
+
     calcCellFlux();
 
     // Prediction
@@ -1295,10 +1313,10 @@ void FSM(Scalar TimeStep)
 }
 
 /**
- * Forward Euler time-marching.
+ * 1st-order explicit time-marching.
  * @param TimeStep
  */
-void Euler(Scalar TimeStep)
+void ForwardEuler(Scalar TimeStep)
 {
     /* Init */
     for (size_t i = 1; i <= NumOfCell; ++i)
@@ -1362,7 +1380,7 @@ void solve(std::ostream &fout = std::cout)
         fout << "Iter" << ++iter << ":" << std::endl;
         dt = calcTimeStep();
         fout << "\tt=" << t << "s, dt=" << dt << "s" << std::endl;
-        Euler(dt);
+        ForwardEuler(dt);
         t += dt;
         done = diagnose();
         if (done || !(iter % OUTPUT_GAP))
