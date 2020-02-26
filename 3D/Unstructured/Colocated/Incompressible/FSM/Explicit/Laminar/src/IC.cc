@@ -1,16 +1,11 @@
-#include "custom_type.h"
-#include "IC.h"
+#include "../inc/custom_type.h"
+#include "../inc/IC.h"
 
-extern size_t NumOfPnt;
-extern size_t NumOfFace;
-extern size_t NumOfCell;
-
-extern NaturalArray<Point> pnt; // Node objects
-extern NaturalArray<Face> face; // Face objects
-extern NaturalArray<Cell> cell; // Cell objects
-
-
-/******************************************************** I.C. *******************************************************/
+extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern NaturalArray<Point> pnt;
+extern NaturalArray<Face> face;
+extern NaturalArray<Cell> cell;
+extern NaturalArray<Patch> patch;
 
 /**
  * Initial conditions on all nodes, faces and cells.

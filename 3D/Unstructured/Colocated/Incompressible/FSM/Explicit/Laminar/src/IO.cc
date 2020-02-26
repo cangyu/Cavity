@@ -1,18 +1,13 @@
 #include <fstream>
 #include "xf.h"
-#include "custom_type.h"
-#include "IO.h"
+#include "../inc/custom_type.h"
+#include "../inc/IO.h"
 
-extern size_t NumOfPnt;
-extern size_t NumOfFace;
-extern size_t NumOfCell;
-
-extern NaturalArray<Point> pnt; // Node objects
-extern NaturalArray<Face> face; // Face objects
-extern NaturalArray<Cell> cell; // Cell objects
-extern NaturalArray<Patch> patch; // Group of boundary faces
-
-/*************************************************** File I/O ********************************************************/
+extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern NaturalArray<Point> pnt;
+extern NaturalArray<Face> face;
+extern NaturalArray<Cell> cell;
+extern NaturalArray<Patch> patch;
 
 /**
  * Load mesh.

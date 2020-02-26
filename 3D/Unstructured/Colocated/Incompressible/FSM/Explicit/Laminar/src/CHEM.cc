@@ -1,8 +1,6 @@
 #include <cmath>
-#include "CHEM.h"
+#include "../inc/CHEM.h"
 
-
-/************************************************ Physical properties ************************************************/
 
 /**
  * Dynamic viscosity of ideal gas.

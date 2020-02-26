@@ -1,19 +1,11 @@
-#include "custom_type.h"
-#include "BC.h"
+#include "../inc/custom_type.h"
+#include "../inc/BC.h"
 
-extern size_t NumOfPnt;
-extern size_t NumOfFace;
-extern size_t NumOfCell;
-
-extern NaturalArray<Point> pnt; // Node objects
-extern NaturalArray<Face> face; // Face objects
-extern NaturalArray<Cell> cell; // Cell objects
-extern NaturalArray<Patch> patch; // Group of boundary faces
-
-/******************************************************** B.C. *******************************************************/
-
-static const Vector U_UP = { 1.0, 0.0, 0.0 }; // m/s
-static const Scalar T_DOWN = 300.0, T_UP = 1500.0; // K
+extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern NaturalArray<Point> pnt;
+extern NaturalArray<Face> face;
+extern NaturalArray<Cell> cell;
+extern NaturalArray<Patch> patch;
 
 void BC_TABLE()
 {
@@ -84,6 +76,10 @@ void BC_TABLE()
     }
 }
 
+static const Scalar rho0 = 1.225; // kg/m3
+static const Vector U_UP = { 1.0, 0.0, 0.0 }; // m/s
+static const Scalar T_DOWN = 300.0, T_UP = 1500.0; // K
+
 /**
  * Boundary conditions on all related faces for all variables.
  */
@@ -95,6 +91,7 @@ void BC()
         {
             for (auto f : e.surface)
             {
+                f->rho = rho0;
                 f->U = U_UP;
                 f->T = T_UP;
             }
@@ -103,6 +100,7 @@ void BC()
         {
             for (auto f : e.surface)
             {
+                f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->T = T_DOWN;
             }
@@ -111,6 +109,7 @@ void BC()
         {
             for (auto f : e.surface)
             {
+                f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->grad_T = ZERO_VECTOR;
             }
@@ -119,6 +118,7 @@ void BC()
         {
             for (auto f : e.surface)
             {
+                f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->grad_T = ZERO_VECTOR;
             }
@@ -127,6 +127,7 @@ void BC()
         {
             for (auto f : e.surface)
             {
+                f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->grad_T = ZERO_VECTOR;
             }
@@ -135,6 +136,7 @@ void BC()
         {
             for (auto f : e.surface)
             {
+                f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->grad_T = ZERO_VECTOR;
             }
