@@ -116,7 +116,7 @@ struct Face
     Patch *parent = nullptr;
     BC_CATEGORY rho_BC = Dirichlet;
     std::array<BC_CATEGORY, 3> U_BC = { Dirichlet, Dirichlet, Dirichlet };
-    BC_CATEGORY p_BC = Neumann;
+    BC_CATEGORY p_BC = Neumann, p_prime_BC = Neumann;
     BC_CATEGORY T_BC = Neumann;
 
     // Ghost variables if needed
@@ -143,6 +143,8 @@ struct Face
     Tensor tau = ZERO_TENSOR;
 
     /* Fractional-Step Method temporary variables */
+    Scalar p_prime = ZERO_SCALAR;
+    Vector grad_p_prime = ZERO_VECTOR;
     Vector rhoU_star = ZERO_VECTOR;
 };
 struct Cell

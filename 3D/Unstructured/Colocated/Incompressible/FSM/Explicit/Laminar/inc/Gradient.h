@@ -3,6 +3,7 @@
 
 void calcFaceGhostVariable();
 void calcCellGradient();
+void calcPressureCorrectionGradient();
 void calcFaceGradient();
 
 #endif // !__GRADIENT_H__

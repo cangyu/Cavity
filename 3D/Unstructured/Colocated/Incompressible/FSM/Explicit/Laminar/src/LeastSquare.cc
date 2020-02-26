@@ -36,7 +36,7 @@ void calcLeastSquareCoef()
 
     Mat J_rho;
     std::array<Mat, 3> J_U;
-    Mat J_p;
+    Mat J_p, J_p_prime;
     Mat J_T;
 
     for (auto &c : cell)
@@ -48,6 +48,7 @@ void calcLeastSquareCoef()
         J_U[1].resize(nF, Eigen::NoChange);
         J_U[2].resize(nF, Eigen::NoChange);
         J_p.resize(nF, Eigen::NoChange);
+        J_p_prime.resize(nF, Eigen::NoChange);
         J_T.resize(nF, Eigen::NoChange);
 
         for (size_t j = 0; j < nF; ++j)
@@ -138,6 +139,21 @@ void calcLeastSquareCoef()
                     break;
                 }
 
+                // Pressure-Correction
+                switch (curFace->p_prime_BC)
+                {
+                case Dirichlet:
+                    J_p_prime.row(j) << dx, dy, dz;
+                    break;
+                case Neumann:
+                    J_p_prime.row(j) << dx2, dy2, dz2;
+                    break;
+                case Robin:
+                    throw unsupported_boundary_condition(Robin);
+                default:
+                    break;
+                }
+
                 // Temperature
                 switch (curFace->T_BC)
                 {
@@ -176,6 +192,9 @@ void calcLeastSquareCoef()
                 // Pressure
                 J_p.row(j) << dx, dy, dz;
 
+                // Pressure-Correction
+                J_p_prime.row(j) << dx, dy, dz;
+
                 // Temperature
                 J_T.row(j) << dx, dy, dz;
             }
@@ -195,6 +214,9 @@ void calcLeastSquareCoef()
 
         // Pressure
         extractQRMatrix(J_p, c.J_INV_p);
+
+        // Pressure-Correction
+        extractQRMatrix(J_p_prime, c.J_INV_p_prime);
 
         // Temperature
         extractQRMatrix(J_T, c.J_INV_T);

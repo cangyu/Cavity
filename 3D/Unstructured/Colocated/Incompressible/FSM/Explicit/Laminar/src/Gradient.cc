@@ -320,6 +320,32 @@ void calcCellGradient()
     }
 }
 
+void calcPressureCorrectionGradient()
+{
+    for (auto &c : cell)
+    {
+        const size_t nF = c.surface.size();
+        Eigen::VectorXd dphi(nF);
+
+        for (size_t i = 0; i < nF; ++i)
+        {
+            auto curFace = c.surface.at(i);
+            auto curAdjCell = c.adjCell.at(i);
+
+            if (curFace->atBdry)
+            {
+                if (curFace->p_prime_BC == Dirichlet)
+                    dphi(i) = -c.p_prime; // Zero-Value is assumed.
+                else
+                    dphi(i) = 0.0; // Zero-Gradient is assumed.
+            }
+            else
+                dphi(i) = curAdjCell->p_prime - c.p_prime;
+        }
+        c.grad_p_prime = c.J_INV_p_prime * dphi;
+    }
+}
+
 static inline Vector interpGradientToFace(const Vector &predicted_grad_phi_f, Scalar phi_C, Scalar phi_F, const Vector &e_CF, Scalar d_CF)
 {
     return predicted_grad_phi_f + ((phi_F - phi_C) / d_CF - predicted_grad_phi_f.dot(e_CF))*e_CF;

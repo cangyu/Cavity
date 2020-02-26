@@ -299,27 +299,6 @@ void calcInternalFace_rhoU_star()
     }
 }
 
-void calcPressureCorrectionGradient()
-{
-    for (auto &c : cell)
-    {
-        const size_t nF = c.surface.size();
-        Eigen::VectorXd dphi(nF);
-
-        for (size_t i = 0; i < nF; ++i)
-        {
-            auto curFace = c.surface.at(i);
-            auto curAdjCell = c.adjCell.at(i);
-
-            if (curFace->atBdry)
-                dphi(i) = 0.0;
-            else
-                dphi(i) = curAdjCell->p_prime - c.p_prime;
-        }
-        c.grad_p_prime = c.J_INV_p_prime * dphi;
-    }
-}
-
 /*********************************************** Temporal Discretization *********************************************/
 
 /**
@@ -440,7 +419,7 @@ Scalar calcTimeStep()
 
 void solve(std::ostream &fout = std::cout)
 {
-    static const size_t OUTPUT_GAP = 100;
+    static const size_t OUTPUT_GAP = 2;
 
     int iter = 0;
     Scalar dt = 0.0; // s
