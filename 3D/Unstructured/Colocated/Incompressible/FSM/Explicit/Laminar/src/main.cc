@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <map>
 #include <cmath>
 #include <cassert>
@@ -417,19 +418,22 @@ Scalar calcTimeStep()
     return ret;
 }
 
-void solve(std::ostream &fout = std::cout)
+void solve(std::ostream &LOG_OUT = std::cout)
 {
     static const size_t OUTPUT_GAP = 2;
+    static const std::string SEP = "  ";
 
     int iter = 0;
     Scalar dt = 0.0; // s
     Scalar t = 0.0; // s
     bool done = false;
+
+    LOG_OUT << std::endl << "Starting calculation ... " << std::endl;
     while (!done)
     {
-        fout << "Iter" << ++iter << ":" << std::endl;
+        LOG_OUT << std::endl << "Iter" << ++iter << ":" << std::endl;
         dt = calcTimeStep();
-        fout << "\tt=" << t << "s, dt=" << dt << "s" << std::endl;
+        LOG_OUT << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
         ForwardEuler(dt);
         t += dt;
         done = diagnose();
@@ -439,33 +443,42 @@ void solve(std::ostream &fout = std::cout)
             writeTECPLOT_Nodal("flow" + std::to_string(iter) + "_NODAL.dat", "3D Cavity");
             writeTECPLOT_CellCentered("flow" + std::to_string(iter) + "_CELL.dat", "3D Cavity");
         }
+        LOG_OUT << std::endl;
     }
-    fout << "Finished!" << std::endl;
+    LOG_OUT << "Finished!" << std::endl;
 }
 
 /**
  * Initialize the computation environment.
  */
-void init()
+void init(std::ostream &LOG_OUT = std::cout)
 {
-    // Load mesh.
-    readMESH("cube32.msh");
+    static const std::string MESH_NAME = "cube32.msh";
+    std::ofstream fout("Mesh Info(" + MESH_NAME + ").txt");
+    LOG_OUT << std::endl << "Loading mesh \"" << MESH_NAME << "\" ... ";
+    readMESH(MESH_NAME, fout);
+    fout.close();
+    LOG_OUT << "Done!" << std::endl;
 
-    // Set B.C. of each variable.
+    LOG_OUT << std::endl << "Setting B.C. of each variable ... ";
     BC_TABLE();
+    LOG_OUT << "Done!" << std::endl;
 
-    // Least-Square coefficients used to calculate gradients.
+    LOG_OUT << std::endl << "Preparing Least-Square coefficients used to calculate gradients ... ";
     calcLeastSquareCoef();
+    LOG_OUT << "Done!" << std::endl;
 
-    // Pressure-Correction equation coefficients.
+    LOG_OUT << std::endl << "Preparing Pressure-Correction equation coefficients ... ";
     A_dp.resize(NumOfCell, NumOfCell);
     Q_dp.resize(NumOfCell, Eigen::NoChange);
     calcPressureCorrectionEquationCoef(A_dp);
     A_dp.makeCompressed();
     dp_solver.compute(A_dp);
+    LOG_OUT << "Done!" << std::endl;
 
-    // Set I.C. of each variable.
+    LOG_OUT << std::endl << "Setting I.C. of each variable ... ";
     IC();
+    LOG_OUT << "Done!" << std::endl;
 }
 
 /**

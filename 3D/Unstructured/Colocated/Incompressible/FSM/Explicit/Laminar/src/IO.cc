@@ -1,4 +1,3 @@
-#include <fstream>
 #include "xf.h"
 #include "../inc/custom_type.h"
 #include "../inc/IO.h"
@@ -13,12 +12,12 @@ extern NaturalArray<Patch> patch;
  * Load mesh.
  * @param MESH_PATH
  */
-void readMESH(const std::string &MESH_PATH)
+void readMESH(const std::string &MESH_PATH, std::ostream &LOG_OUT)
 {
     using namespace GridTool;
 
     // Load ANSYS Fluent mesh using external independent package.
-    const XF::MESH mesh(MESH_PATH);
+    const XF::MESH mesh(MESH_PATH, LOG_OUT);
 
     // Update counting of geom elements.
     NumOfPnt = mesh.numOfNode();
@@ -98,6 +97,9 @@ void readMESH(const std::string &MESH_PATH)
         // Cell center location.
         const auto &centroid_src = c_src.center;
         c_dst.center = { centroid_src.x(), centroid_src.y(), centroid_src.z() };
+
+        // Cell volume.
+        c_dst.volume = c_src.volume;
 
         // Cell included nodes.
         const auto N1 = c_src.includedNode.size();
@@ -206,6 +208,15 @@ void readMESH(const std::string &MESH_PATH)
     }
 }
 
+static void checkNodalValue(const double &val, size_t idx)
+{
+    if (std::isnan(val))
+    {
+        std::cerr << "NODE" + std::to_string(idx) << std::endl;
+        throw;
+    }
+}
+
 /**
  * Output computation results.
  * Nodal values are exported, including boundary variables.
@@ -260,7 +271,9 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
     // Density
     for (size_t i = 1; i <= NumOfPnt; ++i)
     {
-        fout << '\t' << pnt(i).rho;
+        const auto val = pnt(i).rho;
+        checkNodalValue(val, i);
+        fout << '\t' << val;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
@@ -270,7 +283,9 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
     // Velocity-X
     for (size_t i = 1; i <= NumOfPnt; ++i)
     {
-        fout << '\t' << pnt(i).U.x();
+        const auto val = pnt(i).U.x();
+        checkNodalValue(val, i);
+        fout << '\t' << val;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
@@ -280,7 +295,9 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
     // Velocity-Y
     for (size_t i = 1; i <= NumOfPnt; ++i)
     {
-        fout << '\t' << pnt(i).U.y();
+        const auto val = pnt(i).U.y();
+        checkNodalValue(val, i);
+        fout << '\t' << val;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
@@ -290,7 +307,9 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
     // Velocity-Z
     for (size_t i = 1; i <= NumOfPnt; ++i)
     {
-        fout << '\t' << pnt(i).U.z();
+        const auto val = pnt(i).U.z();
+        checkNodalValue(val, i);
+        fout << '\t' << val;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
@@ -300,7 +319,9 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
     // Pressure
     for (size_t i = 1; i <= NumOfPnt; ++i)
     {
-        fout << '\t' << pnt(i).p;
+        const auto val = pnt(i).p;
+        checkNodalValue(val, i);
+        fout << '\t' << val;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
@@ -310,7 +331,9 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
     // Temperature
     for (size_t i = 1; i <= NumOfPnt; ++i)
     {
-        fout << '\t' << pnt(i).T;
+        const auto val = pnt(i).T;
+        checkNodalValue(val, i);
+        fout << '\t' << val;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
