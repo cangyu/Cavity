@@ -2,7 +2,7 @@
 #include <fstream>
 #include <map>
 #include <cmath>
-#include <cassert>
+#include <functional>
 #include "../inc/custom_type.h"
 #include "../inc/CHEM.h"
 #include "../inc/IO.h"
@@ -35,7 +35,8 @@ void calcCellProperty()
     for (auto &c : cell)
     {
         // Dynamic viscosity
-        c.mu = Sutherland(c.T);
+        // c.mu = Sutherland(c.T);
+        c.mu = 1.225 * 1e-2;
     }
 }
 
@@ -44,7 +45,8 @@ void calcFaceProperty()
     for (auto &f : face)
     {
         // Dynamic viscosity
-        f.mu = Sutherland(f.T);
+        // f.mu = Sutherland(f.T);
+        f.mu = 1.225 * 1e-2;
     }
 }
 
@@ -404,25 +406,64 @@ void ForwardEuler(Scalar TimeStep)
 const int MAX_ITER = 2000;
 const Scalar MAX_TIME = 100.0; // s
 
+static const size_t OUTPUT_GAP = 2;
+static const std::string SEP = "  ";
+
+std::ostream &LOG_OUT = std::cout;
+
+static void stat_min_max(const std::string& var_name, std::function<Scalar(const Cell&)> extractor)
+{
+    Scalar var_min, var_max;
+
+    var_min = var_max = extractor(cell(1));
+    for (size_t i = 2; i <= NumOfCell; ++i)
+    {
+        const auto cur_var = extractor(cell(i));
+        if (cur_var < var_min)
+            var_min = cur_var;
+        if (cur_var > var_max)
+            var_max = cur_var;
+    }
+    LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
+}
+
 bool diagnose()
 {
-    bool ret = false;
+    stat_min_max("ConvectionFlux_X", [](const Cell &c) { return c.convection_flux.x(); });
+    stat_min_max("ConvectionFlux_Y", [](const Cell &c) { return c.convection_flux.y(); });
+    stat_min_max("ConvectionFlux_Z", [](const Cell &c) { return c.convection_flux.z(); });
+    LOG_OUT << std::endl;
+    stat_min_max("PressureFlux_X", [](const Cell &c) { return c.pressure_flux.x(); });
+    stat_min_max("PressureFlux_Y", [](const Cell &c) { return c.pressure_flux.y(); });
+    stat_min_max("PressureFlux_Z", [](const Cell &c) { return c.pressure_flux.z(); });
+    LOG_OUT << std::endl;
+    stat_min_max("ViscousFlux_X", [](const Cell &c) { return c.viscous_flux.x(); });
+    stat_min_max("ViscousFlux_Y", [](const Cell &c) { return c.viscous_flux.y(); });
+    stat_min_max("ViscousFlux_Z", [](const Cell &c) { return c.viscous_flux.z(); });
+    LOG_OUT << std::endl;
+    stat_min_max("rhoU*", [](const Cell &c) { return c.rhoU_star.x(); });
+    stat_min_max("rhoV*", [](const Cell &c) { return c.rhoU_star.y(); });
+    stat_min_max("rhoW*", [](const Cell &c) { return c.rhoU_star.z(); });
+    LOG_OUT << std::endl;
+    stat_min_max("rho", [](const Cell &c) { return c.rho; });
+    stat_min_max("U", [](const Cell &c) { return c.U.x(); });
+    stat_min_max("V", [](const Cell &c) { return c.U.y(); });
+    stat_min_max("W", [](const Cell &c) { return c.U.z(); });
+    stat_min_max("p", [](const Cell &c) { return c.p; });
+    stat_min_max("T", [](const Cell &c) { return c.T; });
 
-    return ret;
+    return false;
 }
 
 Scalar calcTimeStep()
 {
-    Scalar ret = 1e-5;
+    Scalar ret = 1e-4;
 
     return ret;
 }
 
-void solve(std::ostream &LOG_OUT = std::cout)
+void solve()
 {
-    static const size_t OUTPUT_GAP = 2;
-    static const std::string SEP = "  ";
-
     int iter = 0;
     Scalar dt = 0.0; // s
     Scalar t = 0.0; // s
@@ -451,7 +492,7 @@ void solve(std::ostream &LOG_OUT = std::cout)
 /**
  * Initialize the computation environment.
  */
-void init(std::ostream &LOG_OUT = std::cout)
+void init()
 {
     static const std::string MESH_NAME = "cube32.msh";
     std::ofstream fout("Mesh Info(" + MESH_NAME + ").txt");

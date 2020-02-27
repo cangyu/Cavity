@@ -83,7 +83,7 @@ void BC_TABLE()
 }
 
 static const Scalar rho0 = 1.225; // kg/m3
-static const Vector U_UP = { 1e-3, 0.0, 0.0 }; // m/s
+static const Vector U_UP = { 1.0, 0.0, 0.0 }; // m/s
 static const Scalar T_DOWN = 300.0, T_UP = 300.0; // K
 
 /**
