@@ -97,7 +97,7 @@ void calcFaceGhostVariable()
                     f.T_ghost = f.c0->T + 2 * f.grad_T.dot(f.r0);
                     break;
                 case Dirichlet:
-                    f.p_ghost = 0.0;
+                    f.T_ghost = 0.0;
                     break;
                 case Robin:
                     throw unsupported_boundary_condition(Robin);
