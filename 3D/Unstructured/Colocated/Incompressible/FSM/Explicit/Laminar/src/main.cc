@@ -26,7 +26,7 @@ NaturalArray<Patch> patch; // Group of boundary faces
 /* Pressure-Corrrection equation coefficients */
 static Eigen::SparseMatrix<Scalar> A_dp;
 static Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp;
-static Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar, int>> dp_solver;
+static Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver;
 
 /****************************************************** Property *****************************************************/
 
@@ -297,7 +297,7 @@ void calcInternalFace_rhoU_star()
     {
         if (!f.atBdry)
         {
-            f.rhoU_star = (f.c0->rhoU_star + f.c1->rhoU0) / 2;
+            f.rhoU_star = (f.c0->rhoU_star + f.c1->rhoU_star) / 2;
         }
     }
 }
