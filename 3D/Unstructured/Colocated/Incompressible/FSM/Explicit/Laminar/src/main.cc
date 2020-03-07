@@ -11,6 +11,7 @@
 #include "../inc/LeastSquare.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/Gradient.h"
+#include "../inc/Discretization.h"
 #include "../inc/Flux.h"
 
 /* Grid utilities */
@@ -27,6 +28,15 @@ NaturalArray<Patch> patch; // Group of boundary faces
 static Eigen::SparseMatrix<Scalar> A_dp;
 static Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp;
 static Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver;
+
+/* Iteration timing and counting */
+const int MAX_ITER = 2000;
+const Scalar MAX_TIME = 100.0; // s
+
+static const size_t OUTPUT_GAP = 5;
+static const std::string SEP = "  ";
+
+std::ostream &LOG_OUT = std::cout;
 
 /****************************************************** Property *****************************************************/
 
@@ -345,6 +355,10 @@ void FSM(Scalar TimeStep)
     calcPressureCorrectionEquationRHS(Q_dp);
     Q_dp /= TimeStep;
     Eigen::VectorXd dp = dp_solver.solve(Q_dp);
+    LOG_OUT << SEP << "PBiCGSTAB solver iterations: " << dp_solver.iterations() << std::endl;
+    LOG_OUT << SEP << "PBiCGSTAB solver error: " << dp_solver.error() << std::endl;
+    LOG_OUT << SEP << "PBiCGSTAB solver message: " << dp_solver.info() << std::endl << std::endl;
+
     for (int i = 0; i < NumOfCell; ++i)
     {
         auto &c = cell.at(i);
@@ -402,15 +416,6 @@ void ForwardEuler(Scalar TimeStep)
 
 /***************************************************** Solution Control **********************************************/
 
-/* Iteration timing and counting */
-const int MAX_ITER = 2000;
-const Scalar MAX_TIME = 100.0; // s
-
-static const size_t OUTPUT_GAP = 2;
-static const std::string SEP = "  ";
-
-std::ostream &LOG_OUT = std::cout;
-
 static void stat_min_max(const std::string& var_name, std::function<Scalar(const Cell&)> extractor)
 {
     Scalar var_min, var_max;
@@ -451,13 +456,16 @@ bool diagnose()
     stat_min_max("W", [](const Cell &c) { return c.U.z(); });
     stat_min_max("p", [](const Cell &c) { return c.p; });
     stat_min_max("T", [](const Cell &c) { return c.T; });
+    LOG_OUT << std::endl;
+    stat_min_max("div", [](const Cell &c) { return c.grad_U.trace(); });
+    stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * 1e-3 * 32; });
 
     return false;
 }
 
 Scalar calcTimeStep()
 {
-    Scalar ret = 1e-4;
+    Scalar ret = 1e-3;
 
     return ret;
 }
