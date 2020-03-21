@@ -6,4 +6,4 @@
 void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A);
 void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs);
 
-#endif // !__POISSON_EQN_H__
+#endif

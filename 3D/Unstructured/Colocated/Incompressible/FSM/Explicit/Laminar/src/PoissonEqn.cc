@@ -1,3 +1,5 @@
+#include <list>
+#include <functional>
 #include "../inc/PoissonEqn.h"
 
 extern size_t NumOfPnt, NumOfFace, NumOfCell;
@@ -6,10 +8,19 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
+static const size_t ref_cell = 0; // 0-based
+static const Scalar ref_val = 0.0; // Pa
+
+bool is_ref_row(const Eigen::Triplet<Scalar> &x)
+{
+    return x.row() == ref_cell;
+}
+
 void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
 {
-    std::vector<Eigen::Triplet<Scalar>> coef;
+    std::list<Eigen::Triplet<Scalar>> coef;
 
+    // Original coefficients
     for (const auto &C : cell)
     {
         // Initialize coefficient baseline.
@@ -106,6 +117,11 @@ void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
             coef.emplace_back(C.index - 1, it->first - 1, it->second);
     }
 
+    // Set reference
+    coef.remove_if(is_ref_row);
+    coef.emplace_back(0, 0, 1.0);
+
+    // Assemble
     A.setFromTriplets(coef.begin(), coef.end());
 }
 
@@ -124,4 +140,7 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
             rhs(C.index - 1) += curFace->atBdry ? curFace->rhoU.dot(S_f) : curFace->rhoU_star.dot(S_f);
         }
     }
+
+    // Set reference
+    rhs[ref_cell] = ref_val;
 }
