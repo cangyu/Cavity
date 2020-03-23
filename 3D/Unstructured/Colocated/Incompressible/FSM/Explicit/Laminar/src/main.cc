@@ -74,14 +74,14 @@ bool diagnose()
     stat_min_max("T", [](const Cell &c) { return c.T; });
     LOG_OUT << std::endl;
     stat_min_max("div", [](const Cell &c) { return c.grad_U.trace(); });
-    stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * 1e-2 * 32; });
+    stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * 5e-3 * 64; });
 
     return false;
 }
 
 Scalar calcTimeStep()
 {
-    Scalar ret = 1e-2;
+    Scalar ret = 5e-3;
 
     return ret;
 }
@@ -124,7 +124,7 @@ void solve()
  */
 void init()
 {
-    static const std::string MESH_NAME = "cube32.msh";
+    static const std::string MESH_NAME = "cube64.msh";
     std::ofstream fout("Mesh Info(" + MESH_NAME + ").txt");
     LOG_OUT << std::endl << "Loading mesh \"" << MESH_NAME << "\" ... ";
     readMESH(MESH_NAME, fout);
@@ -144,6 +144,9 @@ void init()
     Q_dp.resize(NumOfCell, Eigen::NoChange);
     calcPressureCorrectionEquationCoef(A_dp);
     A_dp.makeCompressed();
+    LOG_OUT << "Done!" << std::endl;
+
+    LOG_OUT << std::endl << "Matrix factorization ...";
     dp_solver.compute(A_dp);
     LOG_OUT << "Done!" << std::endl;
 

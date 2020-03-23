@@ -17,13 +17,15 @@ Scalar Sutherland(Scalar T)
     return 1.45e-6 * std::pow(T, 1.5) / (T + 110.0);
 }
 
+static const Scalar Re = 400.0;
+
 void calcCellProperty()
 {
     for (auto &c : cell)
     {
         // Dynamic viscosity
         // c.mu = Sutherland(c.T);
-        c.mu = 1.225 * 1e-2;
+        c.mu = 1.225 / Re;
     }
 }
 
@@ -33,6 +35,6 @@ void calcFaceProperty()
     {
         // Dynamic viscosity
         // f.mu = Sutherland(f.T);
-        f.mu = 1.225 * 1e-2;
+        f.mu = 1.225 / Re;
     }
 }
