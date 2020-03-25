@@ -3,7 +3,7 @@
 #include <fstream>
 #include <cmath>
 #include <Eigen/Sparse>
-#include "natural_array.hpp"
+#include "natural_array.h"
 
 using namespace std;
 

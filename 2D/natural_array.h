@@ -1,5 +1,5 @@
-#ifndef __NATURAL_ARRAY_HPP__
-#define __NATURAL_ARRAY_HPP__
+#ifndef __NATURAL_ARRAY_H__
+#define __NATURAL_ARRAY_H__
 
 #include <vector>
 #include <string>
