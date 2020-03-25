@@ -3,13 +3,13 @@
 #include <map>
 #include <cmath>
 #include <functional>
+#include <ctime>
 #include "../inc/IO.h"
 #include "../inc/IC.h"
 #include "../inc/BC.h"
 #include "../inc/LeastSquare.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/Discretization.h"
-
 
 /* Grid utilities */
 size_t NumOfPnt = 0;
@@ -29,8 +29,14 @@ Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_so
 /* I/O of logger and monitor */
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
+static clock_t tick_begin, tick_end;
 
 /***************************************************** Solution Control **********************************************/
+
+static inline double duration(const clock_t &startTime, const clock_t &endTime)
+{
+    return (endTime - startTime) * 1.0 / CLOCKS_PER_SEC;
+}
 
 static void stat_min_max(const std::string& var_name, std::function<Scalar(const Cell&)> extractor)
 {
@@ -105,16 +111,18 @@ void solve()
         LOG_OUT << std::endl << "Iter" << ++iter << ":" << std::endl;
         dt = calcTimeStep();
         LOG_OUT << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
+        tick_begin = clock();
         ForwardEuler(dt);
+        tick_end = clock();
         t += dt;
         done = diagnose();
+        LOG_OUT << std::endl << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
         {
             updateNodalValue();
             writeTECPLOT_Nodal("flow" + std::to_string(iter) + "_NODAL.dat", "3D Cavity");
             writeTECPLOT_CellCentered("flow" + std::to_string(iter) + "_CELL.dat", "3D Cavity");
         }
-        LOG_OUT << std::endl;
     }
     LOG_OUT << "Finished!" << std::endl;
 }
@@ -124,31 +132,43 @@ void solve()
  */
 void init()
 {
-    static const std::string MESH_NAME = "cube64.msh";
+    LOG_OUT << Eigen::nbThreads() << " threads used." << std::endl;
+
+    static const std::string MESH_NAME = "cube32.msh";
     std::ofstream fout("Mesh Info(" + MESH_NAME + ").txt");
+    if (fout.fail())
+        throw std::runtime_error("Failed to open target log file for mesh.");
     LOG_OUT << std::endl << "Loading mesh \"" << MESH_NAME << "\" ... ";
+    tick_begin = clock();
     readMESH(MESH_NAME, fout);
+    tick_end = clock();
     fout.close();
-    LOG_OUT << "Done!" << std::endl;
+    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     LOG_OUT << std::endl << "Setting B.C. of each variable ... ";
     BC_TABLE();
     LOG_OUT << "Done!" << std::endl;
 
-    LOG_OUT << std::endl << "Preparing Least-Square coefficients used to calculate gradients ... ";
+    LOG_OUT << std::endl << "Preparing Least-Square coefficients ... ";
+    tick_begin = clock();
     calcLeastSquareCoef();
-    LOG_OUT << "Done!" << std::endl;
+    tick_end = clock();
+    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     LOG_OUT << std::endl << "Preparing Pressure-Correction equation coefficients ... ";
     A_dp.resize(NumOfCell, NumOfCell);
     Q_dp.resize(NumOfCell, Eigen::NoChange);
+    tick_begin = clock();
     calcPressureCorrectionEquationCoef(A_dp);
     A_dp.makeCompressed();
-    LOG_OUT << "Done!" << std::endl;
+    tick_end = clock();
+    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << std::endl << "Matrix factorization ...";
+    LOG_OUT << std::endl << "Matrix factorization ... ";
+    tick_begin = clock();
     dp_solver.compute(A_dp);
-    LOG_OUT << "Done!" << std::endl;
+    tick_end = clock();
+    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     LOG_OUT << std::endl << "Setting I.C. of each variable ... ";
     IC();

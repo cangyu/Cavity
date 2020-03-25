@@ -17,7 +17,7 @@ Scalar Sutherland(Scalar T)
     return 1.45e-6 * std::pow(T, 1.5) / (T + 110.0);
 }
 
-static const Scalar Re = 400.0;
+static const Scalar Re = 100.0;
 
 void calcCellProperty()
 {
