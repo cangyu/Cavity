@@ -33,6 +33,13 @@ static clock_t tick_begin, tick_end;
 
 /***************************************************** Solution Control **********************************************/
 
+Scalar calcTimeStep()
+{
+    Scalar ret = 1e-2;
+
+    return ret;
+}
+
 static inline double duration(const clock_t &startTime, const clock_t &endTime)
 {
     return (endTime - startTime) * 1.0 / CLOCKS_PER_SEC;
@@ -80,16 +87,9 @@ bool diagnose()
     stat_min_max("T", [](const Cell &c) { return c.T; });
     LOG_OUT << std::endl;
     stat_min_max("div", [](const Cell &c) { return c.grad_U.trace(); });
-    stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * 5e-3 * 64; });
+    stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * calcTimeStep() * 32; });
 
     return false;
-}
-
-Scalar calcTimeStep()
-{
-    Scalar ret = 5e-3;
-
-    return ret;
 }
 
 void solve()
