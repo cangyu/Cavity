@@ -99,6 +99,7 @@ void BC()
             {
                 f->rho = rho0;
                 f->U = U_UP;
+                f->rhoU = f->rho * f->U;
                 f->grad_p_prime = ZERO_VECTOR;
                 f->T = T_UP;
             }
@@ -109,6 +110,7 @@ void BC()
             {
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
+                f->rhoU = f->rho * f->U;
                 f->grad_p_prime = ZERO_VECTOR;
                 f->T = T_DOWN;
             }
@@ -119,6 +121,7 @@ void BC()
             {
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
+                f->rhoU = f->rho * f->U;
                 f->grad_p_prime = ZERO_VECTOR;
                 f->grad_T = ZERO_VECTOR;
             }
@@ -129,6 +132,7 @@ void BC()
             {
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
+                f->rhoU = f->rho * f->U;
                 f->grad_p_prime = ZERO_VECTOR;
                 f->grad_T = ZERO_VECTOR;
             }
@@ -139,6 +143,7 @@ void BC()
             {
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
+                f->rhoU = f->rho * f->U;
                 f->grad_p_prime = ZERO_VECTOR;
                 f->grad_T = ZERO_VECTOR;
             }
@@ -149,6 +154,7 @@ void BC()
             {
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
+                f->rhoU = f->rho * f->U;
                 f->grad_p_prime = ZERO_VECTOR;
                 f->grad_T = ZERO_VECTOR;
             }
