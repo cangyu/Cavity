@@ -4,6 +4,7 @@
 #include <cmath>
 #include <functional>
 #include <ctime>
+#include <cstdio>
 #include "../inc/IO.h"
 #include "../inc/IC.h"
 #include "../inc/BC.h"
@@ -84,12 +85,29 @@ bool diagnose()
     stat_min_max("V", [](const Cell &c) { return c.U.y(); });
     stat_min_max("W", [](const Cell &c) { return c.U.z(); });
     stat_min_max("p", [](const Cell &c) { return c.p; });
+    stat_min_max("p'", [](const Cell &c) { return c.p_prime; });
     stat_min_max("T", [](const Cell &c) { return c.T; });
     LOG_OUT << std::endl;
     stat_min_max("div", [](const Cell &c) { return c.grad_U.trace(); });
     stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * calcTimeStep() * 32; });
 
     return false;
+}
+
+static inline std::string iter_str(int n)
+{
+    static char t[5];
+
+    std::snprintf(t, sizeof(t) / sizeof(char), "%04d", n);
+
+    return std::string(t);
+}
+
+static void write_flowfield(int n)
+{
+    updateNodalValue();
+    writeTECPLOT_Nodal(iter_str(n) + ".dat", "3D Cavity");
+    //writeTECPLOT_CellCentered("flow" + std::to_string(iter) + "_CELL.dat", "3D Cavity");
 }
 
 void solve()
@@ -118,11 +136,7 @@ void solve()
         done = diagnose();
         LOG_OUT << std::endl << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
-        {
-            updateNodalValue();
-            writeTECPLOT_Nodal("flow" + std::to_string(iter) + "_NODAL.dat", "3D Cavity");
-            writeTECPLOT_CellCentered("flow" + std::to_string(iter) + "_CELL.dat", "3D Cavity");
-        }
+            write_flowfield(iter);
     }
     LOG_OUT << "Finished!" << std::endl;
 }
@@ -172,6 +186,10 @@ void init()
 
     LOG_OUT << std::endl << "Setting I.C. of each variable ... ";
     IC();
+    LOG_OUT << "Done!" << std::endl;
+
+    LOG_OUT << std::endl << "Writting initial output ... ";
+    write_flowfield(0);
     LOG_OUT << "Done!" << std::endl;
 }
 
