@@ -35,6 +35,7 @@ void IC()
         f_dst.U = ZERO_VECTOR;
         f_dst.p = P0;
         f_dst.T = T0;
+        f_dst.rhoU = f_dst.rho * f_dst.U;
     }
 
     // Cell
@@ -45,5 +46,6 @@ void IC()
         c_dst.U0 = ZERO_VECTOR;
         c_dst.p0 = P0;
         c_dst.T0 = T0;
+        c_dst.rhoU0 = c_dst.rho0 * c_dst.U0;
     }
 }
