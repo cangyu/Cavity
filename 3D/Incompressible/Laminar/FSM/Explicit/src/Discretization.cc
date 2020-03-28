@@ -23,12 +23,37 @@ extern Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
 
+/************************************************ Physical Property **************************************************/
+
+static const Scalar Re = 100.0;
+
+void calcCellProperty()
+{
+    for (auto &c : cell)
+    {
+        // Dynamic viscosity
+        // c.mu = Sutherland(c.T);
+        c.mu = c.rho / Re;
+    }
+}
+
+void calcFaceProperty()
+{
+    for (auto &f : face)
+    {
+        // Dynamic viscosity
+        // f.mu = Sutherland(f.T);
+        f.mu = f.rho / Re;
+    }
+}
+
 /*********************************************** Spatial Discretization **********************************************/
 
 void calcFaceValue()
 {
     for (auto &f : face)
     {
+        /// Primitive variables.
         if (f.atBdry)
         {
             if (f.c0)
@@ -227,7 +252,6 @@ void calcFaceValue()
                 const Scalar u_0 = f.c0->U.x() + f.c0->grad_U.col(0).dot(f.r0);
                 const Scalar v_0 = f.c0->U.y() + f.c0->grad_U.col(1).dot(f.r0);
                 const Scalar w_0 = f.c0->U.z() + f.c0->grad_U.col(2).dot(f.r0);
-
                 f.U = { u_0, v_0, w_0 };
             }
             else
@@ -235,7 +259,6 @@ void calcFaceValue()
                 const Scalar u_1 = f.c1->U.x() + f.c1->grad_U.col(0).dot(f.r1);
                 const Scalar v_1 = f.c1->U.y() + f.c1->grad_U.col(1).dot(f.r1);
                 const Scalar w_1 = f.c1->U.z() + f.c1->grad_U.col(2).dot(f.r1);
-
                 f.U = { u_1, v_1, w_1 };
             }
 
@@ -245,6 +268,9 @@ void calcFaceValue()
             else
                 f.rho = f.c1->rho + f.c1->grad_rho.dot(f.r1);
         }
+
+        /// Conservative variables.
+        // f.rhoU = f.rho * f.U;
     }
 }
 
@@ -264,57 +290,64 @@ void calcFaceViscousStress()
     }
 }
 
-void calcInternalFace_rhoU_star()
-{
-    for (auto &f : face)
-    {
-        if (!f.atBdry)
-        {
-            f.rhoU_star = (f.c0->rhoU_star + f.c1->rhoU_star) / 2;
-        }
-    }
-}
-
 /*********************************************** Temporal Discretization *********************************************/
 
 /**
- * Explicit Fractional-Step Method.
+ * 1st-order explicit time-marching.
+ * Pressure-Velocity coupling is solved using Fractional-Step Method.
  * @param TimeStep
  */
-void FSM(Scalar TimeStep)
+void ForwardEuler(Scalar TimeStep)
 {
+    /// Init
+    for (size_t i = 1; i <= NumOfCell; ++i)
+    {
+        auto &c = cell(i);
+        c.rho = c.rho0;
+        c.U = c.U0;
+        c.p = c.p0;
+        c.T = c.T0;
+    }
+
+    /// Enforce boundary conditions.
     BC();
 
-    // Physical properties at centroid of each cell
+    /// Update physical properties at centroid of each cell.
     calcCellProperty();
 
-    // Boundary ghost values if any
+    /// Ghost values on boundary if any.
     calcFaceGhostVariable();
 
-    // Gradients at centroid of each cell
+    /// Gradients at centroid of each cell.
     calcCellGradient();
 
-    // Gradients at centroid of each face
+    /// Gradients at centroid of each face.
     calcFaceGradient();
 
-    // Interpolate values on each face
+    /// Interpolate values on each face.
     calcFaceValue();
 
-    // Physical properties at centroid of each face
+    /// Update physical properties at centroid of each face.
     calcFaceProperty();
 
+    /// Viscous stress on each face.
     calcFaceViscousStress();
 
+    /// Count flux of each cell.
     calcCellFlux();
 
-    // Prediction
+    /// Prediction Step
     for (auto &c : cell)
         c.rhoU_star = c.rhoU0 + TimeStep / c.volume * (-c.convection_flux - c.pressure_flux + c.viscous_flux);
 
-    // rhoU_star at each face
-    calcInternalFace_rhoU_star();
+    /// rhoU* at internal face.
+    for (auto &f : face)
+    {
+        if (!f.atBdry)
+            f.rhoU_star = (f.c0->rhoU_star + f.c1->rhoU_star) / 2;
+    }
 
-    // Correction
+    /// Correction Step
     calcPressureCorrectionEquationRHS(Q_dp);
     Q_dp /= TimeStep;
     Eigen::VectorXd dp = dp_solver.solve(Q_dp);
@@ -329,51 +362,25 @@ void FSM(Scalar TimeStep)
     }
     calcPressureCorrectionGradient();
 
-    // Update
+    /// Update
     for (int i = 0; i < NumOfCell; ++i)
     {
         auto &c = cell.at(i);
 
-        c.p += c.p_prime;
-        c.U = (c.rhoU_star - TimeStep * c.grad_p_prime) / c.rho;
-
+        /// Density
         c.continuity_res = 0.0;
+        c.rho0 += TimeStep * c.continuity_res;
+
+        /// Velocity
+        c.rhoU0 = c.rhoU_star - TimeStep * c.grad_p_prime;
+        c.U0 = c.rhoU0 / c.rho0;
+
+        /// Pressure
+        c.p0 += c.p_prime;
+
+        /// Temperature
         c.energy_res = 0.0;
-    }
-}
-
-/**
- * 1st-order explicit time-marching.
- * @param TimeStep
- */
-void ForwardEuler(Scalar TimeStep)
-{
-    /* Init */
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        auto &c = cell(i);
-        c.rho = c.rho0;
-        c.U = c.U0;
-        c.p = c.p0;
-        c.T = c.T0;
-    }
-
-    /* Pressure-Velocity coupling */
-    FSM(TimeStep);
-
-    /* Update */
-    for (size_t i = 1; i <= NumOfCell; ++i)
-    {
-        auto &c = cell(i);
-
-        c.rho = c.rho0 + TimeStep * c.continuity_res;
-        c.T = c.T0 + TimeStep * c.energy_res;
-
-        c.rho0 = c.rho;
-        c.U0 = c.U;
-        c.p0 = c.p;
-        c.T0 = c.T;
-        c.rhoU0 = c.rho0 * c.U0;
+        c.T0 += TimeStep * c.energy_res;
     }
 }
 
