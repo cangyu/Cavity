@@ -25,7 +25,7 @@ static const std::string SEP = "  ";
 
 /************************************************ Physical Property **************************************************/
 
-static const Scalar Re = 100.0;
+static const Scalar Re = 400.0;
 
 void calcCellProperty()
 {
@@ -270,7 +270,7 @@ void calcFaceValue()
         }
 
         /// Conservative variables.
-        // f.rhoU = f.rho * f.U;
+        f.rhoU = f.rho * f.U;
     }
 }
 
@@ -369,18 +369,18 @@ void ForwardEuler(Scalar TimeStep)
 
         /// Density
         c.continuity_res = 0.0;
-        c.rho0 += TimeStep * c.continuity_res;
+        c.rho0 = c.rho + TimeStep * c.continuity_res;
 
         /// Velocity
         c.rhoU0 = c.rhoU_star - TimeStep * c.grad_p_prime;
         c.U0 = c.rhoU0 / c.rho0;
 
         /// Pressure
-        c.p0 += c.p_prime;
+        c.p0 = c.p + c.p_prime;
 
         /// Temperature
         c.energy_res = 0.0;
-        c.T0 += TimeStep * c.energy_res;
+        c.T0 = c.T + TimeStep * c.energy_res;
     }
 }
 
