@@ -233,8 +233,13 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title, const s
 
     fout << R"(TITLE=")" << title << "\"" << std::endl;
     fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T")" << std::endl;
-    fout << "ZONE T=\"" << text << "\", SOLUTIONTIME=" << t_sol << std::endl;
-    fout << "NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-9]=NODAL)" << std::endl;
+    fout << "ZONE T=\"" << text << "\"" << std::endl;
+    fout << "SOLUTIONTIME=" << t_sol << std::endl;
+    fout << "NODES=" << NumOfPnt << std::endl;
+    fout << "ELEMENTS=" << NumOfCell << std::endl;
+    fout << "ZONETYPE=" << "FEBRICK" << std::endl;
+    fout << "DATAPACKING=BLOCK" << std::endl;
+    fout << "VARLOCATION=([1-9]=NODAL)" << std::endl;
 
     // X-Coordinates
     for (size_t i = 1; i <= NumOfPnt; ++i)
@@ -368,9 +373,14 @@ void writeTECPLOT_Centered(const std::string &fn, const std::string &title, cons
         throw failed_to_open_file(fn);
 
     fout << R"(TITLE=")" << title << "\"" << std::endl;
-    fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T")" << std::endl;
-    fout << "ZONE T=\"" << text << "\", SOLUTIONTIME=" << t_sol << std::endl;
-    fout << "NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL, [4-9]=CELLCENTERED)" << std::endl;
+    fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T", "div")" << std::endl;
+    fout << "ZONE T=\"" << text << "\"" << std::endl;
+    fout << "SOLUTIONTIME=" << t_sol << std::endl;
+    fout << "NODES=" << NumOfPnt << std::endl;
+    fout << "ELEMENTS=" << NumOfCell << std::endl;
+    fout << "ZONETYPE=" << "FEBRICK" << std::endl;
+    fout << "DATAPACKING=BLOCK" << std::endl;
+    fout << "VARLOCATION=([1-3]=NODAL, [4-10]=CELLCENTERED)" << std::endl;
 
     // X-Coordinates
     for (size_t i = 1; i <= NumOfPnt; ++i)
@@ -456,6 +466,16 @@ void writeTECPLOT_Centered(const std::string &fn, const std::string &title, cons
     for (size_t i = 1; i <= NumOfCell; ++i)
     {
         fout << '\t' << cell(i).T0;
+        if (i % RECORD_PER_LINE == 0)
+            fout << std::endl;
+    }
+    if (NumOfCell % RECORD_PER_LINE != 0)
+        fout << std::endl;
+
+    // Divergence
+    for (size_t i = 1; i <= NumOfCell; ++i)
+    {
+        fout << '\t' << cell(i).grad_U.trace() / 3.0;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
