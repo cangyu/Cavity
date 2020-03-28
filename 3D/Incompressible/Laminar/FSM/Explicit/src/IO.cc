@@ -223,7 +223,7 @@ static void checkNodalValue(const double &val, size_t idx)
  * @param fn
  * @param title
  */
-void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
+void writeTECPLOT_Nodal(const std::string &fn, const std::string &title, const std::string &text, double t_sol)
 {
     static const size_t RECORD_PER_LINE = 10;
 
@@ -232,10 +232,8 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
         throw failed_to_open_file(fn);
 
     fout << R"(TITLE=")" << title << "\"" << std::endl;
-    fout << "FILETYPE=FULL" << std::endl;
     fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T")" << std::endl;
-
-    fout << R"(ZONE T="Nodal")" << std::endl;
+    fout << "ZONE T=\"" << text << "\", SOLUTIONTIME=" << t_sol << std::endl;
     fout << "NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-9]=NODAL)" << std::endl;
 
     // X-Coordinates
@@ -340,7 +338,7 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
     if (NumOfPnt % RECORD_PER_LINE != 0)
         fout << std::endl;
 
-    // Connectivity Information
+    // Connectivity
     for (size_t i = 1; i <= NumOfCell; ++i)
     {
         const auto v = cell(i).vertex;
@@ -361,7 +359,7 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title)
  * @param fn
  * @param title
  */
-void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
+void writeTECPLOT_Centered(const std::string &fn, const std::string &title, const std::string &text, double t_sol)
 {
     static const size_t RECORD_PER_LINE = 10;
 
@@ -370,10 +368,8 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
         throw failed_to_open_file(fn);
 
     fout << R"(TITLE=")" << title << "\"" << std::endl;
-    fout << "FILETYPE=FULL" << std::endl;
     fout << R"(VARIABLES="X", "Y", "Z", "rho", "U", "V", "W", "P", "T")" << std::endl;
-
-    fout << R"(ZONE T="Cell-Centroid")" << std::endl;
+    fout << "ZONE T=\"" << text << "\", SOLUTIONTIME=" << t_sol << std::endl;
     fout << "NODES=" << NumOfPnt << ", ELEMENTS=" << NumOfCell << ", ZONETYPE=FEBRICK, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL, [4-9]=CELLCENTERED)" << std::endl;
 
     // X-Coordinates
@@ -466,7 +462,7 @@ void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title)
     if (NumOfCell % RECORD_PER_LINE != 0)
         fout << std::endl;
 
-    // Connectivity Information
+    // Connectivity
     for (size_t i = 1; i <= NumOfCell; ++i)
     {
         const auto v = cell(i).vertex;
@@ -541,7 +537,7 @@ void readTECPLOT_Nodal(const std::string &fn)
  * Only for continuation purpose.
  * @param fn
  */
-void readTECPLOT_CellCentered(const std::string &fn)
+void readTECPLOT_Centered(const std::string &fn)
 {
     std::ifstream fin(fn);
     if (fin.fail())

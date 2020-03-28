@@ -5,9 +5,9 @@
 #include <ostream>
 
 void readMESH(const std::string &MESH_PATH, std::ostream &LOG_OUT);
-void writeTECPLOT_Nodal(const std::string &fn, const std::string &title);
-void writeTECPLOT_CellCentered(const std::string &fn, const std::string &title);
+void writeTECPLOT_Nodal(const std::string &fn, const std::string &title, const std::string &text, double t_sol);
+void writeTECPLOT_Centered(const std::string &fn, const std::string &title, const std::string &text, double t_sol);
 void readTECPLOT_Nodal(const std::string &fn);
-void readTECPLOT_CellCentered(const std::string &fn);
+void readTECPLOT_Centered(const std::string &fn);
 
 #endif

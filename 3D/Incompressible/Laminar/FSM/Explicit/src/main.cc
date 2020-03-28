@@ -46,6 +46,27 @@ static inline double duration(const clock_t &startTime, const clock_t &endTime)
     return (endTime - startTime) * 1.0 / CLOCKS_PER_SEC;
 }
 
+static void write_flowfield(int n, double t)
+{
+    static const std::string NODAL_DIR = "./Nodal/";
+    static const std::string CENTERED_DIR = "./Centered/";
+    static const std::string CASE_SUFFIX = ".dat";
+
+    static char tmp[5];
+    std::snprintf(tmp, sizeof(tmp) / sizeof(char), "%04d", n);
+    const std::string CASE_NAME = "Iter" + std::string(tmp);
+
+    const std::string NODAL_CASE_PATH = NODAL_DIR + CASE_NAME + CASE_SUFFIX;
+    const std::string CENTERED_CASE_PATH = CENTERED_DIR + CASE_NAME + CASE_SUFFIX;
+
+    const std::string CASE_TITLE = "3D Laminar Cavity Flow";
+    const std::string ZONE_TEXT = "t=" + std::to_string(t) + "s";
+
+    updateNodalValue();
+    writeTECPLOT_Nodal(NODAL_CASE_PATH, CASE_TITLE, ZONE_TEXT, t);
+    writeTECPLOT_Centered(CENTERED_CASE_PATH, CASE_TITLE, ZONE_TEXT, t);
+}
+
 static void stat_min_max(const std::string& var_name, std::function<Scalar(const Cell&)> extractor)
 {
     Scalar var_min, var_max;
@@ -94,22 +115,6 @@ bool diagnose()
     return false;
 }
 
-static inline std::string iter_str(int n)
-{
-    static char t[5];
-
-    std::snprintf(t, sizeof(t) / sizeof(char), "%04d", n);
-
-    return std::string(t);
-}
-
-static void write_flowfield(int n)
-{
-    updateNodalValue();
-    writeTECPLOT_Nodal(iter_str(n) + ".dat", "3D Cavity");
-    //writeTECPLOT_CellCentered("flow" + std::to_string(iter) + "_CELL.dat", "3D Cavity");
-}
-
 void solve()
 {
     static const size_t OUTPUT_GAP = 5;
@@ -136,7 +141,7 @@ void solve()
         done = diagnose();
         LOG_OUT << std::endl << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
-            write_flowfield(iter);
+            write_flowfield(iter, t);
     }
     LOG_OUT << "Finished!" << std::endl;
 }
@@ -148,13 +153,14 @@ void init()
 {
     LOG_OUT << Eigen::nbThreads() << " threads used." << std::endl;
 
+    static const std::string MESH_DIR = "./FLUENT/";
     static const std::string MESH_NAME = "cube32.msh";
     std::ofstream fout("Mesh Info(" + MESH_NAME + ").txt");
     if (fout.fail())
         throw std::runtime_error("Failed to open target log file for mesh.");
     LOG_OUT << std::endl << "Loading mesh \"" << MESH_NAME << "\" ... ";
     tick_begin = clock();
-    readMESH(MESH_NAME, fout);
+    readMESH(MESH_DIR + MESH_NAME, fout);
     tick_end = clock();
     fout.close();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
@@ -189,7 +195,7 @@ void init()
     LOG_OUT << "Done!" << std::endl;
 
     LOG_OUT << std::endl << "Writting initial output ... ";
-    write_flowfield(0);
+    write_flowfield(0, 0.0);
     LOG_OUT << "Done!" << std::endl;
 }
 
