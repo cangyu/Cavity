@@ -3,6 +3,7 @@
 #include <map>
 #include <cmath>
 #include <functional>
+#include <filesystem>
 #include <ctime>
 #include <cstdio>
 #include "../inc/IO.h"
@@ -28,6 +29,8 @@ Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp;
 Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver;
 
 /* I/O of logger and monitor */
+static const std::string NODAL_CASE_DIR = "./Nodal/";
+static const std::string CENTERED_CASE_DIR = "./Centered/";
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
 static clock_t tick_begin, tick_end;
@@ -48,16 +51,13 @@ static inline double duration(const clock_t &startTime, const clock_t &endTime)
 
 static void write_flowfield(int n, double t)
 {
-    static const std::string NODAL_DIR = "./Nodal/";
-    static const std::string CENTERED_DIR = "./Centered/";
-    static const std::string CASE_SUFFIX = ".dat";
-
     static char tmp[5];
     std::snprintf(tmp, sizeof(tmp) / sizeof(char), "%04d", n);
     const std::string CASE_NAME = "Iter" + std::string(tmp);
+    static const std::string CASE_SUFFIX = ".dat";
 
-    const std::string NODAL_CASE_PATH = NODAL_DIR + CASE_NAME + CASE_SUFFIX;
-    const std::string CENTERED_CASE_PATH = CENTERED_DIR + CASE_NAME + CASE_SUFFIX;
+    const std::string NODAL_CASE_PATH = NODAL_CASE_DIR + CASE_NAME + CASE_SUFFIX;
+    const std::string CENTERED_CASE_PATH = CENTERED_CASE_DIR + CASE_NAME + CASE_SUFFIX;
 
     const std::string CASE_TITLE = "3D Laminar Cavity Flow";
     const std::string ZONE_TEXT = "t=" + std::to_string(t) + "s";
@@ -193,6 +193,9 @@ void init()
     LOG_OUT << std::endl << "Setting I.C. of each variable ... ";
     IC();
     LOG_OUT << "Done!" << std::endl;
+
+    std::filesystem::create_directory(NODAL_CASE_DIR);
+    std::filesystem::create_directory(CENTERED_CASE_DIR);
 
     LOG_OUT << std::endl << "Writting initial output ... ";
     write_flowfield(0, 0.0);
