@@ -28,12 +28,19 @@ Eigen::SparseMatrix<Scalar> A_dp;
 Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp;
 Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver;
 
-/* I/O of logger and monitor */
+/* I/O of mesh, case, logger and monitor */
+static const std::string MESH_DIR = "./FLUENT/";
+static const std::string MESH_NAME = "cube32.msh";
 static const std::string NODAL_CASE_DIR = "./Nodal/";
 static const std::string CENTERED_CASE_DIR = "./Centered/";
+static const size_t OUTPUT_GAP = 5;
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
 static clock_t tick_begin, tick_end;
+
+/* Iteration timing and counting */
+static const int MAX_ITER = 2000;
+static const Scalar MAX_TIME = 100.0; // s
 
 /***************************************************** Solution Control **********************************************/
 
@@ -59,8 +66,8 @@ static void write_flowfield(int n, double t)
     const std::string NODAL_CASE_PATH = NODAL_CASE_DIR + CASE_NAME + CASE_SUFFIX;
     const std::string CENTERED_CASE_PATH = CENTERED_CASE_DIR + CASE_NAME + CASE_SUFFIX;
 
-    const std::string CASE_TITLE = "3D Laminar Cavity Flow";
-    const std::string ZONE_TEXT = "t=" + std::to_string(t) + "s";
+    static const std::string CASE_TITLE = "3D Incompressible Unsteady Laminar Cavity Flow";
+    static const std::string ZONE_TEXT = "Entire Domain";
 
     updateNodalValue();
     writeTECPLOT_Nodal(NODAL_CASE_PATH, CASE_TITLE, ZONE_TEXT, t);
@@ -97,14 +104,14 @@ bool diagnose()
     stat_min_max("ViscousFlux_Y", [](const Cell &c) { return c.viscous_flux.y(); });
     stat_min_max("ViscousFlux_Z", [](const Cell &c) { return c.viscous_flux.z(); });
     LOG_OUT << std::endl;
-    stat_min_max("rhoU*", [](const Cell &c) { return c.rhoU_star.x(); });
-    stat_min_max("rhoV*", [](const Cell &c) { return c.rhoU_star.y(); });
-    stat_min_max("rhoW*", [](const Cell &c) { return c.rhoU_star.z(); });
+    stat_min_max("rhoU*_X", [](const Cell &c) { return c.rhoU_star.x(); });
+    stat_min_max("rhoU*_Y", [](const Cell &c) { return c.rhoU_star.y(); });
+    stat_min_max("rhoU*_Z", [](const Cell &c) { return c.rhoU_star.z(); });
     LOG_OUT << std::endl;
     stat_min_max("rho", [](const Cell &c) { return c.rho; });
-    stat_min_max("U", [](const Cell &c) { return c.U.x(); });
-    stat_min_max("V", [](const Cell &c) { return c.U.y(); });
-    stat_min_max("W", [](const Cell &c) { return c.U.z(); });
+    stat_min_max("U_X", [](const Cell &c) { return c.U.x(); });
+    stat_min_max("U_Y", [](const Cell &c) { return c.U.y(); });
+    stat_min_max("U_Z", [](const Cell &c) { return c.U.z(); });
     stat_min_max("p", [](const Cell &c) { return c.p; });
     stat_min_max("p'", [](const Cell &c) { return c.p_prime; });
     stat_min_max("T", [](const Cell &c) { return c.T; });
@@ -117,12 +124,6 @@ bool diagnose()
 
 void solve()
 {
-    static const size_t OUTPUT_GAP = 5;
-
-    /* Iteration timing and counting */
-    const int MAX_ITER = 2000;
-    const Scalar MAX_TIME = 100.0; // s
-
     int iter = 0;
     Scalar dt = 0.0; // s
     Scalar t = 0.0; // s
@@ -153,8 +154,6 @@ void init()
 {
     LOG_OUT << Eigen::nbThreads() << " threads used." << std::endl;
 
-    static const std::string MESH_DIR = "./FLUENT/";
-    static const std::string MESH_NAME = "cube32.msh";
     std::ofstream fout("Mesh Info(" + MESH_NAME + ").txt");
     if (fout.fail())
         throw std::runtime_error("Failed to open target log file for mesh.");
