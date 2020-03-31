@@ -48,21 +48,21 @@ void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
 
             if (curFace->atBdry) /// Boundary Case.
             {
-                if (curFace->p_BC == Dirichlet)
+                if (curFace->p_prime_BC == Dirichlet)
                 {
                     /// When p is given on boundary, dp is 0-value there.
                     const Vector r_C = curFace->center - C.center;
                     const Vector &S_f = C.S(f);
                     cur_coef[C.index] -= r_C.dot(S_f) / r_C.dot(r_C);
                 }
-                else if (curFace->p_BC == Neumann)
+                else if (curFace->p_prime_BC == Neumann)
                 {
                     /// When p is not determined on boundary, dp is 0-gradient
                     /// there, thus contribution is 0 and no need to handle.
                     continue;
                 }
                 else
-                    throw unsupported_boundary_condition(curFace->p_BC);
+                    throw unsupported_boundary_condition(curFace->p_prime_BC);
             }
             else /// Internal Case.
             {
@@ -103,19 +103,19 @@ void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
                     {
                         const auto localFace = C.surface.at(i);
 
-                        if (localFace->p_BC == Dirichlet)
+                        if (localFace->p_prime_BC == Dirichlet)
                         {
                             /// When p is given on boundary, dp is 0-value there.
                             cur_coef[C.index] -= p2_coef;
                         }
-                        else if (localFace->p_BC == Neumann)
+                        else if (localFace->p_prime_BC == Neumann)
                         {
                             /// When p is not determined on boundary, dp is 0-gradient
                             /// there, thus contribution of this line is 0.
                             continue;
                         }
                         else
-                            throw unsupported_boundary_condition(localFace->p_BC);
+                            throw unsupported_boundary_condition(localFace->p_prime_BC);
                     }
                 }
 
@@ -134,19 +134,19 @@ void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
                     {
                         const auto localFace = F->surface.at(i);
 
-                        if (localFace->p_BC == Dirichlet)
+                        if (localFace->p_prime_BC == Dirichlet)
                         {
                             /// When p is given on boundary, dp is 0-value there.
                             cur_coef[F->index] -= p3_coef;
                         }
-                        else if (localFace->p_BC == Neumann)
+                        else if (localFace->p_prime_BC == Neumann)
                         {
                             /// When p is not determined on boundary, dp is 0-gradient
                             /// there, thus contribution of this line is 0.
                             continue;
                         }
                         else
-                            throw unsupported_boundary_condition(localFace->p_BC);
+                            throw unsupported_boundary_condition(localFace->p_prime_BC);
                     }
                 }
             }
