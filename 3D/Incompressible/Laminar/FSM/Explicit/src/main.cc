@@ -87,7 +87,30 @@ static void stat_min_max(const std::string& var_name, std::function<Scalar(const
         if (cur_var > var_max)
             var_max = cur_var;
     }
-    LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
+
+    if (var_name == "p")
+    {
+        LOG_OUT.setf(std::ios::fixed);
+        auto w = LOG_OUT.precision(10);
+        LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
+        LOG_OUT.precision(w);
+        LOG_OUT.unsetf(std::ios::fixed);
+    }
+    else
+        LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
+}
+
+static double stat_div(const Cell &c)
+{
+    double ret = 0.0;
+    const auto Nf = c.surface.size();
+    for (int i = 0; i < Nf; ++i)
+    {
+        auto curFace = c.surface.at(i);
+        ret += curFace->rhoU.dot(c.S.at(i));
+    }
+    ret /= c.volume;
+    return ret;
 }
 
 bool diagnose()
@@ -116,7 +139,7 @@ bool diagnose()
     stat_min_max("p'", [](const Cell &c) { return c.p_prime; });
     stat_min_max("T", [](const Cell &c) { return c.T; });
     LOG_OUT << std::endl;
-    stat_min_max("div", [](const Cell &c) { return c.grad_U.trace(); });
+    stat_min_max("div", stat_div);
     stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * calcTimeStep() * 32; });
 
     return false;

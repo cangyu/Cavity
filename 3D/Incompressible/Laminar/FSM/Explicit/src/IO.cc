@@ -320,14 +320,16 @@ void writeTECPLOT_Nodal(const std::string &fn, const std::string &title, const s
         fout << std::endl;
 
     // Pressure
+    fout.setf(std::ios::fixed);
     for (size_t i = 1; i <= NumOfPnt; ++i)
     {
         const auto val = pnt(i).p;
         checkNodalValue(val, i);
-        fout << '\t' << val;
+        fout << '\t' << std::setprecision(10) << val;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
+    fout.unsetf(std::ios::fixed);
     if (NumOfPnt % RECORD_PER_LINE != 0)
         fout << std::endl;
 
@@ -453,12 +455,14 @@ void writeTECPLOT_Centered(const std::string &fn, const std::string &title, cons
         fout << std::endl;
 
     // Pressure
+    fout.setf(std::ios::fixed);
     for (size_t i = 1; i <= NumOfCell; ++i)
     {
-        fout << '\t' << cell(i).p0;
+        fout << '\t' << std::setprecision(10) << cell(i).p0;
         if (i % RECORD_PER_LINE == 0)
             fout << std::endl;
     }
+    fout.unsetf(std::ios::fixed);
     if (NumOfCell % RECORD_PER_LINE != 0)
         fout << std::endl;
 
