@@ -344,7 +344,9 @@ void ForwardEuler(Scalar TimeStep)
     for (auto &f : face)
     {
         if (!f.atBdry)
-            f.rhoU_star = (f.c0->rhoU_star + f.c1->rhoU_star) / 2;
+        {
+            f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
+        }
     }
 
     /// Correction Step

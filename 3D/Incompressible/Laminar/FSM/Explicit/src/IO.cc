@@ -149,11 +149,12 @@ void readMESH(const std::string &MESH_PATH, std::ostream &LOG_OUT)
             n_dst.cellWeightingCoef(j) /= s;
     }
 
-    // Cell center to face center vectors 
+    // Cell center to face center vectors and ratios.
     for (int i = 1; i <= NumOfFace; ++i)
     {
         auto &f_dst = face(i);
 
+        /// Displacement vectors.
         if (f_dst.c0)
             f_dst.r0 = f_dst.center - f_dst.c0->center;
         else
@@ -163,6 +164,29 @@ void readMESH(const std::string &MESH_PATH, std::ostream &LOG_OUT)
             f_dst.r1 = f_dst.center - f_dst.c1->center;
         else
             f_dst.r1 = ZERO_VECTOR;
+
+        /// Displacement ratios.
+        if (f_dst.atBdry)
+        {
+            if (f_dst.c0)
+            {
+                f_dst.ksi0 = 1.0;
+                f_dst.ksi1 = 0.0;
+            }
+            else
+            {
+                f_dst.ksi0 = 0.0;
+                f_dst.ksi1 = 1.0;
+            }
+        }
+        else
+        {
+            const Scalar l0 = 1.0 / f_dst.r0.norm();
+            const Scalar l1 = 1.0 / f_dst.r1.norm();
+            const Scalar w = l0 + l1;
+            f_dst.ksi0 = l0 / w;
+            f_dst.ksi1 = l1 / w;
+        }
     }
 
     // Count valid patches.

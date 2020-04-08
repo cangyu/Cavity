@@ -108,8 +108,9 @@ struct Face
     NaturalArray<Point*> vertex;
     Cell *c0 = nullptr, *c1 = nullptr;
 
-    // Displacement vector
+    // Displacement vector and ratio
     Vector r0 = ZERO_VECTOR, r1 = ZERO_VECTOR;
+    Scalar ksi0 = ZERO_SCALAR, ksi1 = ZERO_SCALAR;
 
     // Boundary flags
     bool atBdry = false;
