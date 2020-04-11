@@ -1,4 +1,6 @@
 build/
+*.msh
+*.dat
 
 # CLion
 .idea/

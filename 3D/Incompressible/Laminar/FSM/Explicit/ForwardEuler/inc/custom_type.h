@@ -136,12 +136,18 @@ struct Face
     Scalar T = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
 
-    // Gradient of physical variables
+    // Gradient of physical variables.
+    // For internal use.
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
     Tensor tau = ZERO_TENSOR;
+
+    // Surface outward normal gradient of physical variables.
+    // For boundary use.
+    Scalar sn_grad_rho = ZERO_SCALAR;
+    Vector sn_grad_U = ZERO_VECTOR;
 
     /* Fractional-Step Method temporary variables */
     Scalar p_prime = ZERO_SCALAR;
