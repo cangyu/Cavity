@@ -4,7 +4,6 @@
 #include <cmath>
 #include <functional>
 #include <filesystem>
-#include <ctime>
 #include <cstdio>
 #include "../inc/IO.h"
 #include "../inc/IC.h"
@@ -12,6 +11,7 @@
 #include "../inc/LeastSquare.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/Discretization.h"
+#include "../inc/Miscellaneous.h"
 
 /* Grid utilities */
 size_t NumOfPnt = 0;
@@ -29,10 +29,11 @@ Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp;
 Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver;
 
 /* I/O of mesh, case, logger and monitor */
-static const std::string MESH_DIR = "./FLUENT/";
+static const std::string MESH_DIR = "mesh/";
 static const std::string MESH_NAME = "cube32.msh";
-static const std::string NODAL_CASE_DIR = "./Nodal/";
-static const std::string CENTERED_CASE_DIR = "./Centered/";
+static const std::string RUN_TAG = time_stamp_str();
+static const std::string NODAL_CASE_DIR = RUN_TAG + "/Nodal/";
+static const std::string CENTERED_CASE_DIR = RUN_TAG + "/Centered/";
 static const size_t OUTPUT_GAP = 5;
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
@@ -49,11 +50,6 @@ Scalar calcTimeStep()
     Scalar ret = 1e-2;
 
     return ret;
-}
-
-static inline double duration(const clock_t &startTime, const clock_t &endTime)
-{
-    return (endTime - startTime) * 1.0 / CLOCKS_PER_SEC;
 }
 
 static void write_flowfield(int n, double t)
@@ -175,9 +171,10 @@ void solve()
  */
 void init()
 {
-    LOG_OUT << Eigen::nbThreads() << " threads used." << std::endl;
+    std::filesystem::create_directory(RUN_TAG);
 
-    std::ofstream fout("Mesh Info(" + MESH_NAME + ").txt");
+    const std::string fn_mesh_log = RUN_TAG + "/MeshDesc.txt";
+    std::ofstream fout(fn_mesh_log);
     if (fout.fail())
         throw std::runtime_error("Failed to open target log file for mesh.");
     LOG_OUT << std::endl << "Loading mesh \"" << MESH_NAME << "\" ... ";
