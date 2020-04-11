@@ -1,3 +1,4 @@
+3rd_party/
 build/
 *.msh
 *.dat
