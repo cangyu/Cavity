@@ -3,6 +3,8 @@ build/
 *.msh
 *.dat
 
+.DS_Store
+
 # Visual Studio
 .vs/
 *.sln
