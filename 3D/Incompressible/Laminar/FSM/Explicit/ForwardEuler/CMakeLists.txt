@@ -11,6 +11,8 @@ add_library(
 	3rd_party/TYDF/src/xf.cc
 )
 
+target_compile_definitions(TYDF PUBLIC XF_EXTRACT_NODE_CONNECTIVITY)
+
 add_executable(
 	${PROJECT_NAME}
 	src/IO.cc
@@ -28,28 +30,10 @@ add_executable(
 
 target_link_libraries(
 	${PROJECT_NAME} PRIVATE 
-	TYDF
+	TYDF 
+	stdc++fs
 )
 
-target_compile_definitions(
-	${PROJECT_NAME} PRIVATE 
-	XF_EXTRACT_NODE_CONNECTIVITY
-)
-
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-	target_compile_definitions(
-		${PROJECT_NAME} PRIVATE 
-		_CRT_SECURE_NO_WARNINGS
-	)
-endif()
-
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-	target_link_libraries(
-		${PROJECT_NAME} PRIVATE
-		stdc++fs
-	)
-endif()
-
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_NAME} 
 	RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/test
 )
