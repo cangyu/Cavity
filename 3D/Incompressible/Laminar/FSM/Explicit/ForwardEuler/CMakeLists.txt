@@ -11,8 +11,6 @@ add_library(
 	3rd_party/TYDF/src/xf.cc
 )
 
-target_compile_definitions(TYDF PUBLIC XF_EXTRACT_NODE_CONNECTIVITY)
-
 add_executable(
 	${PROJECT_NAME}
 	src/IO.cc
