@@ -1,7 +1,7 @@
 #include "../inc/custom_type.h"
 #include "../inc/LeastSquare.h"
 
-extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
@@ -64,7 +64,7 @@ void calcLeastSquareCoef()
                 const auto dy2 = 2 * dy;
                 const auto dz2 = 2 * dz;
 
-                // Density
+                /// Density
                 switch (curFace->rho_BC)
                 {
                 case Dirichlet:
@@ -74,12 +74,12 @@ void calcLeastSquareCoef()
                     J_rho.row(j) << dx2, dy2, dz2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // Velocity-X
+                /// Velocity-X
                 switch (curFace->U_BC[0])
                 {
                 case Dirichlet:
@@ -89,12 +89,12 @@ void calcLeastSquareCoef()
                     J_U[0].row(j) << dx2, dy2, dz2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // Velocity-Y
+                /// Velocity-Y
                 switch (curFace->U_BC[1])
                 {
                 case Dirichlet:
@@ -104,12 +104,12 @@ void calcLeastSquareCoef()
                     J_U[1].row(j) << dx2, dy2, dz2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // Velocity-Z
+                /// Velocity-Z
                 switch (curFace->U_BC[2])
                 {
                 case Dirichlet:
@@ -119,12 +119,12 @@ void calcLeastSquareCoef()
                     J_U[2].row(j) << dx2, dy2, dz2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // Pressure
+                /// Pressure
                 switch (curFace->p_BC)
                 {
                 case Dirichlet:
@@ -134,12 +134,12 @@ void calcLeastSquareCoef()
                     J_p.row(j) << dx2, dy2, dz2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // Pressure-Correction
+                /// Pressure-Correction
                 switch (curFace->p_prime_BC)
                 {
                 case Dirichlet:
@@ -149,12 +149,12 @@ void calcLeastSquareCoef()
                     J_p_prime.row(j) << dx2, dy2, dz2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // Temperature
+                /// Temperature
                 switch (curFace->T_BC)
                 {
                 case Dirichlet:
@@ -164,7 +164,7 @@ void calcLeastSquareCoef()
                     J_T.row(j) << dx2, dy2, dz2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -177,48 +177,48 @@ void calcLeastSquareCoef()
                 const auto dy = curAdjCell->center.y() - c.center.y();
                 const auto dz = curAdjCell->center.z() - c.center.z();
 
-                // Density
+                /// Density
                 J_rho.row(j) << dx, dy, dz;
 
-                // Velocity-X
+                /// Velocity-X
                 J_U[0].row(j) << dx, dy, dz;
 
-                // Velocity-Y
+                /// Velocity-Y
                 J_U[1].row(j) << dx, dy, dz;
 
-                // Velocity-Z
+                /// Velocity-Z
                 J_U[2].row(j) << dx, dy, dz;
 
-                // Pressure
+                /// Pressure
                 J_p.row(j) << dx, dy, dz;
 
-                // Pressure-Correction
+                /// Pressure-Correction
                 J_p_prime.row(j) << dx, dy, dz;
 
-                // Temperature
+                /// Temperature
                 J_T.row(j) << dx, dy, dz;
             }
         }
 
-        // Density
+        /// Density
         extractQRMatrix(J_rho, c.J_INV_rho);
 
-        // Velocity-X
+        /// Velocity-X
         extractQRMatrix(J_U[0], c.J_INV_U[0]);
 
-        // Velocity-Y
+        /// Velocity-Y
         extractQRMatrix(J_U[1], c.J_INV_U[1]);
 
-        // Velocity-Z
+        /// Velocity-Z
         extractQRMatrix(J_U[2], c.J_INV_U[2]);
 
-        // Pressure
+        /// Pressure
         extractQRMatrix(J_p, c.J_INV_p);
 
-        // Pressure-Correction
+        /// Pressure-Correction
         extractQRMatrix(J_p_prime, c.J_INV_p_prime);
 
-        // Temperature
+        /// Temperature
         extractQRMatrix(J_T, c.J_INV_T);
     }
 }
