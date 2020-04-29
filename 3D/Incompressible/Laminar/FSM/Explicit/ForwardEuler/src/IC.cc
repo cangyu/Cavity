@@ -1,7 +1,7 @@
 #include "../inc/custom_type.h"
 #include "../inc/IC.h"
 
-extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;

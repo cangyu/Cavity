@@ -2,14 +2,14 @@
 #include <functional>
 #include "../inc/PoissonEqn.h"
 
-extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
-static const size_t ref_cell = 0; // 0-based
-static const Scalar ref_val = 0.0; // Pa
+static const size_t ref_cell = 0; /// 0-based
+static const Scalar ref_val = 0.0; /// Pa
 
 bool is_ref_row(const Eigen::Triplet<Scalar> &x)
 {

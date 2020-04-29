@@ -1,7 +1,7 @@
-#include "../inc/Miscellaneous.h"
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include "../inc/Miscellaneous.h"
 
 double duration(const clock_t &startTime, const clock_t &endTime)
 {

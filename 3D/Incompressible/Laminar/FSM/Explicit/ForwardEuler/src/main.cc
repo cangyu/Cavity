@@ -14,10 +14,7 @@
 #include "../inc/Miscellaneous.h"
 
 /* Grid utilities */
-size_t NumOfPnt = 0;
-size_t NumOfFace = 0;
-size_t NumOfCell = 0;
-
+int NumOfPnt = 0, NumOfFace = 0, NumOfCell = 0;
 NaturalArray<Point> pnt; // Node objects
 NaturalArray<Face> face; // Face objects
 NaturalArray<Cell> cell; // Cell objects
@@ -34,7 +31,7 @@ static const std::string MESH_NAME = "cube32.msh";
 static const std::string RUN_TAG = time_stamp_str();
 static const std::string NODAL_CASE_DIR = RUN_TAG + "/Nodal/";
 static const std::string CENTERED_CASE_DIR = RUN_TAG + "/Centered/";
-static const size_t OUTPUT_GAP = 5;
+static const int OUTPUT_GAP = 5;
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
 static clock_t tick_begin, tick_end;
