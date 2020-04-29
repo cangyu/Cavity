@@ -1,5 +1,4 @@
 #include <iostream>
-#include "../inc/Discretization.h"
 #include "../inc/BC.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/CHEM.h"
@@ -9,8 +8,9 @@
 #include "../inc/PoissonEqn.h"
 #include "../inc/Gradient.h"
 #include "../inc/Flux.h"
+#include "../inc/Discretization.h"
 
-extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
@@ -25,7 +25,7 @@ static const std::string SEP = "  ";
 
 /************************************************ Physical Property **************************************************/
 
-static const Scalar Re = 400.0;
+static const Scalar Re = 3200.0;
 
 void calcCellProperty()
 {
@@ -64,10 +64,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.rho = f.c0->rho + (f.grad_rho + f.c0->grad_rho).dot(f.r0) / 2;
+                    f.rho = f.c0->rho + (f.sn_grad_rho * f.n01 + f.c0->grad_rho).dot(f.r0) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -78,10 +78,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.U.x() = f.c0->U.x() + (f.grad_U.col(0) + f.c0->grad_U.col(0)).dot(f.r0) / 2;
+                    f.U.x() = f.c0->U.x() + (f.sn_grad_U.x() * f.n01 + f.c0->grad_U.col(0)).dot(f.r0) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -92,10 +92,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.U.y() = f.c0->U.y() + (f.grad_U.col(1) + f.c0->grad_U.col(1)).dot(f.r0) / 2;
+                    f.U.y() = f.c0->U.y() + (f.sn_grad_U.y() * f.n01 + f.c0->grad_U.col(1)).dot(f.r0) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -106,10 +106,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.U.z() = f.c0->U.z() + (f.grad_U.col(2) + f.c0->grad_U.col(2)).dot(f.r0) / 2;
+                    f.U.z() = f.c0->U.z() + (f.sn_grad_U.z() * f.n01 + f.c0->grad_U.col(2)).dot(f.r0) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -120,10 +120,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.p = f.c0->p + (f.grad_p + f.c0->grad_p).dot(f.r0) / 2;
+                    f.p = f.c0->p + (f.sn_grad_p * f.n01 + f.c0->grad_p).dot(f.r0) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -134,10 +134,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.T = f.c0->T + (f.grad_T + f.c0->grad_T).dot(f.r0) / 2;
+                    f.T = f.c0->T + (f.sn_grad_T * f.n01 + f.c0->grad_T).dot(f.r0) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -150,10 +150,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.rho = f.c1->rho + (f.grad_rho + f.c1->grad_rho).dot(f.r1) / 2;
+                    f.rho = f.c1->rho + (f.sn_grad_rho * f.n10 + f.c1->grad_rho).dot(f.r1) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -164,10 +164,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.U.x() = f.c1->U.x() + (f.grad_U.col(0) + f.c1->grad_U.col(0)).dot(f.r1) / 2;
+                    f.U.x() = f.c1->U.x() + (f.sn_grad_U.x() * f.n10 + f.c1->grad_U.col(0)).dot(f.r1) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -178,10 +178,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.U.y() = f.c1->U.y() + (f.grad_U.col(1) + f.c1->grad_U.col(1)).dot(f.r1) / 2;
+                    f.U.y() = f.c1->U.y() + (f.sn_grad_U.y() * f.n10 + f.c1->grad_U.col(1)).dot(f.r1) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -192,10 +192,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.U.z() = f.c1->U.z() + (f.grad_U.col(2) + f.c1->grad_U.col(2)).dot(f.r1) / 2;
+                    f.U.z() = f.c1->U.z() + (f.sn_grad_U.z() * f.n10 + f.c1->grad_U.col(2)).dot(f.r1) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -206,10 +206,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.p = f.c1->p + (f.grad_p + f.c1->grad_p).dot(f.r1) / 2;
+                    f.p = f.c1->p + (f.sn_grad_p * f.n10 + f.c1->grad_p).dot(f.r1) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -220,10 +220,10 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.T = f.c1->T + (f.grad_T + f.c1->grad_T).dot(f.r1) / 2;
+                    f.T = f.c1->T + (f.sn_grad_T * f.n10 + f.c1->grad_T).dot(f.r1) / 2;
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -233,9 +233,6 @@ void calcFaceValue()
         }
         else
         {
-            // weighting coefficient
-            const Scalar ksi = f.r1.norm() / (f.r0.norm() + f.r1.norm());
-
             // pressure
             const Scalar p_0 = f.c0->p + f.c0->grad_p.dot(f.r0);
             const Scalar p_1 = f.c1->p + f.c1->grad_p.dot(f.r1);
@@ -244,7 +241,7 @@ void calcFaceValue()
             // temperature
             const Scalar T_0 = f.c0->T + f.c0->grad_T.dot(f.r0);
             const Scalar T_1 = f.c1->T + f.c1->grad_T.dot(f.r1);
-            f.T = ksi * T_0 + (1.0 - ksi) * T_1;
+            f.T = f.ksi0 * T_0 + f.ksi1 * T_1;
 
             // velocity
             if (f.U.dot(f.n01) > 0)

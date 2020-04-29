@@ -1,7 +1,7 @@
 #include "../inc/custom_type.h"
 #include "../inc/Gradient.h"
 
-extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
@@ -15,184 +15,184 @@ void calcFaceGhostVariable()
         {
             if (f.c0)
             {
-                // density
+                /// density
                 switch (f.rho_BC)
                 {
                 case Neumann:
-                    f.rho_ghost = f.c0->rho + 2 * f.grad_rho.dot(f.r0);
+                    f.rho_ghost = f.c0->rho + 2 * f.sn_grad_rho * f.r0.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.rho_ghost = 0.0;
+                    f.rho_ghost = f.rho; /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // velocity-x
+                /// velocity-x
                 switch (f.U_BC[0])
                 {
                 case Neumann:
-                    f.U_ghost.x() = f.c0->U[0] + 2 * f.grad_U.col(0).dot(f.r0);
+                    f.U_ghost.x() = f.c0->U[0] + 2 * f.sn_grad_U.x() * f.r0.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.U_ghost.x() = 0.0;
+                    f.U_ghost.x() = f.U.x(); /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // velocity-y
+                /// velocity-y
                 switch (f.U_BC[1])
                 {
                 case Neumann:
-                    f.U_ghost.y() = f.c0->U[1] + 2 * f.grad_U.col(1).dot(f.r0);
+                    f.U_ghost.y() = f.c0->U[1] + 2 * f.sn_grad_U.y() * f.r0.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.U_ghost.y() = 0.0;
+                    f.U_ghost.y() = f.U.y(); /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // velocity-z
+                /// velocity-z
                 switch (f.U_BC[2])
                 {
                 case Neumann:
-                    f.U_ghost.z() = f.c0->U[2] + 2 * f.grad_U.col(2).dot(f.r0);
+                    f.U_ghost.z() = f.c0->U[2] + 2 * f.sn_grad_U.z() * f.r0.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.U_ghost.z() = 0.0;
+                    f.U_ghost.z() = f.U.z(); /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // pressure
+                /// pressure
                 switch (f.p_BC)
                 {
                 case Neumann:
-                    f.p_ghost = f.c0->p + 2 * f.grad_p.dot(f.r0);
+                    f.p_ghost = f.c0->p + 2 * f.sn_grad_p * f.r0.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.p_ghost = 0.0;
+                    f.p_ghost = f.p; /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // temperature
+                /// temperature
                 switch (f.T_BC)
                 {
                 case Neumann:
-                    f.T_ghost = f.c0->T + 2 * f.grad_T.dot(f.r0);
+                    f.T_ghost = f.c0->T + 2 * f.sn_grad_T * f.r0.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.T_ghost = 0.0;
+                    f.T_ghost = f.T; /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
             }
             else if (f.c1)
             {
-                // density
+                /// density
                 switch (f.rho_BC)
                 {
                 case Neumann:
-                    f.rho_ghost = f.c1->rho + 2 * f.grad_rho.dot(f.r1);
+                    f.rho_ghost = f.c1->rho + 2 * f.sn_grad_rho * f.r1.norm();  /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.rho_ghost = 0.0;
+                    f.rho_ghost = f.rho; /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // velocity-x
+                /// velocity-x
                 switch (f.U_BC[0])
                 {
                 case Neumann:
-                    f.U_ghost.x() = f.c1->U[0] + 2 * f.grad_U.col(0).dot(f.r1);
+                    f.U_ghost.x() = f.c1->U[0] + 2 * f.sn_grad_U.x() * f.r1.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.U_ghost.x() = 0.0;
+                    f.U_ghost.x() = f.U.x(); /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // velocity-y
+                /// velocity-y
                 switch (f.U_BC[1])
                 {
                 case Neumann:
-                    f.U_ghost.y() = f.c1->U[1] + 2 * f.grad_U.col(1).dot(f.r1);
+                    f.U_ghost.y() = f.c1->U[1] + 2 * f.sn_grad_U.y() * f.r1.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.U_ghost.y() = 0.0;
+                    f.U_ghost.y() = f.U.y(); /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // velocity-z
+                /// velocity-z
                 switch (f.U_BC[2])
                 {
                 case Neumann:
-                    f.U_ghost.z() = f.c1->U[2] + 2 * f.grad_U.col(2).dot(f.r1);
+                    f.U_ghost.z() = f.c1->U[2] + 2 * f.sn_grad_U.z() * f.r1.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.U_ghost.z() = 0.0;
+                    f.U_ghost.z() = f.U.z(); /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // pressure
+                /// pressure
                 switch (f.p_BC)
                 {
                 case Neumann:
-                    f.p_ghost = f.c1->p + 2 * f.grad_p.dot(f.r1);
+                    f.p_ghost = f.c1->p + 2 * f.sn_grad_p * f.r1.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.p_ghost = 0.0;
+                    f.p_ghost = f.p; /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
 
-                // temperature
+                /// temperature
                 switch (f.T_BC)
                 {
                 case Neumann:
-                    f.T_ghost = f.c1->T + 2 * f.grad_T.dot(f.r1);
+                    f.T_ghost = f.c1->T + 2 * f.sn_grad_T * f.r1.norm(); /// May not accurate, should be validated or corrected further.
                     break;
                 case Dirichlet:
-                    f.T_ghost = 0.0;
+                    f.T_ghost = f.T; /// Will not be used.
                     break;
                 case Robin:
-                    throw unsupported_boundary_condition(Robin);
+                    throw robin_bc_is_not_supported();
                 default:
                     break;
                 }
@@ -210,7 +210,7 @@ void calcCellGradient()
         const size_t nF = c.surface.size();
         Eigen::VectorXd dphi(nF);
 
-        /* Gradient of density */
+        /// gradient of density
         for (size_t i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
@@ -228,7 +228,7 @@ void calcCellGradient()
         }
         c.grad_rho = c.J_INV_rho * dphi;
 
-        /* Gradient of x-dim velocity */
+        /// gradient of x-dim velocity
         for (size_t i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
@@ -246,7 +246,7 @@ void calcCellGradient()
         }
         c.grad_U.col(0) = c.J_INV_U[0] * dphi;
 
-        /* Gradient of y-dim velocity */
+        /// gradient of y-dim velocity
         for (size_t i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
@@ -264,7 +264,7 @@ void calcCellGradient()
         }
         c.grad_U.col(1) = c.J_INV_U[1] * dphi;
 
-        /* Gradient of z-dim velocity */
+        /// gradient of z-dim velocity
         for (size_t i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
@@ -282,7 +282,7 @@ void calcCellGradient()
         }
         c.grad_U.col(2) = c.J_INV_U[2] * dphi;
 
-        /* Gradient of pressure */
+        /// gradient of pressure
         for (size_t i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
@@ -300,7 +300,7 @@ void calcCellGradient()
         }
         c.grad_p = c.J_INV_p * dphi;
 
-        /* Gradient of temperature */
+        /// gradient of temperature
         for (size_t i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
@@ -335,9 +335,9 @@ void calcPressureCorrectionGradient()
             if (curFace->atBdry)
             {
                 if (curFace->p_prime_BC == Dirichlet)
-                    dphi(i) = -c.p_prime; // Zero-Value is assumed.
+                    dphi(i) = -c.p_prime; /// Zero-Value is assumed.
                 else
-                    dphi(i) = 0.0; // Zero-Gradient is assumed.
+                    dphi(i) = 0.0; /// Zero-Gradient is assumed.
             }
             else
                 dphi(i) = curAdjCell->p_prime - c.p_prime;
@@ -357,7 +357,7 @@ void calcFaceGradient()
     {
         if (f.atBdry)
         {
-            /* Gradients at boundary face */
+            /// gradients at boundary face
             if (f.c0)
             {
                 const Vector &r_C = f.c0->center;
@@ -366,7 +366,7 @@ void calcFaceGradient()
                 const Scalar d_CF = e_CF.norm();
                 e_CF /= d_CF;
 
-                // density
+                /// density
                 switch (f.rho_BC)
                 {
                 case Dirichlet:
@@ -380,7 +380,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // velocity-x
+                /// velocity-x
                 switch (f.U_BC[0])
                 {
                 case Dirichlet:
@@ -394,7 +394,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // velocity-y
+                /// velocity-y
                 switch (f.U_BC[1])
                 {
                 case Dirichlet:
@@ -408,7 +408,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // velocity-z
+                /// velocity-z
                 switch (f.U_BC[2])
                 {
                 case Dirichlet:
@@ -422,7 +422,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // pressure
+                /// pressure
                 switch (f.p_BC)
                 {
                 case Dirichlet:
@@ -436,7 +436,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // temperature
+                /// temperature
                 switch (f.T_BC)
                 {
                 case Dirichlet:
@@ -458,7 +458,7 @@ void calcFaceGradient()
                 const Scalar d_CF = e_CF.norm();
                 e_CF /= d_CF;
 
-                // density
+                /// density
                 switch (f.rho_BC)
                 {
                 case Dirichlet:
@@ -472,7 +472,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // velocity-x
+                /// velocity-x
                 switch (f.U_BC[0])
                 {
                 case Dirichlet:
@@ -486,7 +486,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // velocity-y
+                /// velocity-y
                 switch (f.U_BC[1])
                 {
                 case Dirichlet:
@@ -500,7 +500,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // velocity-z
+                /// velocity-z
                 switch (f.U_BC[2])
                 {
                 case Dirichlet:
@@ -514,7 +514,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // pressure
+                /// pressure
                 switch (f.p_BC)
                 {
                 case Dirichlet:
@@ -528,7 +528,7 @@ void calcFaceGradient()
                     break;
                 }
 
-                // temperature
+                /// temperature
                 switch (f.T_BC)
                 {
                 case Dirichlet:
@@ -547,47 +547,45 @@ void calcFaceGradient()
         }
         else
         {
-            /* Gradients at internal face */
+            /// gradients at internal face
             const Vector &r_C = f.c0->center;
             const Vector &r_F = f.c1->center;
             Vector e_CF = r_F - r_C;
             const Scalar d_CF = e_CF.norm();
             e_CF /= d_CF;
 
-            const Scalar ksi = f.r1.norm() / (f.r0.norm() + f.r1.norm());
-
-            // density
-            const Vector predicted_grad_rho = ksi * f.c0->grad_rho + (1 - ksi) * f.c1->grad_rho;
+            /// density
+            const Vector predicted_grad_rho = f.ksi0 * f.c0->grad_rho + f.ksi1 * f.c1->grad_rho;
             const Scalar rho_C = f.c0->rho;
             const Scalar rho_F = f.c1->rho;
             f.grad_rho = interpGradientToFace(predicted_grad_rho, rho_C, rho_F, e_CF, d_CF);
 
-            // velocity-x
-            const Vector predicted_grad_u = ksi * f.c0->grad_U.col(0) + (1 - ksi) * f.c1->grad_U.col(0);
+            /// velocity-x
+            const Vector predicted_grad_u = f.ksi0 * f.c0->grad_U.col(0) + f.ksi1 * f.c1->grad_U.col(0);
             const Scalar u_C = f.c0->U.x();
             const Scalar u_F = f.c1->U.x();
             f.grad_U.col(0) = interpGradientToFace(predicted_grad_u, u_C, u_F, e_CF, d_CF);
 
-            // velocity-y
-            const Vector predicted_grad_v = ksi * f.c0->grad_U.col(1) + (1 - ksi) * f.c1->grad_U.col(1);
+            /// velocity-y
+            const Vector predicted_grad_v = f.ksi0 * f.c0->grad_U.col(1) + f.ksi1 * f.c1->grad_U.col(1);
             const Scalar v_C = f.c0->U.y();
             const Scalar v_F = f.c1->U.y();
             f.grad_U.col(1) = interpGradientToFace(predicted_grad_v, v_C, v_F, e_CF, d_CF);
 
-            // velocity-z
-            const Vector predicted_grad_w = ksi * f.c0->grad_U.col(2) + (1 - ksi) * f.c1->grad_U.col(2);
+            /// velocity-z
+            const Vector predicted_grad_w = f.ksi0 * f.c0->grad_U.col(2) + f.ksi1 * f.c1->grad_U.col(2);
             const Scalar w_C = f.c0->U.z();
             const Scalar w_F = f.c1->U.z();
             f.grad_U.col(2) = interpGradientToFace(predicted_grad_w, w_C, w_F, e_CF, d_CF);
 
-            // pressure
-            const Vector predicted_grad_p = ksi * f.c0->grad_p + (1 - ksi) * f.c1->grad_p;
+            /// pressure
+            const Vector predicted_grad_p = f.ksi0 * f.c0->grad_p + f.ksi1 * f.c1->grad_p;
             const Scalar p_C = f.c0->p;
             const Scalar p_F = f.c1->p;
             f.grad_p = interpGradientToFace(predicted_grad_p, p_C, p_F, e_CF, d_CF);
 
-            // temperature
-            const Vector predicted_grad_T = ksi * f.c0->grad_T + (1 - ksi) * f.c1->grad_T;
+            /// temperature
+            const Vector predicted_grad_T = f.ksi0 * f.c0->grad_T + f.ksi1 * f.c1->grad_T;
             const Scalar T_C = f.c0->T;
             const Scalar T_F = f.c1->T;
             f.grad_T = interpGradientToFace(predicted_grad_T, T_C, T_F, e_CF, d_CF);

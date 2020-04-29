@@ -19,7 +19,7 @@ typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
 
 #define ZERO_INDEX 0
 #define ZERO_SCALAR 0.0
-#define ZERO_VECTOR {0.0, 0.0, 0.0}
+#define ZERO_VECTOR Vector::Zero()
 #define ZERO_TENSOR Tensor::Zero()
 
 /****************************************************** BC types ******************************************************/
@@ -46,7 +46,7 @@ public:
     ~NaturalArray() = default;
 
     /* 1-based indexing */
-    T &operator()(long long i)
+    T &operator()(int i)
     {
         if (i >= 1)
             return std::vector<T>::at(i - 1);
@@ -55,7 +55,7 @@ public:
         else
             throw index_is_zero();
     }
-    const T &operator()(long long i) const
+    const T &operator()(int i) const
     {
         if (i >= 1)
             return std::vector<T>::at(i - 1);
@@ -133,26 +133,27 @@ struct Face
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
+    Scalar p_prime = ZERO_SCALAR;
     Scalar T = ZERO_SCALAR;
+    Tensor tau = ZERO_TENSOR;
     Vector rhoU = ZERO_VECTOR;
+    Vector rhoU_star = ZERO_VECTOR; /// Variable used in Fractional-Step Methods.
 
     // Gradient of physical variables.
     // For internal use.
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
+    Vector grad_p_prime = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
-    Tensor tau = ZERO_TENSOR;
 
     // Surface outward normal gradient of physical variables.
     // For boundary use.
     Scalar sn_grad_rho = ZERO_SCALAR;
     Vector sn_grad_U = ZERO_VECTOR;
-
-    /* Fractional-Step Method temporary variables */
-    Scalar p_prime = ZERO_SCALAR;
-    Vector grad_p_prime = ZERO_VECTOR;
-    Vector rhoU_star = ZERO_VECTOR;
+    Scalar sn_grad_p = ZERO_SCALAR;
+    Scalar sn_grad_p_prime = ZERO_SCALAR;
+    Scalar sn_grad_T = ZERO_SCALAR;
 };
 struct Cell
 {
@@ -216,7 +217,6 @@ struct Cell
     Vector rhoU_star;
     Scalar p_prime;
     Vector grad_p_prime;
-
 };
 struct Patch
 {
@@ -234,6 +234,10 @@ struct failed_to_open_file : public std::runtime_error
 struct unsupported_boundary_condition : public std::invalid_argument
 {
     explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("\"" + BC_CATEGORY_STR[x] + "\" condition is not supported.") {}
+};
+struct robin_bc_is_not_supported : public unsupported_boundary_condition
+{
+    robin_bc_is_not_supported() : unsupported_boundary_condition(Robin) {}
 };
 struct empty_connectivity : public std::runtime_error
 {

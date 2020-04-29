@@ -1,7 +1,7 @@
 #include "../inc/custom_type.h"
 #include "../inc/BC.h"
 
-extern size_t NumOfPnt, NumOfFace, NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
@@ -100,8 +100,8 @@ void BC()
                 f->rho = rho0;
                 f->U = U_UP;
                 f->rhoU = f->rho * f->U;
-                f->grad_p = ZERO_VECTOR;
-                f->grad_p_prime = ZERO_VECTOR;
+                f->sn_grad_p = ZERO_SCALAR;
+                f->sn_grad_p_prime = ZERO_SCALAR;
                 f->T = T_UP;
             }
         }
@@ -112,8 +112,8 @@ void BC()
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->rhoU = f->rho * f->U;
-                f->grad_p = ZERO_VECTOR;
-                f->grad_p_prime = ZERO_VECTOR;
+                f->sn_grad_p = ZERO_SCALAR;
+                f->sn_grad_p_prime = ZERO_SCALAR;
                 f->T = T_DOWN;
             }
         }
@@ -124,9 +124,9 @@ void BC()
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->rhoU = f->rho * f->U;
-                f->grad_p = ZERO_VECTOR;
-                f->grad_p_prime = ZERO_VECTOR;
-                f->grad_T = ZERO_VECTOR;
+                f->sn_grad_p = ZERO_SCALAR;
+                f->sn_grad_p_prime = ZERO_SCALAR;
+                f->sn_grad_T = ZERO_SCALAR;
             }
         }
         else if (e.name == "RIGHT")
@@ -136,9 +136,9 @@ void BC()
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->rhoU = f->rho * f->U;
-                f->grad_p = ZERO_VECTOR;
-                f->grad_p_prime = ZERO_VECTOR;
-                f->grad_T = ZERO_VECTOR;
+                f->sn_grad_p = ZERO_SCALAR;
+                f->sn_grad_p_prime = ZERO_SCALAR;
+                f->sn_grad_T = ZERO_SCALAR;
             }
         }
         else if (e.name == "FRONT")
@@ -148,9 +148,9 @@ void BC()
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->rhoU = f->rho * f->U;
-                f->grad_p = ZERO_VECTOR;
-                f->grad_p_prime = ZERO_VECTOR;
-                f->grad_T = ZERO_VECTOR;
+                f->sn_grad_p = ZERO_SCALAR;
+                f->sn_grad_p_prime = ZERO_SCALAR;
+                f->sn_grad_T = ZERO_SCALAR;
             }
         }
         else if (e.name == "BACK")
@@ -160,9 +160,9 @@ void BC()
                 f->rho = rho0;
                 f->U = ZERO_VECTOR;
                 f->rhoU = f->rho * f->U;
-                f->grad_p = ZERO_VECTOR;
-                f->grad_p_prime = ZERO_VECTOR;
-                f->grad_T = ZERO_VECTOR;
+                f->sn_grad_p = ZERO_SCALAR;
+                f->sn_grad_p_prime = ZERO_SCALAR;
+                f->sn_grad_T = ZERO_SCALAR;
             }
         }
         else
