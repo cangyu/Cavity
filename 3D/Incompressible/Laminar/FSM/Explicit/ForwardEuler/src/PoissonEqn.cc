@@ -195,34 +195,26 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
 /// Copy from SciPy V1.4.1
 /// https://github.com/scipy/scipy/blob/v1.4.1/scipy/sparse/sparsetools/coo.h
 template <class I, class T>
-void coo_tocsr(const I n_row,
-               const I n_col,
-               const I nnz,
-               const I Ai[],
-               const I Aj[],
-               const T Ax[],
-                     I Bp[],
-                     I Bj[],
-                     T Bx[])
+void coo_tocsr(const I n_row, const I n_col, const I nnz, const I Ai[], const I Aj[], const T Ax[], I Bp[], I Bj[], T Bx[])
 {
     //compute number of non-zero entries per row of A 
     std::fill(Bp, Bp + n_row, 0);
 
-    for (I n = 0; n < nnz; n++){            
+    for (I n = 0; n < nnz; n++) {
         Bp[Ai[n]]++;
     }
 
     //cumsum the nnz per row to get Bp[]
-    for(I i = 0, cumsum = 0; i < n_row; i++){     
+    for (I i = 0, cumsum = 0; i < n_row; i++) {
         I temp = Bp[i];
         Bp[i] = cumsum;
         cumsum += temp;
     }
-    Bp[n_row] = nnz; 
+    Bp[n_row] = nnz;
 
     //write Aj,Ax into Bj,Bx
-    for(I n = 0; n < nnz; n++){
-        I row  = Ai[n];
+    for (I n = 0; n < nnz; n++) {
+        I row = Ai[n];
         I dest = Bp[row];
 
         Bj[dest] = Aj[n];
@@ -231,10 +223,10 @@ void coo_tocsr(const I n_row,
         Bp[row]++;
     }
 
-    for(I i = 0, last = 0; i <= n_row; i++){
+    for (I i = 0, last = 0; i <= n_row; i++) {
         I temp = Bp[i];
-        Bp[i]  = last;
-        last   = temp;
+        Bp[i] = last;
+        last = temp;
     }
 
     //now Bp,Bj,Bx form a CSR representation (with possible duplicates)
@@ -257,7 +249,7 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B)
     auto Ax = new SX_FLT[B.num_nnzs];
 
     int n = 0;
-    for(const auto &e : coef)
+    for (const auto &e : coef)
     {
         Ai[n] = e.row();
         Aj[n] = e.col();
@@ -281,10 +273,10 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B)
 
 void calcPressureCorrectionEquationRHS(SX_VEC &rhs)
 {
-    
+
 }
 
 void prepare_dp_solver()
 {
-    
+
 }
