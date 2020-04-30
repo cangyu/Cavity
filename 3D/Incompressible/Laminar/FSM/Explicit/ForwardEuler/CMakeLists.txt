@@ -11,6 +11,24 @@ add_library(
 	3rd_party/TYDF/src/xf.cc
 )
 
+add_library(
+	SXAMG STATIC
+	3rd_party/SXAMG/src/mat.c
+	3rd_party/SXAMG/src/vec.c
+	3rd_party/SXAMG/src/utils.c
+	3rd_party/SXAMG/src/amg-coarse-solver.c
+	3rd_party/SXAMG/src/amg-cycle.c
+	3rd_party/SXAMG/src/amg-setup.c
+	3rd_party/SXAMG/src/amg-utils.c
+	3rd_party/SXAMG/src/op-blas.c
+	3rd_party/SXAMG/src/op-coarsen.c
+	3rd_party/SXAMG/src/op-inter.c
+	3rd_party/SXAMG/src/op-smoother.c
+	3rd_party/SXAMG/src/sxamg.c
+)
+
+target_include_directories(SXAMG PRIVATE 3rd_party/SXAMG/include)
+
 add_executable(
 	${PROJECT_NAME}
 	src/IO.cc
@@ -29,6 +47,7 @@ add_executable(
 target_link_libraries(
 	${PROJECT_NAME} PRIVATE 
 	TYDF 
+	SXAMG
 	stdc++fs
 )
 

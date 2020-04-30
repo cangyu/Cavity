@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include "../3rd_party/Eigen/Dense"
 #include "../3rd_party/Eigen/Sparse"
+#include "../3rd_party/SXAMG/include/sxamg.h"
 
 /***************************************************** Math types ****************************************************/
 
