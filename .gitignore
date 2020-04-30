@@ -3,6 +3,7 @@ build/
 *.msh
 *.dat
 MeshDesc.txt
+Cavity
 
 # OSX
 .DS_Store
