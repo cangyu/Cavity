@@ -2,7 +2,9 @@
 build/
 *.msh
 *.dat
+MeshDesc.txt
 
+# OSX
 .DS_Store
 
 # Visual Studio
