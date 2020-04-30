@@ -239,9 +239,8 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B)
 
     gen_coef_triplets(coef);
 
-    /// Set size
-    B.num_rows = B.num_cols = cell.size();
-    B.num_nnzs = coef.size();
+    /// Allocate storage
+    B = sx_mat_struct_create(NumOfCell, NumOfCell, coef.size());
 
     /// Transform
     auto Ai = new SX_INT[B.num_nnzs];
@@ -257,11 +256,6 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B)
         ++n;
     }
 
-    /// Allocate storage
-    B.Ap = (SX_INT *)sx_malloc(sizeof(SX_INT) * (B.num_rows + 1));
-    B.Aj = (SX_INT *)sx_malloc(sizeof(SX_INT) * B.num_nnzs);
-    B.Ax = (SX_FLT *)sx_malloc(sizeof(SX_FLT) * B.num_nnzs);
-
     /// COO to CSR
     coo_tocsr<SX_INT, SX_FLT>(B.num_rows, B.num_cols, B.num_nnzs, Ai, Aj, Ax, B.Ap, B.Aj, B.Ax);
 
@@ -273,10 +267,25 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B)
 
 void calcPressureCorrectionEquationRHS(SX_VEC &rhs)
 {
+    Eigen::Matrix<Scalar, Eigen::Dynamic, 1> x;
+    x.resize(NumOfCell, Eigen::NoChange);
 
+    calcPressureCorrectionEquationRHS(x);
+
+    for (SX_INT i = 0; i < NumOfCell; ++i)
+        sx_vec_set_entry(&rhs, i, x(i));
 }
 
-void prepare_dp_solver()
+void prepare_dp_solver(SX_MAT &A, SX_AMG &mg)
 {
+    SX_AMG_PARS pars;
 
+    sx_amg_pars_init(&pars);
+    pars.maxit = 1000;
+    pars.verb = 2;
+
+    sx_printf("\nA: m = %"dFMT", n = %"dFMT", nnz = %"dFMT"\n", A.num_rows, A.num_cols, A.num_nnzs);
+    sx_amg_pars_print(&pars);
+
+    sx_amg_setup(&mg, &A, &pars);
 }

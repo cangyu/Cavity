@@ -21,9 +21,13 @@ NaturalArray<Cell> cell; // Cell objects
 NaturalArray<Patch> patch; // Group of boundary faces
 
 /* Pressure-Corrrection equation coefficients */
-Eigen::SparseMatrix<Scalar> A_dp;
-Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp;
-Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver;
+Eigen::SparseMatrix<Scalar> A_dp_1;
+Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp_1;
+Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver_1;
+
+SX_MAT A_dp_2;
+SX_VEC Q_dp_2;
+SX_AMG dp_solver_2;
 
 /* I/O of mesh, case, logger and monitor */
 static const std::string MESH_DIR = "mesh/";
@@ -192,17 +196,20 @@ void init()
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     LOG_OUT << std::endl << "Preparing Pressure-Correction equation coefficients ... ";
-    A_dp.resize(NumOfCell, NumOfCell);
-    Q_dp.resize(NumOfCell, Eigen::NoChange);
+    // A_dp_1.resize(NumOfCell, NumOfCell);
+    // Q_dp_1.resize(NumOfCell, Eigen::NoChange);
+    Q_dp_2 = sx_vec_create(NumOfCell);
     tick_begin = clock();
-    calcPressureCorrectionEquationCoef(A_dp);
-    A_dp.makeCompressed();
+    // calcPressureCorrectionEquationCoef(A_dp_1);
+    // A_dp_1.makeCompressed();
+    calcPressureCorrectionEquationCoef(A_dp_2);
     tick_end = clock();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     LOG_OUT << std::endl << "Matrix factorization ... ";
     tick_begin = clock();
-    dp_solver.compute(A_dp);
+    // dp_solver_1.compute(A_dp_1);
+    prepare_dp_solver(A_dp_2, dp_solver_2);
     tick_end = clock();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
