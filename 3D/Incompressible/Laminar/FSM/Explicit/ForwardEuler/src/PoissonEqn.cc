@@ -284,7 +284,6 @@ void prepare_dp_solver(SX_MAT &A, SX_AMG &mg)
     pars.maxit = 1000;
     pars.verb = 2;
 
-    sx_printf("\nA: m = %"dFMT", n = %"dFMT", nnz = %"dFMT"\n", A.num_rows, A.num_cols, A.num_nnzs);
     sx_amg_pars_print(&pars);
 
     sx_amg_setup(&mg, &A, &pars);

@@ -48,7 +48,6 @@ target_link_libraries(
 	${PROJECT_NAME} PRIVATE 
 	TYDF 
 	SXAMG
-	stdc++fs
 )
 
 install(TARGETS ${PROJECT_NAME} 
