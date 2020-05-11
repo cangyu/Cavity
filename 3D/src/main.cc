@@ -33,8 +33,6 @@ SX_AMG dp_solver_2;
 static const std::string MESH_DIR = "mesh/";
 static const std::string MESH_NAME = "cube32.msh";
 static const std::string RUN_TAG = time_stamp_str();
-static const std::string NODAL_CASE_DIR = RUN_TAG + "/Nodal/";
-static const std::string CENTERED_CASE_DIR = RUN_TAG + "/Centered/";
 static const int OUTPUT_GAP = 5;
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
@@ -55,20 +53,16 @@ Scalar calcTimeStep()
 
 static void write_flowfield(int n, double t)
 {
-    static char tmp[5];
-    std::snprintf(tmp, sizeof(tmp) / sizeof(char), "%04d", n);
-    const std::string CASE_NAME = "Iter" + std::string(tmp);
-    static const std::string CASE_SUFFIX = ".dat";
+    static const std::string GRID_TITLE = "GRID";
+    const std::string SOLUTION_TITLE = "ITER" + std::to_string(n);
 
-    const std::string NODAL_CASE_PATH = NODAL_CASE_DIR + CASE_NAME + CASE_SUFFIX;
-    const std::string CENTERED_CASE_PATH = CENTERED_CASE_DIR + CASE_NAME + CASE_SUFFIX;
+    static const std::string GRID_PATH = RUN_TAG + "/grid.dat";
+    const std::string SOLUTION_PATH = RUN_TAG + "/Iter" + std::to_string(n) + ".dat";
 
-    static const std::string CASE_TITLE = "3D Incompressible Unsteady Laminar Cavity Flow";
-    static const std::string ZONE_TEXT = "Entire Domain";
+    if(n == 0)
+        write_tec_grid(GRID_PATH, 2, GRID_TITLE);
 
-    updateNodalValue();
-    writeTECPLOT_Nodal(NODAL_CASE_PATH, CASE_TITLE, ZONE_TEXT, t);
-    writeTECPLOT_Centered(CENTERED_CASE_PATH, CASE_TITLE, ZONE_TEXT, t);
+    write_tec_solution(SOLUTION_PATH, t, SOLUTION_TITLE);
 }
 
 static void stat_min_max(const std::string& var_name, std::function<Scalar(const Cell&)> extractor)
@@ -175,12 +169,13 @@ void init()
     std::filesystem::create_directory(RUN_TAG);
 
     const std::string fn_mesh_log = RUN_TAG + "/MeshDesc.txt";
+
     std::ofstream fout(fn_mesh_log);
     if (fout.fail())
-        throw std::runtime_error("Failed to open target log file for mesh.");
+        throw failed_to_open_file(fn_mesh_log);
     LOG_OUT << std::endl << "Loading mesh \"" << MESH_NAME << "\" ... ";
     tick_begin = clock();
-    readMESH(MESH_DIR + MESH_NAME, fout);
+    read_fluent_mesh(MESH_DIR + MESH_NAME, fout);
     tick_end = clock();
     fout.close();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
@@ -216,9 +211,6 @@ void init()
     LOG_OUT << std::endl << "Setting I.C. of each variable ... ";
     IC();
     LOG_OUT << "Done!" << std::endl;
-
-    std::filesystem::create_directory(NODAL_CASE_DIR);
-    std::filesystem::create_directory(CENTERED_CASE_DIR);
 
     LOG_OUT << std::endl << "Writting initial output ... ";
     write_flowfield(0, 0.0);

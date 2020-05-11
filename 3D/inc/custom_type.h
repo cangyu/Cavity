@@ -250,7 +250,12 @@ struct inconsistent_connectivity : public std::runtime_error
 };
 struct unexpected_patch : public std::runtime_error
 {
-    unexpected_patch(const std::string &name) : std::runtime_error("Patch \"" + name + "\" is not expected to be a boundary patch.") {}
+    explicit unexpected_patch(const std::string &name) : std::runtime_error("Patch \"" + name + "\" is not expected to be a boundary patch.") {}
+};
+
+struct insufficient_vertexes : public std::runtime_error
+{
+    explicit insufficient_vertexes(size_t i) : std::runtime_error("No enough vertices within cell " + std::to_string(i) + ".") {}
 };
 
 /***************************************************** END ***********************************************************/
