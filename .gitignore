@@ -17,7 +17,7 @@ Cavity
 
 # CLion
 .idea/
-cmake-build-debug/
+cmake-build-*/
 
 # Prerequisites
 *.d
