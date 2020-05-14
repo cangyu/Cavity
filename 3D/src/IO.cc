@@ -1,3 +1,4 @@
+#include <map>
 #include "../3rd_party/TYDF/inc/xf.h"
 #include "../inc/custom_type.h"
 #include "../inc/IO.h"
@@ -17,20 +18,22 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
 {
     using namespace GridTool;
 
-    // Load ANSYS Fluent mesh using external independent package.
+    /// An external package is used
+    /// to load Fluent mesh.
     const XF::MESH mesh(MESH_PATH, LOG_OUT);
 
-    // Update counting of geom elements.
+    /// Update counting of geom elements.
     NumOfPnt = mesh.numOfNode();
     NumOfFace = mesh.numOfFace();
     NumOfCell = mesh.numOfCell();
 
-    // Allocate memory for geom information and related physical variables.
+    /// Allocate memory for geom entities
+    /// and related physical variables.
     pnt.resize(NumOfPnt);
     face.resize(NumOfFace);
     cell.resize(NumOfCell);
 
-    // Update point information.
+    /// Update nodal information.
     for (int i = 1; i <= NumOfPnt; ++i)
     {
         const auto &n_src = mesh.node(i);
@@ -54,7 +57,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
             n_dst.dependentCell(j) = &cell(n_src.dependentCell(j));
     }
 
-    // Update face information.
+    /// Update face information.
     for (int i = 1; i <= NumOfFace; ++i)
     {
         const auto &f_src = mesh.face(i);
@@ -86,7 +89,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         f_dst.c1 = f_src.rightCell ? &cell(f_src.rightCell) : nullptr;
     }
 
-    // Update cell information.
+    /// Update cell information.
     for (int i = 1; i <= NumOfCell; ++i)
     {
         const auto &c_src = mesh.cell(i);
@@ -134,7 +137,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         }
     }
 
-    // Nodal interpolation coefficients
+    /// Nodal interpolation coefficients
     for (int i = 1; i <= NumOfPnt; ++i)
     {
         auto &n_dst = pnt(i);
@@ -150,7 +153,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
             n_dst.cellWeightingCoef(j) /= s;
     }
 
-    // Cell center to face center vectors and ratios.
+    /// Cell center to face center vectors and ratios.
     for (int i = 1; i <= NumOfFace; ++i)
     {
         auto &f_dst = face(i);
@@ -190,7 +193,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         }
     }
 
-    // Count valid patches.
+    /// Count valid patches.
     size_t NumOfPatch = 0;
     for (int i = 1; i <= mesh.numOfZone(); ++i)
     {
@@ -209,7 +212,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         }
     }
 
-    // Update boundary patch information.
+    /// Update boundary patch information.
     patch.resize(NumOfPatch);
     for (int i = 1, cnt = 0; i <= mesh.numOfZone(); ++i)
     {
@@ -231,6 +234,70 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         }
         cnt += 1;
     }
+
+    /// Update nodal inclusion within each boundary patch.
+    for(auto &p : patch)
+    {
+        const auto &s = p.surface;
+
+        /// Counting nodes.
+        std::map<int, size_t> n2n;
+        size_t cnt = 0;
+        for(auto f : s)
+        {
+            const auto &vl = f->vertex;
+            for(auto v : vl)
+            {
+                const int ci = v->index;
+                auto it = n2n.find(ci);
+                if(it == n2n.end())
+                {
+                    ++cnt;
+                    n2n[ci] = cnt;
+                }
+            }
+        }
+
+        /// Allocate storage.
+        p.vertex.resize(n2n.size(), nullptr);
+
+        /// Link connectivity.
+        std::vector<bool> flag(n2n.size(), false);
+        for(auto f : s)
+        {
+            const auto &vl = f->vertex;
+            for(auto v : vl)
+            {
+                const int ci = v->index;
+                auto it = n2n.find(ci);
+                if(it == n2n.end())
+                    throw std::runtime_error("Previous operation failed.");
+                else
+                {
+                    const auto loc_idx = it->second - 1; /// 0-based
+                    if(!flag[loc_idx])
+                    {
+                        p.vertex[loc_idx] = v;
+                        flag[loc_idx] = true;
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void formatted_block_data_writer(std::ostream &out, const std::vector<Scalar> &val, size_t nRec1Line, const std::string &sep, bool nlAtLast)
+{
+    size_t i = 0;
+    for (const auto &e : val)
+    {
+        out << sep << e;
+        ++i;
+        if (i % nRec1Line == 0)
+            out << std::endl;
+    }
+    if (nlAtLast && (val.size() % nRec1Line))
+        out << std::endl;
 }
 
 static void write_tec_grid_tet(const std::string &fn, const std::string &title)
@@ -250,7 +317,8 @@ static void write_tec_grid_tet(const std::string &fn, const std::string &title)
     fout << R"(VARIABLES="X", "Y", "Z")" << std::endl;
 
     /// Zone Record
-    fout << "ZONE" << std::endl;
+    fout << "ZONE T=\"" << "Interior" << "\"" << std::endl;
+    fout << "STRANDID=" << 1 << std::endl;
     fout << "NODES=" << NumOfPnt << std::endl;
     fout << "ELEMENTS=" << NumOfCell << std::endl;
     fout << "ZONETYPE=" << "FETETRAHEDRON" << std::endl;
@@ -298,8 +366,6 @@ static void write_tec_grid_tet(const std::string &fn, const std::string &title)
             fout << SEP << e->index;
         fout << std::endl;
     }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
 
     /// Finalize
     fout.close();
@@ -317,12 +383,14 @@ static void write_tec_grid_hex(const std::string &fn, const std::string &title)
         throw failed_to_open_file(fn);
 
     /// File Header
+    /// Volume Zone
     fout << "TITLE=\"" << title << "\"" << std::endl;
     fout << "FILETYPE=GRID" << std::endl;
     fout << R"(VARIABLES="X", "Y", "Z")" << std::endl;
 
     /// Zone Record
-    fout << "ZONE" << std::endl;
+    fout << "ZONE T=\"" << "INTERIOR" << "\"" << std::endl;
+    fout << "STRANDID=" << 1 << std::endl;
     fout << "NODES=" << NumOfPnt << std::endl;
     fout << "ELEMENTS=" << NumOfCell << std::endl;
     fout << "ZONETYPE=" << "FEBRICK" << std::endl;
@@ -370,8 +438,79 @@ static void write_tec_grid_hex(const std::string &fn, const std::string &title)
             fout << SEP << e->index;
         fout << std::endl;
     }
-    if (NumOfCell % RECORD_PER_LINE != 0)
-        fout << std::endl;
+
+    /// Surface Zone
+    for(int k = 1; k <= patch.size(); ++k)
+    {
+        const auto &p = patch(k);
+        const auto &s = p.surface;
+        const auto &v = p.vertex;
+
+        /// Record local order of nodes.
+        std::map<int, size_t> n2n;
+        size_t cnt = 0;
+        for(auto f : s)
+        {
+            const auto &vl = f->vertex;
+            if(vl.size() != 4)
+                throw insufficient_vertexes(f->index);
+
+            for(auto e : vl)
+            {
+                const int ci = e->index;
+                auto it = n2n.find(ci);
+                if(it == n2n.end())
+                {
+                    ++cnt;
+                    n2n[ci] = cnt;
+                }
+            }
+        }
+
+        /// Check
+        if(v.size() != n2n.size())
+            throw std::runtime_error("Inconsistent with previous calculation.");
+
+        /// Zone Header
+        fout << "ZONE T=\"" << p.name << "\"" << std::endl;
+        fout << "STRANDID=" << 1 + k << std::endl;
+        fout << "NODES=" << v.size() << std::endl;
+        fout << "ELEMENTS=" << s.size() << std::endl;
+        fout << "ZONETYPE=" << "FEQUADRILATERAL" << std::endl;
+        fout << "DATAPACKING=BLOCK" << std::endl;
+        fout << "VARLOCATION=([1-3]=NODAL)" << std::endl;
+
+        /// Gather coordinate components.
+        std::vector<Scalar> cord_comp_x(v.size(), 0.0);
+        std::vector<Scalar> cord_comp_y(v.size(), 0.0);
+        std::vector<Scalar> cord_comp_z(v.size(), 0.0);
+        for(size_t i = 0; i < v.size(); ++i)
+        {
+            auto pt = v[i];
+            cord_comp_x[i] = pt->coordinate.x();
+            cord_comp_y[i] = pt->coordinate.y();
+            cord_comp_z[i] = pt->coordinate.z();
+
+        }
+
+        /// X-Coordinates
+        formatted_block_data_writer(fout, cord_comp_x, RECORD_PER_LINE, SEP, true);
+
+        /// Y-Coordinates
+        formatted_block_data_writer(fout, cord_comp_y, RECORD_PER_LINE, SEP, true);
+
+        /// Z-Coordinates
+        formatted_block_data_writer(fout, cord_comp_z, RECORD_PER_LINE, SEP, true);
+
+        /// Connectivity
+        for (auto f : s)
+        {
+            const auto &vl = f->vertex;
+            for (auto e : vl)
+                fout << SEP << n2n[e->index];
+            fout << std::endl;
+        }
+    }
 
     /// Finalize
     fout.close();
@@ -425,7 +564,7 @@ void write_tec_solution(const std::string &fn, double t, const std::string &titl
 
     /// Zone Record
     /// Volume Zone
-    fout << "ZONE T=\"" << "Interior" << "\"" << std::endl;
+    fout << "ZONE T=\"" << "INTERIOR" << "\"" << std::endl;
     fout << "STRANDID=" << 1 << std::endl;
     fout << "SOLUTIONTIME=" << t << std::endl;
     fout << "NODES=" << NumOfPnt << std::endl;
@@ -497,7 +636,96 @@ void write_tec_solution(const std::string &fn, double t, const std::string &titl
         fout << std::endl;
 
     /// Surface Zone
-    /// TODO
+    for(int k = 1; k <= patch.size(); ++k)
+    {
+        const auto &p = patch(k);
+        const auto &s = p.surface;
+        const auto &v = p.vertex;
+
+        /// Zone Header
+        fout << "ZONE T=\"" << p.name << "\"" << std::endl;
+        fout << "STRANDID=" << 1 + k << std::endl;
+        fout << "SOLUTIONTIME=" << t << std::endl;
+        fout << "NODES=" << v.size() << std::endl;
+        fout << "ELEMENTS=" << s.size() << std::endl;
+        fout << "ZONETYPE=" << "FEQUADRILATERAL" << std::endl;
+        fout << "DATAPACKING=BLOCK" << std::endl;
+        fout << "VARLOCATION=([1-6]=CELLCENTERED)" << std::endl;
+
+        /// Density
+        int pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->rho;
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Velocity-X
+        pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->U.x();
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Velocity-Y
+        pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->U.y();
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Velocity-Z
+        pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->U.z();
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Pressure
+        pos = 0;
+        fout.setf(std::ios::fixed);
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << std::setprecision(10) << f->p;
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        fout.unsetf(std::ios::fixed);
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Temperature
+        pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->T;
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+    }
 
     /// Finalize
     fout.close();
