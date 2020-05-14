@@ -224,6 +224,7 @@ struct Patch
     std::string name;
     int BC;
     NaturalArray<Face*> surface;
+    NaturalArray<Point*> vertex;
 };
 
 /********************************************* Errors and Exceptions *************************************************/
