@@ -56,8 +56,8 @@ static void write_flowfield(int n, double t)
     static const std::string GRID_TITLE = "GRID";
     const std::string SOLUTION_TITLE = "ITER" + std::to_string(n);
 
-    static const std::string GRID_PATH = RUN_TAG + "/grid.dat";
-    const std::string SOLUTION_PATH = RUN_TAG + "/Iter" + std::to_string(n) + ".dat";
+    static const std::string GRID_PATH = RUN_TAG + "/GRID.dat";
+    const std::string SOLUTION_PATH = RUN_TAG + "/ITER" + std::to_string(n) + ".dat";
 
     if(n == 0)
         write_tec_grid(GRID_PATH, 2, GRID_TITLE);

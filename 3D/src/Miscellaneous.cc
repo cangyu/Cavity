@@ -12,6 +12,6 @@ std::string time_stamp_str()
 {
     auto tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::ostringstream ss;
-    ss << std::put_time(std::localtime(&tt), "%Y%m%d%H%M%S");
+    ss << std::put_time(std::localtime(&tt), "%Y%m%d-%H%M%S");
     return ss.str();
 }
