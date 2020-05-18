@@ -31,7 +31,7 @@ SX_AMG dp_solver_2;
 
 /* I/O of mesh, case, logger and monitor */
 static const std::string MESH_DIR = "mesh/";
-static const std::string MESH_NAME = "cube32.msh";
+static const std::string MESH_NAME = "cube_tet.msh";
 static const std::string RUN_TAG = time_stamp_str();
 static const int OUTPUT_GAP = 5;
 static std::ostream &LOG_OUT = std::cout;
@@ -60,9 +60,9 @@ static void write_flowfield(int n, double t)
     const std::string SOLUTION_PATH = RUN_TAG + "/ITER" + std::to_string(n) + ".dat";
 
     if(n == 0)
-        write_tec_grid(GRID_PATH, 2, GRID_TITLE);
+        write_tec_grid(GRID_PATH, 1, GRID_TITLE);
 
-    write_tec_solution(SOLUTION_PATH, t, SOLUTION_TITLE);
+    write_tec_solution(SOLUTION_PATH, 1, t, SOLUTION_TITLE);
 }
 
 static void stat_min_max(const std::string& var_name, std::function<Scalar(const Cell&)> extractor)

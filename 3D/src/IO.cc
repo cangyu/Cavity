@@ -317,7 +317,8 @@ static void write_tec_grid_tet(const std::string &fn, const std::string &title)
     fout << R"(VARIABLES="X", "Y", "Z")" << std::endl;
 
     /// Zone Record
-    fout << "ZONE T=\"" << "Interior" << "\"" << std::endl;
+    /// Volume Zone
+    fout << "ZONE T=\"" << "INTERIOR" << "\"" << std::endl;
     fout << "STRANDID=" << 1 << std::endl;
     fout << "NODES=" << NumOfPnt << std::endl;
     fout << "ELEMENTS=" << NumOfCell << std::endl;
@@ -367,6 +368,79 @@ static void write_tec_grid_tet(const std::string &fn, const std::string &title)
         fout << std::endl;
     }
 
+    /// Surface Zone
+    for(int k = 1; k <= patch.size(); ++k)
+    {
+        const auto &p = patch(k);
+        const auto &s = p.surface;
+        const auto &v = p.vertex;
+
+        /// Record local order of nodes.
+        std::map<int, size_t> n2n;
+        size_t cnt = 0;
+        for(auto f : s)
+        {
+            const auto &vl = f->vertex;
+            if(vl.size() != 3)
+                throw insufficient_vertexes(f->index);
+
+            for(auto e : vl)
+            {
+                const int ci = e->index;
+                auto it = n2n.find(ci);
+                if(it == n2n.end())
+                {
+                    ++cnt;
+                    n2n[ci] = cnt;
+                }
+            }
+        }
+
+        /// Check
+        if(v.size() != n2n.size())
+            throw std::runtime_error("Inconsistent with previous calculation.");
+
+        /// Zone Header
+        fout << "ZONE T=\"" << p.name << "\"" << std::endl;
+        fout << "STRANDID=" << 1 + k << std::endl;
+        fout << "NODES=" << v.size() << std::endl;
+        fout << "ELEMENTS=" << s.size() << std::endl;
+        fout << "ZONETYPE=" << "FETRIANGLE" << std::endl;
+        fout << "DATAPACKING=BLOCK" << std::endl;
+        fout << "VARLOCATION=([1-3]=NODAL)" << std::endl;
+
+        /// Gather coordinate components.
+        std::vector<Scalar> cord_comp_x(v.size(), 0.0);
+        std::vector<Scalar> cord_comp_y(v.size(), 0.0);
+        std::vector<Scalar> cord_comp_z(v.size(), 0.0);
+        for(size_t i = 0; i < v.size(); ++i)
+        {
+            auto pt = v[i];
+            cord_comp_x[i] = pt->coordinate.x();
+            cord_comp_y[i] = pt->coordinate.y();
+            cord_comp_z[i] = pt->coordinate.z();
+
+        }
+
+        /// X-Coordinates
+        formatted_block_data_writer(fout, cord_comp_x, RECORD_PER_LINE, SEP, true);
+
+        /// Y-Coordinates
+        formatted_block_data_writer(fout, cord_comp_y, RECORD_PER_LINE, SEP, true);
+
+        /// Z-Coordinates
+        formatted_block_data_writer(fout, cord_comp_z, RECORD_PER_LINE, SEP, true);
+
+        /// Connectivity
+        for (auto f : s)
+        {
+            const auto &vl = f->vertex;
+            for (auto e : vl)
+                fout << SEP << n2n[e->index];
+            fout << std::endl;
+        }
+    }
+
     /// Finalize
     fout.close();
 }
@@ -383,12 +457,12 @@ static void write_tec_grid_hex(const std::string &fn, const std::string &title)
         throw failed_to_open_file(fn);
 
     /// File Header
-    /// Volume Zone
     fout << "TITLE=\"" << title << "\"" << std::endl;
     fout << "FILETYPE=GRID" << std::endl;
     fout << R"(VARIABLES="X", "Y", "Z")" << std::endl;
 
     /// Zone Record
+    /// Volume Zone
     fout << "ZONE T=\"" << "INTERIOR" << "\"" << std::endl;
     fout << "STRANDID=" << 1 << std::endl;
     fout << "NODES=" << NumOfPnt << std::endl;
@@ -538,15 +612,192 @@ void write_tec_grid(const std::string &fn, int type, const std::string &title)
         write_tec_grid_poly(fn, title);
 }
 
-/**
- * Output computation results.
- * Cell-Centered values are exported, including boundary variables.
- * Only for continuation purpose.
- * @param fn
- * @param t
- * @param title
- */
-void write_tec_solution(const std::string &fn, double t, const std::string &title)
+static void write_tec_solution_tet(const std::string &fn, double t, const std::string &title)
+{
+    /// Format param
+    static const size_t RECORD_PER_LINE = 10;
+    static const std::string SEP = " ";
+
+    /// Open target file.
+    std::ofstream fout(fn);
+    if (fout.fail())
+        throw failed_to_open_file(fn);
+
+    /// File Header
+    fout << "TITLE=\"" << title << "\"" << std::endl;
+    fout << "FILETYPE=SOLUTION" << std::endl;
+    fout << R"(VARIABLES="rho", "U", "V", "W", "P", "T")" << std::endl;
+
+    /// Zone Record
+    /// Volume Zone
+    fout << "ZONE T=\"" << "INTERIOR" << "\"" << std::endl;
+    fout << "STRANDID=" << 1 << std::endl;
+    fout << "SOLUTIONTIME=" << t << std::endl;
+    fout << "NODES=" << NumOfPnt << std::endl;
+    fout << "ELEMENTS=" << NumOfCell << std::endl;
+    fout << "ZONETYPE=" << "FETETRAHEDRON" << std::endl;
+    fout << "DATAPACKING=BLOCK" << std::endl;
+    fout << "VARLOCATION=([1-6]=CELLCENTERED)" << std::endl;
+
+    /// Density
+    for (size_t i = 1; i <= NumOfCell; ++i)
+    {
+        fout << SEP << cell(i).rho0;
+        if (i % RECORD_PER_LINE == 0)
+            fout << std::endl;
+    }
+    if (NumOfCell % RECORD_PER_LINE != 0)
+        fout << std::endl;
+
+    /// Velocity-X
+    for (size_t i = 1; i <= NumOfCell; ++i)
+    {
+        fout << SEP << cell(i).U0.x();
+        if (i % RECORD_PER_LINE == 0)
+            fout << std::endl;
+    }
+    if (NumOfCell % RECORD_PER_LINE != 0)
+        fout << std::endl;
+
+    /// Velocity-Y
+    for (size_t i = 1; i <= NumOfCell; ++i)
+    {
+        fout << SEP << cell(i).U0.y();
+        if (i % RECORD_PER_LINE == 0)
+            fout << std::endl;
+    }
+    if (NumOfCell % RECORD_PER_LINE != 0)
+        fout << std::endl;
+
+    /// Velocity-Z
+    for (size_t i = 1; i <= NumOfCell; ++i)
+    {
+        fout << SEP << cell(i).U0.z();
+        if (i % RECORD_PER_LINE == 0)
+            fout << std::endl;
+    }
+    if (NumOfCell % RECORD_PER_LINE != 0)
+        fout << std::endl;
+
+    /// Pressure
+    fout.setf(std::ios::fixed);
+    for (size_t i = 1; i <= NumOfCell; ++i)
+    {
+        fout << SEP << std::setprecision(10) << cell(i).p0;
+        if (i % RECORD_PER_LINE == 0)
+            fout << std::endl;
+    }
+    fout.unsetf(std::ios::fixed);
+    if (NumOfCell % RECORD_PER_LINE != 0)
+        fout << std::endl;
+
+    /// Temperature
+    for (size_t i = 1; i <= NumOfCell; ++i)
+    {
+        fout << SEP << cell(i).T0;
+        if (i % RECORD_PER_LINE == 0)
+            fout << std::endl;
+    }
+    if (NumOfCell % RECORD_PER_LINE != 0)
+        fout << std::endl;
+
+    /// Surface Zone
+    for(int k = 1; k <= patch.size(); ++k)
+    {
+        const auto &p = patch(k);
+        const auto &s = p.surface;
+        const auto &v = p.vertex;
+
+        /// Zone Header
+        fout << "ZONE T=\"" << p.name << "\"" << std::endl;
+        fout << "STRANDID=" << 1 + k << std::endl;
+        fout << "SOLUTIONTIME=" << t << std::endl;
+        fout << "NODES=" << v.size() << std::endl;
+        fout << "ELEMENTS=" << s.size() << std::endl;
+        fout << "ZONETYPE=" << "FETRIANGLE" << std::endl;
+        fout << "DATAPACKING=BLOCK" << std::endl;
+        fout << "VARLOCATION=([1-6]=CELLCENTERED)" << std::endl;
+
+        /// Density
+        int pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->rho;
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Velocity-X
+        pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->U.x();
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Velocity-Y
+        pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->U.y();
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Velocity-Z
+        pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->U.z();
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Pressure
+        pos = 0;
+        fout.setf(std::ios::fixed);
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << std::setprecision(10) << f->p;
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        fout.unsetf(std::ios::fixed);
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+
+        /// Temperature
+        pos = 0;
+        for (auto f : s)
+        {
+            ++pos;
+            fout << SEP << f->T;
+            if (pos % RECORD_PER_LINE == 0)
+                fout << std::endl;
+        }
+        if (pos % RECORD_PER_LINE)
+            fout << std::endl;
+    }
+
+    /// Finalize
+    fout.close();
+}
+
+static void write_tec_solution_hex(const std::string &fn, double t, const std::string &title)
 {
     /// Format param
     static const size_t RECORD_PER_LINE = 10;
@@ -729,6 +980,30 @@ void write_tec_solution(const std::string &fn, double t, const std::string &titl
 
     /// Finalize
     fout.close();
+}
+
+static void write_tec_solution_poly(const std::string &fn, double t, const std::string &title)
+{
+    throw std::runtime_error("Polyhedral solution is NOT supported currently!");
+}
+
+/**
+ * Output computation results.
+ * Cell-Centered values are exported, including boundary variables.
+ * Only for continuation purpose.
+ * @param fn
+ * @param type
+ * @param t
+ * @param title
+ */
+void write_tec_solution(const std::string &fn, int type, double t, const std::string &title)
+{
+    if(type == 1)
+        write_tec_solution_tet(fn, t, title);
+    else if(type == 2)
+        write_tec_solution_hex(fn, t, title);
+    else
+        write_tec_solution_poly(fn, t, title);
 }
 
 /**
