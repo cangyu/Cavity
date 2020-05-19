@@ -3,6 +3,5 @@
 
 void BC_TABLE();
 void BC();
-void updateNodalValue();
 
 #endif
