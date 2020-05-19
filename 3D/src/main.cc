@@ -30,8 +30,8 @@ SX_VEC Q_dp_2;
 SX_AMG dp_solver_2;
 
 /* I/O of mesh, case, logger and monitor */
-static const std::string MESH_DIR = "mesh/";
-static const std::string MESH_NAME = "cube_tet.msh";
+static const std::string MESH_PATH = "mesh/cube32.msh";
+static const int MESH_TYPE = 2;
 static const std::string RUN_TAG = time_stamp_str();
 static const int OUTPUT_GAP = 5;
 static std::ostream &LOG_OUT = std::cout;
@@ -60,9 +60,9 @@ static void write_flowfield(int n, double t)
     const std::string SOLUTION_PATH = RUN_TAG + "/ITER" + std::to_string(n) + ".dat";
 
     if(n == 0)
-        write_tec_grid(GRID_PATH, 1, GRID_TITLE);
+        write_tec_grid(GRID_PATH, MESH_TYPE, GRID_TITLE);
 
-    write_tec_solution(SOLUTION_PATH, 1, t, SOLUTION_TITLE);
+    write_tec_solution(SOLUTION_PATH, MESH_TYPE, t, SOLUTION_TITLE);
 }
 
 static void stat_min_max(const std::string& var_name, std::function<Scalar(const Cell&)> extractor)
@@ -173,9 +173,9 @@ void init()
     std::ofstream fout(fn_mesh_log);
     if (fout.fail())
         throw failed_to_open_file(fn_mesh_log);
-    LOG_OUT << std::endl << "Loading mesh \"" << MESH_NAME << "\" ... ";
+    LOG_OUT << std::endl << "Loading mesh \"" << MESH_PATH << "\" ... ";
     tick_begin = clock();
-    read_fluent_mesh(MESH_DIR + MESH_NAME, fout);
+    read_fluent_mesh(MESH_PATH, fout);
     tick_end = clock();
     fout.close();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
