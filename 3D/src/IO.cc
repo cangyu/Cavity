@@ -1020,13 +1020,15 @@ void read_tec_solution(const std::string &fn)
         throw failed_to_open_file(fn);
 
     /// Skip header
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 11; ++i)
     {
         std::string tmp;
         std::getline(fin, tmp);
     }
 
-    /// Load data
+    /// Load data.
+    /// ONLY take internal fields!!!
+
     /// Density
     for (size_t i = 1; i <= NumOfCell; ++i)
         fin >> cell(i).rho0;
