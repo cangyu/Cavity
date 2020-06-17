@@ -10,13 +10,13 @@
 #include "../3rd_party/Eigen/Sparse"
 #include "../3rd_party/SXAMG/include/sxamg.h"
 
-/***************************************************** Math types ****************************************************/
+/***************************************************** Math types *****************************************************/
 
 typedef double Scalar;
 typedef Eigen::Matrix<Scalar, 3, 1> Vector;
 typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
 
-/***************************************************** Marcos ********************************************************/
+/******************************************************* Marcos *******************************************************/
 
 #define ZERO_INDEX 0
 #define ZERO_SCALAR 0.0
@@ -28,7 +28,7 @@ typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
 enum BC_CATEGORY { Dirichlet = 0, Neumann, Robin };
 static const std::array<std::string, 3> BC_CATEGORY_STR = { "Dirichlet", "Neumann", "Robin" };
 
-/****************************************************** Types ********************************************************/
+/******************************************************* Types ********************************************************/
 
 /* 1-based array */
 template<typename T>
@@ -68,7 +68,7 @@ public:
     }
 };
 
-/****************************************************** Types ********************************************************/
+/******************************************************* Types ********************************************************/
 
 /* Geom elements */
 struct Cell;
@@ -209,26 +209,26 @@ struct Cell
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
-    Scalar p_prime; /// Used by pressure correction
+    Scalar p_prime = ZERO_SCALAR; /// Used by pressure correction
     Scalar T = ZERO_SCALAR;
-    Vector rhoU_star; /// Used by the Fractional-Step Method
+    Vector rhoU_star = ZERO_VECTOR; /// Used by the Fractional-Step Method
 
     /// Gradient of physical variables
-    Vector grad_rho;
-    Tensor grad_U;
-    Vector grad_p;
-    Vector grad_T;
-    Vector grad_p_prime; /// Used by pressure correction
+    Vector grad_rho = ZERO_VECTOR;
+    Tensor grad_U = ZERO_TENSOR;
+    Vector grad_p = ZERO_VECTOR;
+    Vector grad_T = ZERO_VECTOR;
+    Vector grad_p_prime = ZERO_VECTOR; /// Used by pressure correction
 
     /// Equation residuals
-    Scalar continuity_res;
-    Vector momentum_res;
-    Scalar energy_res;
+    Scalar continuity_res = ZERO_SCALAR;
+    Vector momentum_res = ZERO_VECTOR;
+    Scalar energy_res = ZERO_SCALAR;
 
     /// Flux within momentum equation
-    Vector pressure_flux;
-    Vector convection_flux;
-    Vector viscous_flux;
+    Vector pressure_flux = ZERO_VECTOR;
+    Vector convection_flux = ZERO_VECTOR;
+    Vector viscous_flux = ZERO_VECTOR;
 };
 struct Patch
 {
@@ -238,7 +238,7 @@ struct Patch
     NaturalArray<Point*> vertex;
 };
 
-/********************************************* Errors and Exceptions *************************************************/
+/********************************************** Errors and Exceptions *************************************************/
 
 struct failed_to_open_file : public std::runtime_error
 {
@@ -270,7 +270,6 @@ struct insufficient_vertexes : public std::runtime_error
     explicit insufficient_vertexes(size_t i) : std::runtime_error("No enough vertices within cell " + std::to_string(i) + ".") {}
 };
 
-/***************************************************** END ***********************************************************/
-
+/****************************************************** END ***********************************************************/
 
 #endif
