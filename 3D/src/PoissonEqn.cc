@@ -168,7 +168,7 @@ void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
     /// Calculate raw triplets
     gen_coef_triplets(coef);
 
-    /// Assemble.
+    /// Assemble
     A.setFromTriplets(coef.begin(), coef.end());
 }
 
