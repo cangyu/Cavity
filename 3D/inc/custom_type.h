@@ -183,6 +183,10 @@ struct Cell
     /// Follow the order in "surface"
     NaturalArray<Vector> S;
 
+    /// Displacement vector between adjacent cell centroids
+    /// Follow the order in "surface"
+    NaturalArray<Vector> d;
+
     /// Surface vectors related to non-orthogonality
     /// Follow the order in "S"
     NaturalArray<Vector> Se;
