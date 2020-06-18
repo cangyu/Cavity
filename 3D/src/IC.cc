@@ -14,7 +14,7 @@ extern NaturalArray<Patch> patch;
 void IC()
 {
     const Scalar rho0 = 1.225; //kg/m^3	
-    const Scalar P0 = 101325.0; // Pa
+    const Scalar P0 = 0.0; // Pa
     const Scalar T0 = 300.0; // K
 
     // Node
