@@ -330,7 +330,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         cur_cell.St.resize(Nf);
         cur_cell.d.resize(Nf);
 
-        // Calculation.
+        // Calculate vector d, E and T.
         for(int j = 0; j < Nf; ++j)
         {
             auto cur_face = cur_cell.surface[j];
@@ -349,7 +349,14 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
     }
 }
 
-static void formatted_block_data_writer(std::ostream &out, const std::vector<Scalar> &val, size_t nRec1Line, const std::string &sep, bool nlAtLast)
+static void formatted_block_data_writer
+(
+    std::ostream &out,
+    const std::vector<Scalar> &val,
+    size_t nRec1Line,
+    const std::string &sep,
+    bool nlAtLast
+)
 {
     size_t i = 0;
     for (const auto &e : val)
@@ -671,8 +678,10 @@ void write_tec_grid(const std::string &fn, int type, const std::string &title)
         write_tec_grid_tet(fn, title);
     else if(type == 2)
         write_tec_grid_hex(fn, title);
-    else
+    else if(type == 3)
         write_tec_grid_poly(fn, title);
+    else
+        throw std::invalid_argument("Invalid type specification!");
 }
 
 static void write_tec_solution_tet(const std::string &fn, double t, const std::string &title)
@@ -1065,8 +1074,10 @@ void write_tec_solution(const std::string &fn, int type, double t, const std::st
         write_tec_solution_tet(fn, t, title);
     else if(type == 2)
         write_tec_solution_hex(fn, t, title);
-    else
+    else if(type == 3)
         write_tec_solution_poly(fn, t, title);
+    else
+        throw std::invalid_argument("Invalid type specification!");
 }
 
 /**
