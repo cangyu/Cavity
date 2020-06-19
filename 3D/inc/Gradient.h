@@ -1,9 +1,10 @@
-#ifndef __GRADIENT_H__
-#define __GRADIENT_H__
+#ifndef GRADIENT_H
+#define GRADIENT_H
 
 void calcFaceGhostVariable();
 void calcCellGradient();
 void calcPressureCorrectionGradient();
 void calcFaceGradient();
+void calcFacePressureCorrectionGradient();
 
-#endif // !__GRADIENT_H__
+#endif
