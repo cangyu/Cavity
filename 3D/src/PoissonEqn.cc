@@ -93,22 +93,42 @@ void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
 
 void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs)
 {
+    /// Initialize
     rhs.setZero();
 
+    /// Calculate
     for (const auto &C : cell)
     {
+        const auto lci = C.index - 1; /// 0-based
+        auto &cur_rhs = rhs(lci);
+
         const auto N_C = C.surface.size();
         for (int f = 0; f < N_C; ++f)
         {
-            const auto &S_f = C.S.at(f);
             auto curFace = C.surface.at(f);
 
-            rhs(C.index - 1) += curFace->atBdry ? curFace->rhoU.dot(S_f) : curFace->rhoU_star.dot(S_f);
+            const auto &S_f = C.S.at(f);
+            const auto &T_f = C.St.at(f);
+
+            /// Raw contribution
+            if(curFace->atBdry)
+                cur_rhs += curFace->rhoU.dot(S_f);
+            else
+                cur_rhs += curFace->rhoU_star.dot(S_f);
+
+            /// Additional contribution due to cross-diffusion
+            if(curFace->atBdry)
+            {
+                if(curFace->p_prime_BC == Dirichlet)
+                    cur_rhs -= curFace->grad_p_prime.dot(T_f);
+            }
+            else
+                cur_rhs -= curFace->grad_p_prime.dot(T_f);
         }
     }
 
     /// Set reference
-    rhs[ref_cell] = ref_val;
+    rhs(ref_cell) = ref_val;
 }
 
 /// Borrow from SciPy V1.4.1
