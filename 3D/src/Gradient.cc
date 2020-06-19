@@ -592,3 +592,50 @@ void calcFaceGradient()
         }
     }
 }
+
+void calcFacePressureCorrectionGradient()
+{
+    for (auto &f : face)
+    {
+        if (f.atBdry)
+        {
+            auto c = f.c0;
+            if(!c)
+                c = f.c1;
+
+            const Vector &r_C = c->center;
+            const Vector &r_F = f.center;
+            Vector e_CF = r_F - r_C;
+            const Scalar d_CF = e_CF.norm();
+            e_CF /= d_CF;
+
+            const Vector grad_p_prime_bar = c->grad_p_prime;
+
+            if(f.p_prime_BC == Dirichlet)
+            {
+                const Scalar p_prime_C = c->p_prime;
+                const Scalar p_prime_F = ZERO_SCALAR;
+                f.grad_p_prime = interpGradientToFace(grad_p_prime_bar, p_prime_C, p_prime_F, e_CF, d_CF);
+            }
+            else if(f.p_prime_BC == Neumann)
+            {
+                f.grad_p_prime = grad_p_prime_bar - (grad_p_prime_bar.dot(f.n01)) * f.n01;
+            }
+            else
+                throw unsupported_boundary_condition(f.p_prime_BC);
+        }
+        else
+        {
+            const Vector &r_C = f.c0->center;
+            const Vector &r_F = f.c1->center;
+            Vector e_CF = r_F - r_C;
+            const Scalar d_CF = e_CF.norm();
+            e_CF /= d_CF;
+
+            const Vector grad_p_prime_bar = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
+            const Scalar p_prime_C = f.c0->p_prime;
+            const Scalar p_prime_F = f.c1->p_prime;
+            f.grad_p_prime = interpGradientToFace(grad_p_prime_bar, p_prime_C, p_prime_F, e_CF, d_CF);
+        }
+    }
+}
