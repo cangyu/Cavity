@@ -351,25 +351,23 @@ void ForwardEuler(Scalar TimeStep)
     }
 
     /// Correction Step
-    // calcPressureCorrectionEquationRHS(Q_dp_1);
-    // Q_dp_1 /= TimeStep;
-    // Eigen::VectorXd dp = dp_solver_1.solve(Q_dp_1);
-    // LOG_OUT << SEP << "PBiCGSTAB solver iterations: " << dp_solver_1.iterations() << std::endl;
-    // LOG_OUT << SEP << "PBiCGSTAB solver error: " << dp_solver_1.error() << std::endl;
-    // LOG_OUT << SEP << "PBiCGSTAB solver message: " << dp_solver_1.info() << std::endl << std::endl;
-    calcPressureCorrectionEquationRHS(Q_dp_2);
-    for (auto i = 0; i < Q_dp_2.n; ++i)
-        Q_dp_2.d[i] /= TimeStep;
-    SX_VEC dp = sx_vec_create(NumOfCell);
-    sx_solver_amg_solve(&dp_solver_2, &dp, &Q_dp_2);
-
-    for (int i = 0; i < NumOfCell; ++i)
+    for(int k = 0; k < 2; ++k)
     {
-        auto &c = cell.at(i);
-        // c.p_prime = dp(i);
-        c.p_prime = sx_vec_get_entry(&dp, i);
+        calcPressureCorrectionEquationRHS(Q_dp_2);
+        for (auto i = 0; i < Q_dp_2.n; ++i)
+            Q_dp_2.d[i] /= TimeStep;
+        SX_VEC dp = sx_vec_create(NumOfCell);
+        sx_solver_amg_solve(&dp_solver_2, &dp, &Q_dp_2);
+
+        for (int i = 0; i < NumOfCell; ++i)
+        {
+            auto &c = cell.at(i);
+            c.p_prime = sx_vec_get_entry(&dp, i);
+        }
+
+        calcPressureCorrectionGradient();
+        calcFacePressureCorrectionGradient();
     }
-    calcPressureCorrectionGradient();
 
     /// Update
     for (int i = 0; i < NumOfCell; ++i)
