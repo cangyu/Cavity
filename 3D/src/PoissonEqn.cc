@@ -111,10 +111,21 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
     rhs[ref_cell] = ref_val;
 }
 
-/// Copy from SciPy V1.4.1
+/// Borrow from SciPy V1.4.1
 /// https://github.com/scipy/scipy/blob/v1.4.1/scipy/sparse/sparsetools/coo.h
 template <class I, class T>
-static void coo_tocsr(const I n_row, const I n_col, const I nnz, const I Ai[], const I Aj[], const T Ax[], I Bp[], I Bj[], T Bx[])
+static void coo_tocsr
+(
+    const I n_row,
+    const I n_col,
+    const I nnz,
+    const I Ai[],
+    const I Aj[],
+    const T Ax[],
+    I Bp[],
+    I Bj[],
+    T Bx[]
+)
 {
     //compute number of non-zero entries per row of A 
     std::fill(Bp, Bp + n_row, 0);
