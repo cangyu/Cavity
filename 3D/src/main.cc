@@ -146,7 +146,7 @@ void solve()
     LOG_OUT << std::endl << "Starting calculation ... " << std::endl;
     while (!done)
     {
-        LOG_OUT << std::endl << "Iter" << ++iter << ":" << std::endl;
+        LOG_OUT << "\nIter" << ++iter << ":" << std::endl;
         dt = calcTimeStep();
         LOG_OUT << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
         tick_begin = clock();
@@ -154,7 +154,7 @@ void solve()
         tick_end = clock();
         t += dt;
         done = diagnose();
-        LOG_OUT << std::endl << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
+        LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
             write_flowfield(iter, t);
     }
