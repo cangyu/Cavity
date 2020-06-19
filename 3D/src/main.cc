@@ -30,8 +30,8 @@ SX_VEC Q_dp_2;
 SX_AMG dp_solver_2;
 
 /* I/O of mesh, case, logger and monitor */
-static const std::string MESH_PATH = "mesh/cube32.msh";
-static const int MESH_TYPE = 2;
+static const std::string MESH_PATH = "mesh/cube_tet.msh";
+static const int MESH_TYPE = 1;
 static const std::string RUN_TAG = time_stamp_str();
 static const int OUTPUT_GAP = 5;
 static std::ostream &LOG_OUT = std::cout;
