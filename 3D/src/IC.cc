@@ -34,6 +34,7 @@ void IC()
         f_dst.rho = rho0;
         f_dst.U = ZERO_VECTOR;
         f_dst.p = P0;
+        f_dst.grad_p_prime = ZERO_VECTOR;
         f_dst.T = T0;
         f_dst.rhoU = f_dst.rho * f_dst.U;
     }
