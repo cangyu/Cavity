@@ -35,7 +35,7 @@ void calcCellProperty()
 {
     for (auto &c : cell)
     {
-        // Dynamic viscosity
+        /// Dynamic viscosity
         // c.mu = Sutherland(c.T);
         c.mu = c.rho / Re;
     }
@@ -45,7 +45,7 @@ void calcFaceProperty()
 {
     for (auto &f : face)
     {
-        // Dynamic viscosity
+        /// Dynamic viscosity
         // f.mu = Sutherland(f.T);
         f.mu = f.rho / Re;
     }
@@ -62,7 +62,7 @@ void calcFaceValue()
         {
             if (f.c0)
             {
-                // density
+                /// density
                 switch (f.rho_BC)
                 {
                 case Dirichlet:
@@ -76,7 +76,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-x
+                /// velocity-x
                 switch (f.U_BC[0])
                 {
                 case Dirichlet:
@@ -90,7 +90,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-y
+                /// velocity-y
                 switch (f.U_BC[1])
                 {
                 case Dirichlet:
@@ -104,7 +104,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-z
+                /// velocity-z
                 switch (f.U_BC[2])
                 {
                 case Dirichlet:
@@ -118,7 +118,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // pressure
+                /// pressure
                 switch (f.p_BC)
                 {
                 case Dirichlet:
@@ -132,7 +132,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // temperature
+                /// temperature
                 switch (f.T_BC)
                 {
                 case Dirichlet:
@@ -148,7 +148,7 @@ void calcFaceValue()
             }
             else if (f.c1)
             {
-                // density
+                /// density
                 switch (f.rho_BC)
                 {
                 case Dirichlet:
@@ -162,7 +162,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-x
+                /// velocity-x
                 switch (f.U_BC[0])
                 {
                 case Dirichlet:
@@ -176,7 +176,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-y
+                /// velocity-y
                 switch (f.U_BC[1])
                 {
                 case Dirichlet:
@@ -190,7 +190,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-z
+                /// velocity-z
                 switch (f.U_BC[2])
                 {
                 case Dirichlet:
@@ -204,7 +204,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // pressure
+                /// pressure
                 switch (f.p_BC)
                 {
                 case Dirichlet:
@@ -218,7 +218,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // temperature
+                /// temperature
                 switch (f.T_BC)
                 {
                 case Dirichlet:
@@ -237,17 +237,17 @@ void calcFaceValue()
         }
         else
         {
-            // pressure
+            /// pressure
             const Scalar p_0 = f.c0->p + f.c0->grad_p.dot(f.r0);
             const Scalar p_1 = f.c1->p + f.c1->grad_p.dot(f.r1);
             f.p = 0.5 * (p_0 + p_1);
 
-            // temperature
+            /// temperature
             const Scalar T_0 = f.c0->T + f.c0->grad_T.dot(f.r0);
             const Scalar T_1 = f.c1->T + f.c1->grad_T.dot(f.r1);
             f.T = f.ksi0 * T_0 + f.ksi1 * T_1;
 
-            // velocity
+            /// velocity
             if (f.U.dot(f.n01) > 0)
             {
                 const Scalar u_0 = f.c0->U.x() + f.c0->grad_U.col(0).dot(f.r0);
@@ -263,7 +263,7 @@ void calcFaceValue()
                 f.U = { u_1, v_1, w_1 };
             }
 
-            // density
+            /// density
             if (f.U.dot(f.n01) > 0)
                 f.rho = f.c0->rho + f.c0->grad_rho.dot(f.r0);
             else
