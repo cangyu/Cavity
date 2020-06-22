@@ -27,9 +27,9 @@ extern SX_AMG dp_solver_2;
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
 
-/************************************************ Physical Property **************************************************/
+/************************************************ Physical Property ***************************************************/
 
-static const Scalar Re = 3200.0;
+static const Scalar Re = 1000.0;
 
 void calcCellProperty()
 {
@@ -51,7 +51,7 @@ void calcFaceProperty()
     }
 }
 
-/*********************************************** Spatial Discretization **********************************************/
+/*********************************************** Spatial Discretization ***********************************************/
 
 void calcFaceValue()
 {
@@ -291,7 +291,7 @@ void calcFaceViscousStress()
     }
 }
 
-/*********************************************** Temporal Discretization *********************************************/
+/*********************************************** Temporal Discretization **********************************************/
 
 /**
  * 1st-order explicit time-marching.
@@ -353,9 +353,7 @@ void ForwardEuler(Scalar TimeStep)
     /// Correction Step
     for(int k = 0; k < 2; ++k)
     {
-        calcPressureCorrectionEquationRHS(Q_dp_2);
-        for (auto i = 0; i < Q_dp_2.n; ++i)
-            Q_dp_2.d[i] /= TimeStep;
+        calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
         SX_VEC dp = sx_vec_create(NumOfCell);
         sx_solver_amg_solve(&dp_solver_2, &dp, &Q_dp_2);
 
@@ -391,4 +389,4 @@ void ForwardEuler(Scalar TimeStep)
     }
 }
 
-/********************************************************* END *******************************************************/
+/********************************************************* END ********************************************************/

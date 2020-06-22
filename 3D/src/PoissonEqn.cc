@@ -72,7 +72,7 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
         /// Record current line.
         /// Convert index to 0-based.
         for (const auto &it : cur_coef)
-            coef.emplace_back(C.index - 1, it.first - 1, it.second);
+            coef.emplace_back(C.index - 1, it.first - 1, -1.0 * it.second);
     }
 
     /// Set reference.
@@ -91,7 +91,11 @@ void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A)
     A.setFromTriplets(coef.begin(), coef.end());
 }
 
-void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs)
+void calcPressureCorrectionEquationRHS
+(
+    Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs,
+    double dt
+)
 {
     /// Initialize
     rhs.setZero();
@@ -112,9 +116,9 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
 
             /// Raw contribution
             if(curFace->atBdry)
-                cur_rhs += curFace->rhoU.dot(S_f);
+                cur_rhs += curFace->rhoU.dot(S_f) / dt;
             else
-                cur_rhs += curFace->rhoU_star.dot(S_f);
+                cur_rhs += curFace->rhoU_star.dot(S_f) / dt;
 
             /// Additional contribution due to cross-diffusion
             if(curFace->atBdry)
@@ -125,6 +129,7 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
             else
                 cur_rhs -= curFace->grad_p_prime.dot(T_f);
         }
+        cur_rhs *= -1.0;
     }
 
     /// Set reference
@@ -215,12 +220,12 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B)
     delete[] Ax;
 }
 
-void calcPressureCorrectionEquationRHS(SX_VEC &rhs)
+void calcPressureCorrectionEquationRHS(SX_VEC &rhs, double dt)
 {
     Eigen::Matrix<Scalar, Eigen::Dynamic, 1> x;
     x.resize(NumOfCell, Eigen::NoChange);
 
-    calcPressureCorrectionEquationRHS(x);
+    calcPressureCorrectionEquationRHS(x, dt);
 
     for (SX_INT i = 0; i < NumOfCell; ++i)
         sx_vec_set_entry(&rhs, i, x(i));
