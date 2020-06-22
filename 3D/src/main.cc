@@ -1,10 +1,8 @@
 #include <iostream>
 #include <fstream>
-#include <map>
-#include <cmath>
+#include <cstdio>
 #include <functional>
 #include <filesystem>
-#include <cstdio>
 #include "../inc/IO.h"
 #include "../inc/IC.h"
 #include "../inc/BC.h"
@@ -20,11 +18,7 @@ NaturalArray<Face> face; // Face objects
 NaturalArray<Cell> cell; // Cell objects
 NaturalArray<Patch> patch; // Group of boundary faces
 
-/* Pressure-Corrrection equation coefficients */
-Eigen::SparseMatrix<Scalar> A_dp_1;
-Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp_1;
-Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver_1;
-
+/* Pressure-Correction equation coefficients */
 SX_MAT A_dp_2;
 SX_VEC Q_dp_2;
 SX_AMG dp_solver_2;
@@ -40,18 +34,18 @@ static clock_t tick_begin, tick_end;
 
 /* Iteration timing and counting */
 static const int MAX_ITER = 2000;
-static const Scalar MAX_TIME = 100.0; // s
+static const Scalar MAX_TIME = 100.0; /// s
 
-/***************************************************** Solution Control **********************************************/
+/***************************************************** Solution Control ***********************************************/
 
 Scalar calcTimeStep()
 {
-    Scalar ret = 1e-2;
+    Scalar ret = 1e-3;
 
     return ret;
 }
 
-static void write_flowfield(int n, double t)
+static void write_full_domain(int n, Scalar t)
 {
     static const std::string GRID_TITLE = "GRID";
     const std::string SOLUTION_TITLE = "ITER" + std::to_string(n);
@@ -65,7 +59,7 @@ static void write_flowfield(int n, double t)
     write_tec_solution(SOLUTION_PATH, MESH_TYPE, t, SOLUTION_TITLE);
 }
 
-static void stat_min_max(const std::string& var_name, std::function<Scalar(const Cell&)> extractor)
+static void stat_min_max(const std::string& var_name, const std::function<Scalar(const Cell&)> &extractor)
 {
     Scalar var_min, var_max;
 
@@ -104,7 +98,7 @@ static double stat_div(const Cell &c)
     return ret;
 }
 
-bool diagnose()
+bool diagnose(int n, Scalar t)
 {
     stat_min_max("ConvectionFlux_X", [](const Cell &c) { return c.convection_flux.x(); });
     stat_min_max("ConvectionFlux_Y", [](const Cell &c) { return c.convection_flux.y(); });
@@ -133,17 +127,17 @@ bool diagnose()
     stat_min_max("div", stat_div);
     stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * calcTimeStep() * 32; });
 
-    return false;
+    return n > MAX_ITER || t > MAX_TIME;
 }
 
 void solve()
 {
     int iter = 0;
-    Scalar dt = 0.0; // s
-    Scalar t = 0.0; // s
+    Scalar dt; /// s
+    Scalar t = 0.0; /// s
     bool done = false;
 
-    LOG_OUT << std::endl << "Starting calculation ... " << std::endl;
+    LOG_OUT << "\nStarting calculation ... " << std::endl;
     while (!done)
     {
         LOG_OUT << "\nIter" << ++iter << ":" << std::endl;
@@ -153,10 +147,10 @@ void solve()
         ForwardEuler(dt);
         tick_end = clock();
         t += dt;
-        done = diagnose();
+        done = diagnose(iter, t);
         LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
-            write_flowfield(iter, t);
+            write_full_domain(iter, t);
     }
     LOG_OUT << "Finished!" << std::endl;
 }
@@ -170,50 +164,41 @@ void init()
 
     const std::string fn_mesh_log = RUN_TAG + "/MeshDesc.txt";
 
-    std::ofstream fout(fn_mesh_log);
-    if (fout.fail())
+    std::ofstream ml_out(fn_mesh_log);
+    if (ml_out.fail())
         throw failed_to_open_file(fn_mesh_log);
-    LOG_OUT << std::endl << "Loading mesh \"" << MESH_PATH << "\" ... ";
+    LOG_OUT << "\nLoading mesh \"" << MESH_PATH << "\" ... ";
     tick_begin = clock();
-    read_fluent_mesh(MESH_PATH, fout);
+    read_fluent_mesh(MESH_PATH, ml_out);
     tick_end = clock();
-    fout.close();
+    ml_out.close();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << std::endl << "Setting B.C. of each variable ... ";
+    LOG_OUT << "\nSetting B.C. of each variable ... ";
     BC_TABLE();
     LOG_OUT << "Done!" << std::endl;
 
-    LOG_OUT << std::endl << "Preparing Least-Square coefficients ... ";
+    LOG_OUT << "\nPreparing Least-Square coefficients ... ";
     tick_begin = clock();
     calcLeastSquareCoef();
     tick_end = clock();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << std::endl << "Preparing Pressure-Correction equation coefficients ... ";
-    // A_dp_1.resize(NumOfCell, NumOfCell);
-    // Q_dp_1.resize(NumOfCell, Eigen::NoChange);
+    LOG_OUT << "\nPreparing Pressure-Correction equation coefficients ... ";
     Q_dp_2 = sx_vec_create(NumOfCell);
     tick_begin = clock();
-    // calcPressureCorrectionEquationCoef(A_dp_1);
-    // A_dp_1.makeCompressed();
     calcPressureCorrectionEquationCoef(A_dp_2);
     tick_end = clock();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << std::endl << "Matrix factorization ... ";
-    tick_begin = clock();
-    // dp_solver_1.compute(A_dp_1);
     prepare_dp_solver(A_dp_2, dp_solver_2);
-    tick_end = clock();
-    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << std::endl << "Setting I.C. of each variable ... ";
+    LOG_OUT << "\nSetting I.C. of each variable ... ";
     IC();
     LOG_OUT << "Done!" << std::endl;
 
-    LOG_OUT << std::endl << "Writting initial output ... ";
-    write_flowfield(0, 0.0);
+    LOG_OUT << "\nWriting initial output ... ";
+    write_full_domain(0, 0.0);
     LOG_OUT << "Done!" << std::endl;
 }
 
@@ -231,4 +216,4 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-/********************************************************* END *******************************************************/
+/********************************************************* END ********************************************************/
