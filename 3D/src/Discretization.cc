@@ -27,15 +27,15 @@ extern SX_AMG dp_solver_2;
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
 
-/************************************************ Physical Property **************************************************/
+/************************************************ Physical Property ***************************************************/
 
-static const Scalar Re = 3200.0;
+static const Scalar Re = 1000.0;
 
 void calcCellProperty()
 {
     for (auto &c : cell)
     {
-        // Dynamic viscosity
+        /// Dynamic viscosity
         // c.mu = Sutherland(c.T);
         c.mu = c.rho / Re;
     }
@@ -45,13 +45,13 @@ void calcFaceProperty()
 {
     for (auto &f : face)
     {
-        // Dynamic viscosity
+        /// Dynamic viscosity
         // f.mu = Sutherland(f.T);
         f.mu = f.rho / Re;
     }
 }
 
-/*********************************************** Spatial Discretization **********************************************/
+/*********************************************** Spatial Discretization ***********************************************/
 
 void calcFaceValue()
 {
@@ -62,7 +62,7 @@ void calcFaceValue()
         {
             if (f.c0)
             {
-                // density
+                /// density
                 switch (f.rho_BC)
                 {
                 case Dirichlet:
@@ -76,7 +76,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-x
+                /// velocity-x
                 switch (f.U_BC[0])
                 {
                 case Dirichlet:
@@ -90,7 +90,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-y
+                /// velocity-y
                 switch (f.U_BC[1])
                 {
                 case Dirichlet:
@@ -104,7 +104,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-z
+                /// velocity-z
                 switch (f.U_BC[2])
                 {
                 case Dirichlet:
@@ -118,7 +118,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // pressure
+                /// pressure
                 switch (f.p_BC)
                 {
                 case Dirichlet:
@@ -132,7 +132,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // temperature
+                /// temperature
                 switch (f.T_BC)
                 {
                 case Dirichlet:
@@ -148,7 +148,7 @@ void calcFaceValue()
             }
             else if (f.c1)
             {
-                // density
+                /// density
                 switch (f.rho_BC)
                 {
                 case Dirichlet:
@@ -162,7 +162,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-x
+                /// velocity-x
                 switch (f.U_BC[0])
                 {
                 case Dirichlet:
@@ -176,7 +176,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-y
+                /// velocity-y
                 switch (f.U_BC[1])
                 {
                 case Dirichlet:
@@ -190,7 +190,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // velocity-z
+                /// velocity-z
                 switch (f.U_BC[2])
                 {
                 case Dirichlet:
@@ -204,7 +204,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // pressure
+                /// pressure
                 switch (f.p_BC)
                 {
                 case Dirichlet:
@@ -218,7 +218,7 @@ void calcFaceValue()
                     break;
                 }
 
-                // temperature
+                /// temperature
                 switch (f.T_BC)
                 {
                 case Dirichlet:
@@ -237,17 +237,17 @@ void calcFaceValue()
         }
         else
         {
-            // pressure
+            /// pressure
             const Scalar p_0 = f.c0->p + f.c0->grad_p.dot(f.r0);
             const Scalar p_1 = f.c1->p + f.c1->grad_p.dot(f.r1);
             f.p = 0.5 * (p_0 + p_1);
 
-            // temperature
+            /// temperature
             const Scalar T_0 = f.c0->T + f.c0->grad_T.dot(f.r0);
             const Scalar T_1 = f.c1->T + f.c1->grad_T.dot(f.r1);
             f.T = f.ksi0 * T_0 + f.ksi1 * T_1;
 
-            // velocity
+            /// velocity
             if (f.U.dot(f.n01) > 0)
             {
                 const Scalar u_0 = f.c0->U.x() + f.c0->grad_U.col(0).dot(f.r0);
@@ -263,7 +263,7 @@ void calcFaceValue()
                 f.U = { u_1, v_1, w_1 };
             }
 
-            // density
+            /// density
             if (f.U.dot(f.n01) > 0)
                 f.rho = f.c0->rho + f.c0->grad_rho.dot(f.r0);
             else
@@ -291,7 +291,7 @@ void calcFaceViscousStress()
     }
 }
 
-/*********************************************** Temporal Discretization *********************************************/
+/*********************************************** Temporal Discretization **********************************************/
 
 /**
  * 1st-order explicit time-marching.
@@ -351,25 +351,21 @@ void ForwardEuler(Scalar TimeStep)
     }
 
     /// Correction Step
-    // calcPressureCorrectionEquationRHS(Q_dp_1);
-    // Q_dp_1 /= TimeStep;
-    // Eigen::VectorXd dp = dp_solver_1.solve(Q_dp_1);
-    // LOG_OUT << SEP << "PBiCGSTAB solver iterations: " << dp_solver_1.iterations() << std::endl;
-    // LOG_OUT << SEP << "PBiCGSTAB solver error: " << dp_solver_1.error() << std::endl;
-    // LOG_OUT << SEP << "PBiCGSTAB solver message: " << dp_solver_1.info() << std::endl << std::endl;
-    calcPressureCorrectionEquationRHS(Q_dp_2);
-    for (auto i = 0; i < Q_dp_2.n; ++i)
-        Q_dp_2.d[i] /= TimeStep;
-    SX_VEC dp = sx_vec_create(NumOfCell);
-    sx_solver_amg_solve(&dp_solver_2, &dp, &Q_dp_2);
-
-    for (int i = 0; i < NumOfCell; ++i)
+    for(int k = 0; k < 2; ++k)
     {
-        auto &c = cell.at(i);
-        // c.p_prime = dp(i);
-        c.p_prime = sx_vec_get_entry(&dp, i);
+        calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
+        SX_VEC dp = sx_vec_create(NumOfCell);
+        sx_solver_amg_solve(&dp_solver_2, &dp, &Q_dp_2);
+
+        for (int i = 0; i < NumOfCell; ++i)
+        {
+            auto &c = cell.at(i);
+            c.p_prime = sx_vec_get_entry(&dp, i);
+        }
+
+        calcPressureCorrectionGradient();
+        calcFacePressureCorrectionGradient();
     }
-    calcPressureCorrectionGradient();
 
     /// Update
     for (int i = 0; i < NumOfCell; ++i)
@@ -393,4 +389,4 @@ void ForwardEuler(Scalar TimeStep)
     }
 }
 
-/********************************************************* END *******************************************************/
+/********************************************************* END ********************************************************/

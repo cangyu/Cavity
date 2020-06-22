@@ -9,17 +9,55 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
+/// Choice of Non-Orthogonal Correction strategy
+static const int NOC = 3;
+
+/**
+ * Calculate vectors used for NON-ORTHOGONAL correction locally.
+ * @param opt Choice of method.
+ * 1 - Minimum Correction
+ * 2 - Orthogonal Correction
+ * 3 - Over-Relaxed Correction
+ * @param d Local displacement vector.
+ * @param S Local surface outward normal vector.
+ * @param E Orthogonal part after decomposing "S".
+ * @param T Non-Orthogonal part after decomposing "S", satisfying "S = E + T".
+ */
+static void calc_non_orthogonal_correction_vector
+(
+    int opt,
+    const Vector &d,
+    const Vector &S,
+    Vector &E,
+    Vector &T
+)
+{
+    const Vector e = d / d.norm();
+    const Scalar S_mod = S.norm();
+    const Scalar cos_theta = e.dot(S) / S_mod;
+
+    if(opt == 1)
+        E = S_mod * cos_theta * e;
+    else if(opt == 2)
+        E = S_mod * e;
+    else if(opt == 3)
+        E = S_mod / cos_theta * e;
+    else
+        throw std::invalid_argument("Invalid NON-ORTHOGONAL correction option!");
+
+    T = S - E;
+}
+
 /**
  * Load computation mesh, which is written in FLUENT format.
- * @param MESH_PATH
- * @param LOG_OUT
+ * @param MESH_PATH Path to target mesh file.
+ * @param LOG_OUT Output stream used to hold progress indications.
  */
 void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
 {
     using namespace GridTool;
 
-    /// An external package is used
-    /// to load Fluent mesh.
+    /// An external package is used to load Fluent mesh.
     const XF::MESH mesh(MESH_PATH, LOG_OUT);
 
     /// Update counting of geom elements.
@@ -27,8 +65,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
     NumOfFace = mesh.numOfFace();
     NumOfCell = mesh.numOfCell();
 
-    /// Allocate memory for geom entities
-    /// and related physical variables.
+    /// Allocate memory for geom entities and related physical variables.
     pnt.resize(NumOfPnt);
     face.resize(NumOfFace);
     cell.resize(NumOfCell);
@@ -85,6 +122,10 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
             f_dst.vertex(j) = &pnt(f_src.includedNode(j));
 
         // Face adjacent 2 cells.
+        // It should be noted that both "c0" and "c1" used in this solver
+        // is DIFFERENT from that defined in Fluent Mesh Convention!!!
+        // In fact, "c0" corresponds to "cr"(rightCell) and
+        // "c1" corresponds to "cl"(leftCell) in Fluent Mesh.
         f_dst.c0 = f_src.leftCell ? &cell(f_src.leftCell) : nullptr;
         f_dst.c1 = f_src.rightCell ? &cell(f_src.rightCell) : nullptr;
     }
@@ -137,7 +178,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         }
     }
 
-    /// Nodal interpolation coefficients
+    /// Nodal interpolation coefficients.
     for (int i = 1; i <= NumOfPnt; ++i)
     {
         auto &n_dst = pnt(i);
@@ -284,9 +325,48 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
             }
         }
     }
+
+    /// Vectors used for Non-Orthogonal correction within each cell.
+    for (int i = 1; i <= NumOfCell; ++i)
+    {
+        auto &cur_cell = cell(i);
+        const auto Nf = cur_cell.surface.size();
+
+        if(cur_cell.adjCell.size() != Nf)
+            throw std::runtime_error("Inconsistency detected!");
+
+        // Allocate storage.
+        cur_cell.Se.resize(Nf);
+        cur_cell.St.resize(Nf);
+        cur_cell.d.resize(Nf);
+
+        // Calculate vector d, E and T.
+        for(int j = 0; j < Nf; ++j)
+        {
+            auto cur_face = cur_cell.surface[j];
+            auto cur_adj_cell = cur_cell.adjCell[j];
+
+            // Displacement vector.
+            auto &cur_d = cur_cell.d[j];
+            if(cur_adj_cell == nullptr)
+                cur_d = cur_face->center - cur_cell.center;
+            else
+                cur_d = cur_adj_cell->center - cur_cell.center;
+
+            // Non-Orthogonal correction
+            calc_non_orthogonal_correction_vector(NOC, cur_d, cur_cell.S[j], cur_cell.Se[j], cur_cell.St[j]);
+        }
+    }
 }
 
-static void formatted_block_data_writer(std::ostream &out, const std::vector<Scalar> &val, size_t nRec1Line, const std::string &sep, bool nlAtLast)
+static void formatted_block_data_writer
+(
+    std::ostream &out,
+    const std::vector<Scalar> &val,
+    size_t nRec1Line,
+    const std::string &sep,
+    bool nlAtLast
+)
 {
     size_t i = 0;
     for (const auto &e : val)
@@ -608,8 +688,10 @@ void write_tec_grid(const std::string &fn, int type, const std::string &title)
         write_tec_grid_tet(fn, title);
     else if(type == 2)
         write_tec_grid_hex(fn, title);
-    else
+    else if(type == 3)
         write_tec_grid_poly(fn, title);
+    else
+        throw std::invalid_argument("Invalid type specification!");
 }
 
 static void write_tec_solution_tet(const std::string &fn, double t, const std::string &title)
@@ -1002,8 +1084,10 @@ void write_tec_solution(const std::string &fn, int type, double t, const std::st
         write_tec_solution_tet(fn, t, title);
     else if(type == 2)
         write_tec_solution_hex(fn, t, title);
-    else
+    else if(type == 3)
         write_tec_solution_poly(fn, t, title);
+    else
+        throw std::invalid_argument("Invalid type specification!");
 }
 
 /**
