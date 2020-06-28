@@ -16,10 +16,6 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
-extern Eigen::SparseMatrix<Scalar> A_dp_1;
-extern Eigen::Matrix<Scalar, Eigen::Dynamic, 1> Q_dp_1;
-extern Eigen::BiCGSTAB<Eigen::SparseMatrix<Scalar>, Eigen::IncompleteLUT<Scalar>> dp_solver_1;
-
 extern SX_MAT A_dp_2;
 extern SX_VEC Q_dp_2;
 extern SX_AMG dp_solver_2;
