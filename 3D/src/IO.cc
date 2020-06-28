@@ -1,6 +1,5 @@
 #include <map>
 #include "../3rd_party/TYDF/inc/xf.h"
-#include "../inc/custom_type.h"
 #include "../inc/IO.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -9,8 +8,24 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
+enum class TECPLOT_FE_MESH_TYPE : int
+{
+    TET = 1,
+    HEX = 2,
+    POLY = 3
+};
+
 /// Choice of Non-Orthogonal Correction strategy
 static const int NOC = 3;
+
+/// Type of mesh
+static TECPLOT_FE_MESH_TYPE IO_MT;
+
+/// Composition of mesh
+static int n_tet = -1;
+static int n_hex = -1;
+static int n_pyramid = -1;
+static int n_prism = -1;
 
 /**
  * Calculate vectors used for NON-ORTHOGONAL correction locally.
@@ -64,6 +79,38 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
     NumOfPnt = mesh.numOfNode();
     NumOfFace = mesh.numOfFace();
     NumOfCell = mesh.numOfCell();
+
+    /// Update composition
+    n_tet = n_hex = n_prism = n_pyramid = 0;
+    for(int i = 1; i <= NumOfCell; ++i)
+    {
+        const auto &e = mesh.cell(i);
+        switch(e.type)
+        {
+        case XF::CELL::HEXAHEDRAL:
+            ++n_hex;
+            break;
+        case XF::CELL::TETRAHEDRAL:
+            ++n_tet;
+            break;
+        case XF::CELL::PYRAMID:
+            ++n_pyramid;
+            break;
+        case XF::CELL::WEDGE:
+            ++n_prism;
+            break;
+        default:
+            throw std::runtime_error("Unexpected cell element type.");
+        }
+    }
+
+    /// Update mesh type flag
+    if(n_tet == NumOfCell)
+        IO_MT = TECPLOT_FE_MESH_TYPE::TET;
+    else if(n_hex == NumOfCell)
+        IO_MT = TECPLOT_FE_MESH_TYPE::HEX;
+    else
+        IO_MT = TECPLOT_FE_MESH_TYPE::POLY;
 
     /// Allocate memory for geom entities and related physical variables.
     pnt.resize(NumOfPnt);
@@ -644,7 +691,6 @@ static void write_tec_grid_hex(const std::string &fn, const std::string &title)
             cord_comp_x[i] = pt->coordinate.x();
             cord_comp_y[i] = pt->coordinate.y();
             cord_comp_z[i] = pt->coordinate.z();
-
         }
 
         /// X-Coordinates
@@ -682,16 +728,22 @@ static void write_tec_grid_poly(const std::string &fn, const std::string &title)
  * @param type
  * @param title
  */
-void write_tec_grid(const std::string &fn, int type, const std::string &title)
+void write_tec_grid(const std::string &fn, const std::string &title)
 {
-    if(type == 1)
+    switch(IO_MT)
+    {
+    case TECPLOT_FE_MESH_TYPE::TET:
         write_tec_grid_tet(fn, title);
-    else if(type == 2)
+        break;
+    case TECPLOT_FE_MESH_TYPE::HEX:
         write_tec_grid_hex(fn, title);
-    else if(type == 3)
+        break;
+    case TECPLOT_FE_MESH_TYPE::POLY:
         write_tec_grid_poly(fn, title);
-    else
-        throw std::invalid_argument("Invalid type specification!");
+        break;
+    default:
+        throw std::invalid_argument("Invalid specification of mesh type!");
+    }
 }
 
 static void write_tec_solution_tet(const std::string &fn, double t, const std::string &title)
@@ -1078,16 +1130,42 @@ static void write_tec_solution_poly(const std::string &fn, double t, const std::
  * @param t
  * @param title
  */
-void write_tec_solution(const std::string &fn, int type, double t, const std::string &title)
+void write_tec_solution(const std::string &fn, double t, const std::string &title)
 {
-    if(type == 1)
+    switch(IO_MT)
+    {
+    case TECPLOT_FE_MESH_TYPE::TET:
         write_tec_solution_tet(fn, t, title);
-    else if(type == 2)
+        break;
+    case TECPLOT_FE_MESH_TYPE::HEX:
         write_tec_solution_hex(fn, t, title);
-    else if(type == 3)
+        break;
+    case TECPLOT_FE_MESH_TYPE::POLY:
         write_tec_solution_poly(fn, t, title);
-    else
-        throw std::invalid_argument("Invalid type specification!");
+        break;
+    default:
+        throw std::invalid_argument("Invalid specification of mesh type!");
+    }
+}
+
+/**
+ * High-level function used for the solution procedure to record both grid and data automatically.
+ * @param prefix Folder where records of current run are stored.
+ * @param n Iteration counter.
+ * @param t Solution time, or the time elapsed relative to I.C. prescribed by a data file.
+ */
+void record_computation_domain(const std::string &prefix, int n, Scalar t)
+{
+    static const std::string GRID_TITLE = "GRID";
+    const std::string SOLUTION_TITLE = "ITER" + std::to_string(n);
+
+    static const std::string GRID_PATH = prefix + "/GRID.dat";
+    const std::string SOLUTION_PATH = prefix + "/ITER" + std::to_string(n) + ".dat";
+
+    if(n == 0)
+        write_tec_grid(GRID_PATH, GRID_TITLE);
+
+    write_tec_solution(SOLUTION_PATH, t, SOLUTION_TITLE);
 }
 
 /**
