@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
-#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include <functional>
 #include <filesystem>
 #include "../inc/IO.h"
@@ -13,50 +14,36 @@
 
 /* Grid utilities */
 int NumOfPnt = 0, NumOfFace = 0, NumOfCell = 0;
-NaturalArray<Point> pnt; // Node objects
-NaturalArray<Face> face; // Face objects
-NaturalArray<Cell> cell; // Cell objects
-NaturalArray<Patch> patch; // Group of boundary faces
+NaturalArray<Point> pnt; /// Node objects
+NaturalArray<Face> face; /// Face objects
+NaturalArray<Cell> cell; /// Cell objects
+NaturalArray<Patch> patch; /// Group of boundary faces
 
 /* Pressure-Correction equation coefficients */
-SX_MAT A_dp_2;
-SX_VEC Q_dp_2;
-SX_AMG dp_solver_2;
+SX_MAT A_dp_2; /// The coefficient matrix
+SX_VEC Q_dp_2; /// The RHS
+SX_AMG dp_solver_2; /// The solver object
 
 /* I/O of mesh, case, logger and monitor */
-static const std::string MESH_PATH = "mesh/cube_tet.msh";
-static const int MESH_TYPE = 1;
-static const std::string RUN_TAG = time_stamp_str();
-static const int OUTPUT_GAP = 5;
+std::string MESH_PATH;
+std::string DATA_PATH;
+std::string RUN_TAG;
+int OUTPUT_GAP = 20;
 static std::ostream &LOG_OUT = std::cout;
 static const std::string SEP = "  ";
 static clock_t tick_begin, tick_end;
 
 /* Iteration timing and counting */
-static const int MAX_ITER = 2000;
-static const Scalar MAX_TIME = 100.0; /// s
+int MAX_ITER = 20000;
+Scalar MAX_TIME = 100.0; /// s
 
 /***************************************************** Solution Control ***********************************************/
 
 Scalar calcTimeStep()
 {
-    Scalar ret = 1e-3;
+    Scalar ret = 2.5e-3;
 
     return ret;
-}
-
-static void write_full_domain(int n, Scalar t)
-{
-    static const std::string GRID_TITLE = "GRID";
-    const std::string SOLUTION_TITLE = "ITER" + std::to_string(n);
-
-    static const std::string GRID_PATH = RUN_TAG + "/GRID.dat";
-    const std::string SOLUTION_PATH = RUN_TAG + "/ITER" + std::to_string(n) + ".dat";
-
-    if(n == 0)
-        write_tec_grid(GRID_PATH, MESH_TYPE, GRID_TITLE);
-
-    write_tec_solution(SOLUTION_PATH, MESH_TYPE, t, SOLUTION_TITLE);
 }
 
 static void stat_min_max(const std::string& var_name, const std::function<Scalar(const Cell&)> &extractor)
@@ -125,7 +112,7 @@ bool diagnose(int n, Scalar t)
     stat_min_max("T", [](const Cell &c) { return c.T; });
     LOG_OUT << std::endl;
     stat_min_max("div", stat_div);
-    stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * calcTimeStep() * 32; });
+    stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * calcTimeStep() * 64; });
 
     return n > MAX_ITER || t > MAX_TIME;
 }
@@ -150,9 +137,9 @@ void solve()
         done = diagnose(iter, t);
         LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
-            write_full_domain(iter, t);
+            record_computation_domain(RUN_TAG, iter, t);
     }
-    LOG_OUT << "Finished!" << std::endl;
+    LOG_OUT << "\nFinished!" << std::endl;
 }
 
 /**
@@ -160,14 +147,19 @@ void solve()
  */
 void init()
 {
-    std::filesystem::create_directory(RUN_TAG);
+    if(RUN_TAG.empty())
+        RUN_TAG = time_stamp_str();
 
+    if(std::filesystem::create_directory(RUN_TAG))
+        LOG_OUT << "Output directory set to: \"" << RUN_TAG << "\"" << std::endl;
+    else
+        throw std::runtime_error("Failed to create output directory.");
+
+    LOG_OUT << "\nLoading mesh \"" << MESH_PATH << "\" ... ";
     const std::string fn_mesh_log = RUN_TAG + "/MeshDesc.txt";
-
     std::ofstream ml_out(fn_mesh_log);
     if (ml_out.fail())
         throw failed_to_open_file(fn_mesh_log);
-    LOG_OUT << "\nLoading mesh \"" << MESH_PATH << "\" ... ";
     tick_begin = clock();
     read_fluent_mesh(MESH_PATH, ml_out);
     tick_end = clock();
@@ -198,7 +190,7 @@ void init()
     LOG_OUT << "Done!" << std::endl;
 
     LOG_OUT << "\nWriting initial output ... ";
-    write_full_domain(0, 0.0);
+    record_computation_domain(RUN_TAG, 0, 0.0);
     LOG_OUT << "Done!" << std::endl;
 }
 
@@ -210,9 +202,37 @@ void init()
  */
 int main(int argc, char *argv[])
 {
+    /* Parse parameters */
+    int cnt = 1;
+    while(cnt < argc)
+    {
+        if(!std::strcmp(argv[cnt], "--mesh") || !std::strcmp(argv[cnt], "-m"))
+            MESH_PATH = argv[cnt+1];
+        else if(!std::strcmp(argv[cnt], "--data"))
+            DATA_PATH = argv[cnt+1]; /// Using I.C. from certain data file.
+        else if(!std::strcmp(argv[cnt], "--tag"))
+            RUN_TAG = argv[cnt+1];
+        else if(!std::strcmp(argv[cnt], "--iter"))
+            MAX_ITER = std::atoi(argv[cnt+1]);
+        else if(!std::strcmp(argv[cnt], "--duration"))
+            MAX_TIME = std::atof(argv[cnt+1]); /// In seconds by default.
+        else if(!std::strcmp(argv[cnt], "--record_interval"))
+            OUTPUT_GAP = std::atoi(argv[cnt+1]);
+        else
+        {
+            const std::string opt = argv[cnt];
+            throw std::invalid_argument("Unrecognized option: \"" + opt + "\".");
+        }
+        cnt += 2;
+    }
+    
+    /* Initialize environment */
     init();
+
+    /* Transient iteration loop */
     solve();
 
+    /* Finalize */
     return 0;
 }
 
