@@ -40,6 +40,7 @@ add_executable(
 	src/Gradient.cc
 	src/LeastSquare.cc
 	src/PoissonEqn.cc
+	src/Diagnose.cc
 	src/Miscellaneous.cc
 	src/main.cc
 )

@@ -2,7 +2,6 @@
 #include <fstream>
 #include <cstring>
 #include <cstdlib>
-#include <functional>
 #include <filesystem>
 #include "../inc/IO.h"
 #include "../inc/IC.h"
@@ -10,7 +9,10 @@
 #include "../inc/LeastSquare.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/Discretization.h"
+#include "../inc/Diagnose.h"
 #include "../inc/Miscellaneous.h"
+
+/***************************************************** Global Variables ***********************************************/
 
 /* Grid utilities */
 int NumOfPnt = 0, NumOfFace = 0, NumOfCell = 0;
@@ -19,106 +21,45 @@ NaturalArray<Face> face; /// Face objects
 NaturalArray<Cell> cell; /// Cell objects
 NaturalArray<Patch> patch; /// Group of boundary faces
 
+/* Global I/O style and redirection */
+std::string SEP;
+std::ostream &LOG_OUT = std::cout;
+
 /* Pressure-Correction equation coefficients */
 SX_MAT A_dp_2; /// The coefficient matrix
 SX_VEC Q_dp_2; /// The RHS
 SX_AMG dp_solver_2; /// The solver object
 
-/* I/O of mesh, case, logger and monitor */
-std::string MESH_PATH;
-std::string DATA_PATH;
-std::string RUN_TAG;
-int OUTPUT_GAP = 20;
-static std::ostream &LOG_OUT = std::cout;
-static const std::string SEP = "  ";
-static clock_t tick_begin, tick_end;
-
-/* Iteration timing and counting */
-int MAX_ITER = 20000;
-Scalar MAX_TIME = 100.0; /// s
-
 /***************************************************** Solution Control ***********************************************/
 
+/* I/O of mesh, case, logger and monitor */
+static std::string MESH_PATH;
+static std::string DATA_PATH;
+static std::string RUN_TAG;
+static int OUTPUT_GAP = 10;
+
+/* Iteration timing and counting */
+static int MAX_ITER = 100000;
+static Scalar MAX_TIME = 100.0; /// s
+
+/******************************************************* Functions ****************************************************/
+
+/**
+ * Transient time-step for each explicit marching iteration.
+ * @return Current time-step used for temporal integration.
+ */
 Scalar calcTimeStep()
 {
-    Scalar ret = 2.5e-3;
-
+    Scalar ret = 1e-3;
     return ret;
 }
 
-static void stat_min_max(const std::string& var_name, const std::function<Scalar(const Cell&)> &extractor)
-{
-    Scalar var_min, var_max;
-
-    var_min = var_max = extractor(cell(1));
-    for (size_t i = 2; i <= NumOfCell; ++i)
-    {
-        const auto cur_var = extractor(cell(i));
-        if (cur_var < var_min)
-            var_min = cur_var;
-        if (cur_var > var_max)
-            var_max = cur_var;
-    }
-
-    if (var_name == "p")
-    {
-        LOG_OUT.setf(std::ios::fixed);
-        auto w = LOG_OUT.precision(10);
-        LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
-        LOG_OUT.precision(w);
-        LOG_OUT.unsetf(std::ios::fixed);
-    }
-    else
-        LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
-}
-
-static double stat_div(const Cell &c)
-{
-    double ret = 0.0;
-    const auto Nf = c.surface.size();
-    for (int i = 0; i < Nf; ++i)
-    {
-        auto curFace = c.surface.at(i);
-        ret += curFace->rhoU.dot(c.S.at(i));
-    }
-    ret /= c.volume;
-    return ret;
-}
-
-bool diagnose(int n, Scalar t)
-{
-    stat_min_max("ConvectionFlux_X", [](const Cell &c) { return c.convection_flux.x(); });
-    stat_min_max("ConvectionFlux_Y", [](const Cell &c) { return c.convection_flux.y(); });
-    stat_min_max("ConvectionFlux_Z", [](const Cell &c) { return c.convection_flux.z(); });
-    LOG_OUT << std::endl;
-    stat_min_max("PressureFlux_X", [](const Cell &c) { return c.pressure_flux.x(); });
-    stat_min_max("PressureFlux_Y", [](const Cell &c) { return c.pressure_flux.y(); });
-    stat_min_max("PressureFlux_Z", [](const Cell &c) { return c.pressure_flux.z(); });
-    LOG_OUT << std::endl;
-    stat_min_max("ViscousFlux_X", [](const Cell &c) { return c.viscous_flux.x(); });
-    stat_min_max("ViscousFlux_Y", [](const Cell &c) { return c.viscous_flux.y(); });
-    stat_min_max("ViscousFlux_Z", [](const Cell &c) { return c.viscous_flux.z(); });
-    LOG_OUT << std::endl;
-    stat_min_max("rhoU*_X", [](const Cell &c) { return c.rhoU_star.x(); });
-    stat_min_max("rhoU*_Y", [](const Cell &c) { return c.rhoU_star.y(); });
-    stat_min_max("rhoU*_Z", [](const Cell &c) { return c.rhoU_star.z(); });
-    LOG_OUT << std::endl;
-    stat_min_max("rho", [](const Cell &c) { return c.rho; });
-    stat_min_max("U_X", [](const Cell &c) { return c.U.x(); });
-    stat_min_max("U_Y", [](const Cell &c) { return c.U.y(); });
-    stat_min_max("U_Z", [](const Cell &c) { return c.U.z(); });
-    stat_min_max("p", [](const Cell &c) { return c.p; });
-    stat_min_max("p'", [](const Cell &c) { return c.p_prime; });
-    stat_min_max("T", [](const Cell &c) { return c.T; });
-    LOG_OUT << std::endl;
-    stat_min_max("div", stat_div);
-    stat_min_max("CFL", [](const Cell &c) { return c.U.norm() * calcTimeStep() * 64; });
-
-    return n > MAX_ITER || t > MAX_TIME;
-}
-
+/**
+ * Directive function guiding explicit time-marching iterations.
+ */
 void solve()
 {
+    clock_t tick_begin, tick_end;
     int iter = 0;
     Scalar dt; /// s
     Scalar t = 0.0; /// s
@@ -134,7 +75,8 @@ void solve()
         ForwardEuler(dt);
         tick_end = clock();
         t += dt;
-        done = diagnose(iter, t);
+        done = iter > MAX_ITER || t > MAX_TIME;
+        diagnose();
         LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
             record_computation_domain(RUN_TAG, iter, t);
@@ -147,6 +89,13 @@ void solve()
  */
 void init()
 {
+    /// Separation style
+    SEP = "  ";
+
+    /// Timing vars
+    clock_t tick_begin, tick_end;
+
+    /// Check tag
     if(RUN_TAG.empty())
         RUN_TAG = time_stamp_str();
 
@@ -214,9 +163,9 @@ int main(int argc, char *argv[])
             RUN_TAG = argv[cnt+1];
         else if(!std::strcmp(argv[cnt], "--iter"))
             MAX_ITER = std::atoi(argv[cnt+1]);
-        else if(!std::strcmp(argv[cnt], "--duration"))
+        else if(!std::strcmp(argv[cnt], "--time"))
             MAX_TIME = std::atof(argv[cnt+1]); /// In seconds by default.
-        else if(!std::strcmp(argv[cnt], "--record_interval"))
+        else if(!std::strcmp(argv[cnt], "--interval"))
             OUTPUT_GAP = std::atoi(argv[cnt+1]);
         else
         {
