@@ -9,6 +9,7 @@ extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 extern std::string SEP;
 extern std::ostream &LOG_OUT;
+extern Scalar dt;
 
 static void stat_min_max(const std::string& var_name, const std::function<Scalar(const Cell&)> &extractor)
 {
@@ -24,7 +25,7 @@ static void stat_min_max(const std::string& var_name, const std::function<Scalar
             var_max = cur_var;
     }
 
-    if (var_name == "p")
+    if (var_name == "p" || var_name == "p'")
     {
         auto w = LOG_OUT.precision(10);
         LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
@@ -49,7 +50,7 @@ static Scalar stat_div(const Cell &c)
 
 static Scalar stat_cfl(const Cell &c)
 {
-    return 0;
+    return c.grad_U.norm() * dt;
 }
 
 void diagnose()
