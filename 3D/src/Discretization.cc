@@ -15,13 +15,11 @@ extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
+extern int NOC_ITER;
 
 extern SX_MAT A_dp_2;
 extern SX_VEC Q_dp_2;
 extern SX_AMG dp_solver_2;
-
-static std::ostream &LOG_OUT = std::cout;
-static const std::string SEP = "  ";
 
 /************************************************ Physical Property ***************************************************/
 
@@ -290,6 +288,16 @@ void calcFaceViscousStress()
 /*********************************************** Temporal Discretization **********************************************/
 
 /**
+ * Transient time-step for each explicit marching iteration.
+ * @return Current time-step used for temporal integration.
+ */
+Scalar calcTimeStep()
+{
+    Scalar ret = 5e-3;
+    return ret;
+}
+
+/**
  * 1st-order explicit time-marching.
  * Pressure-Velocity coupling is solved using Fractional-Step Method.
  * @param TimeStep
@@ -347,7 +355,7 @@ void ForwardEuler(Scalar TimeStep)
     }
 
     /// Correction Step
-    for(int k = 0; k < 2; ++k)
+    for(int k = 0; k < NOC_ITER; ++k)
     {
         calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
         SX_VEC dp = sx_vec_create(NumOfCell);
