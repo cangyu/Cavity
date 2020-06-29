@@ -21,9 +21,16 @@ NaturalArray<Face> face; /// Face objects
 NaturalArray<Cell> cell; /// Cell objects
 NaturalArray<Patch> patch; /// Group of boundary faces
 
+/* Time-Marching */
+Scalar dt; /// s
+
 /* Global I/O style and redirection */
 std::string SEP;
 std::ostream &LOG_OUT = std::cout;
+
+/* Non-Orthogonal Correction */
+int NOC_Method = 3; /// Method
+int NOC_ITER = 1; /// Iteration
 
 /* Pressure-Correction equation coefficients */
 SX_MAT A_dp_2; /// The coefficient matrix
@@ -45,23 +52,12 @@ static Scalar MAX_TIME = 100.0; /// s
 /******************************************************* Functions ****************************************************/
 
 /**
- * Transient time-step for each explicit marching iteration.
- * @return Current time-step used for temporal integration.
- */
-Scalar calcTimeStep()
-{
-    Scalar ret = 1e-3;
-    return ret;
-}
-
-/**
  * Directive function guiding explicit time-marching iterations.
  */
 void solve()
 {
     clock_t tick_begin, tick_end;
     int iter = 0;
-    Scalar dt; /// s
     Scalar t = 0.0; /// s
     bool done = false;
 
@@ -99,10 +95,16 @@ void init()
     if(RUN_TAG.empty())
         RUN_TAG = time_stamp_str();
 
+    /// Report
     if(std::filesystem::create_directory(RUN_TAG))
         LOG_OUT << "Output directory set to: \"" << RUN_TAG << "\"" << std::endl;
     else
         throw std::runtime_error("Failed to create output directory.");
+
+    LOG_OUT << "\nMax iterations: " << MAX_ITER << std::endl;
+    LOG_OUT << "\nMax run time: " << MAX_TIME << "s" << std::endl;
+    LOG_OUT << "\nRecord solution every " << OUTPUT_GAP << " iteration" << std::endl;
+    LOG_OUT << "\nNon-Orthogonal correction iterations: " << NOC_ITER << std::endl;
 
     LOG_OUT << "\nLoading mesh \"" << MESH_PATH << "\" ... ";
     const std::string fn_mesh_log = RUN_TAG + "/MeshDesc.txt";
@@ -167,6 +169,10 @@ int main(int argc, char *argv[])
             MAX_TIME = std::atof(argv[cnt+1]); /// In seconds by default.
         else if(!std::strcmp(argv[cnt], "--interval"))
             OUTPUT_GAP = std::atoi(argv[cnt+1]);
+        else if(!std::strcmp(argv[cnt], "--noc_method"))
+            NOC_Method = std::atoi(argv[cnt+1]);
+        else if(!std::strcmp(argv[cnt], "--noc_iter"))
+            NOC_ITER = std::atoi(argv[cnt+1]);
         else
         {
             const std::string opt = argv[cnt];

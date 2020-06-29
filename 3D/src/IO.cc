@@ -7,6 +7,7 @@ extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
+extern int NOC_Method;
 
 enum class TECPLOT_FE_MESH_TYPE : int
 {
@@ -14,9 +15,6 @@ enum class TECPLOT_FE_MESH_TYPE : int
     HEX = 2,
     POLY = 3
 };
-
-/// Choice of Non-Orthogonal Correction strategy
-static const int NOC = 3;
 
 /// Type of mesh
 static TECPLOT_FE_MESH_TYPE IO_MT;
@@ -401,7 +399,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
                 cur_d = cur_adj_cell->center - cur_cell.center;
 
             // Non-Orthogonal correction
-            calc_non_orthogonal_correction_vector(NOC, cur_d, cur_cell.S[j], cur_cell.Se[j], cur_cell.St[j]);
+            calc_non_orthogonal_correction_vector(NOC_Method, cur_d, cur_cell.S[j], cur_cell.Se[j], cur_cell.St[j]);
         }
     }
 }
