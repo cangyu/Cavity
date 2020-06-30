@@ -1,6 +1,8 @@
-#ifndef __IC_H__
-#define __IC_H__
+#ifndef IC_H
+#define IC_H
 
-void IC();
+#include <string>
+
+void IC(const std::string &inp);
 
 #endif
