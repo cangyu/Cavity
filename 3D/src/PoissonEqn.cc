@@ -236,8 +236,12 @@ void prepare_dp_solver(SX_MAT &A, SX_AMG &mg)
     SX_AMG_PARS pars;
 
     sx_amg_pars_init(&pars);
-    pars.maxit = 1000;
+    pars.maxit = 200;
     pars.verb = 2;
+    pars.cs_type = SX_COARSE_RS;
+    pars.interp_type = SX_INTERP_STD;
+    pars.strong_threshold = 0.3;
+    pars.trunc_threshold = 0.2;
 
     sx_amg_pars_print(&pars);
 
