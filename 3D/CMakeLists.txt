@@ -52,5 +52,5 @@ target_link_libraries(
 )
 
 install(TARGETS ${PROJECT_NAME} 
-	RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/test
+	RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/bin
 )

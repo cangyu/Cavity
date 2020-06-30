@@ -21,8 +21,12 @@ NaturalArray<Face> face; /// Face objects
 NaturalArray<Cell> cell; /// Cell objects
 NaturalArray<Patch> patch; /// Group of boundary faces
 
+/* Flow condition */
+Scalar Re = 1000.0;
+
 /* Time-Marching */
-Scalar dt; /// s
+Scalar dt = 1e-3; /// s
+bool use_fixed_dt = false;
 
 /* Global I/O style and redirection */
 std::string SEP;
@@ -65,7 +69,8 @@ void solve()
     while (!done)
     {
         LOG_OUT << "\nIter" << ++iter << ":" << std::endl;
-        dt = calcTimeStep();
+        if (!use_fixed_dt)
+            dt = calcTimeStep();
         LOG_OUT << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
         tick_begin = clock();
         ForwardEuler(dt);
@@ -92,14 +97,19 @@ void init()
     clock_t tick_begin, tick_end;
 
     /// Check tag
-    if(RUN_TAG.empty())
+    if (RUN_TAG.empty())
         RUN_TAG = time_stamp_str();
 
     /// Report
-    if(std::filesystem::create_directory(RUN_TAG))
+    if (std::filesystem::create_directory(RUN_TAG))
         LOG_OUT << "Output directory set to: \"" << RUN_TAG << "\"" << std::endl;
     else
         throw std::runtime_error("Failed to create output directory.");
+
+    LOG_OUT << "\nRe=" << Re << std::endl;
+
+    if (use_fixed_dt)
+        LOG_OUT << "\nUsing fixed time-step: " << dt << std::endl;
 
     LOG_OUT << "\nMax iterations: " << MAX_ITER << std::endl;
     LOG_OUT << "\nMax run time: " << MAX_TIME << "s" << std::endl;
@@ -117,7 +127,7 @@ void init()
     ml_out.close();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << "\nSetting B.C. of each variable ... ";
+    LOG_OUT << "\nSetting B.C. type of each variable ... ";
     BC_TABLE();
     LOG_OUT << "Done!" << std::endl;
 
@@ -136,9 +146,14 @@ void init()
 
     prepare_dp_solver(A_dp_2, dp_solver_2);
 
-    LOG_OUT << "\nSetting I.C. of each variable ... ";
-    IC();
-    LOG_OUT << "Done!" << std::endl;
+    LOG_OUT << "\nSetting I.C. ";
+    if (!DATA_PATH.empty())
+        LOG_OUT << "from \"" << DATA_PATH << "\" ";
+    LOG_OUT << "... ";
+    tick_begin = clock();
+    IC(DATA_PATH);
+    tick_end = clock();
+    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     LOG_OUT << "\nWriting initial output ... ";
     record_computation_domain(RUN_TAG, 0, 0.0);
@@ -155,32 +170,37 @@ int main(int argc, char *argv[])
 {
     /* Parse parameters */
     int cnt = 1;
-    while(cnt < argc)
+    while (cnt < argc)
     {
-        if(!std::strcmp(argv[cnt], "--mesh") || !std::strcmp(argv[cnt], "-m"))
-            MESH_PATH = argv[cnt+1];
-        else if(!std::strcmp(argv[cnt], "--data"))
-            DATA_PATH = argv[cnt+1]; /// Using I.C. from certain data file.
-        else if(!std::strcmp(argv[cnt], "--tag"))
-            RUN_TAG = argv[cnt+1];
-        else if(!std::strcmp(argv[cnt], "--iter"))
-            MAX_ITER = std::atoi(argv[cnt+1]);
-        else if(!std::strcmp(argv[cnt], "--time"))
-            MAX_TIME = std::atof(argv[cnt+1]); /// In seconds by default.
-        else if(!std::strcmp(argv[cnt], "--interval"))
-            OUTPUT_GAP = std::atoi(argv[cnt+1]);
-        else if(!std::strcmp(argv[cnt], "--noc_method"))
-            NOC_Method = std::atoi(argv[cnt+1]);
-        else if(!std::strcmp(argv[cnt], "--noc_iter"))
-            NOC_ITER = std::atoi(argv[cnt+1]);
-        else
+        if (!std::strcmp(argv[cnt], "--mesh") || !std::strcmp(argv[cnt], "-m"))
+            MESH_PATH = argv[cnt + 1];
+        else if (!std::strcmp(argv[cnt], "--data"))
+            DATA_PATH = argv[cnt + 1]; /// Using I.C. from certain data file.
+        else if (!std::strcmp(argv[cnt], "--tag"))
+            RUN_TAG = argv[cnt + 1];
+        else if (!std::strcmp(argv[cnt], "--iter"))
+            MAX_ITER = std::atoi(argv[cnt + 1]);
+        else if (!std::strcmp(argv[cnt], "--time"))
+            MAX_TIME = std::atof(argv[cnt + 1]); /// In seconds by default.
+        else if (!std::strcmp(argv[cnt], "--interval"))
+            OUTPUT_GAP = std::atoi(argv[cnt + 1]);
+        else if (!std::strcmp(argv[cnt], "--noc_method"))
+            NOC_Method = std::atoi(argv[cnt + 1]);
+        else if (!std::strcmp(argv[cnt], "--noc_iter"))
+            NOC_ITER = std::atoi(argv[cnt + 1]);
+        else if (!std::strcmp(argv[cnt], "--Re"))
+            Re = std::atof(argv[cnt + 1]);
+        else if (!std::strcmp(argv[cnt], "--time-step"))
         {
-            const std::string opt = argv[cnt];
-            throw std::invalid_argument("Unrecognized option: \"" + opt + "\".");
+            use_fixed_dt = true;
+            dt = std::atof(argv[cnt + 1]); /// In seconds by default.
         }
+        else
+            throw std::invalid_argument("Unrecognized option: \"" + std::string(argv[cnt]) + "\".");
+
         cnt += 2;
     }
-    
+
     /* Initialize environment */
     init();
 

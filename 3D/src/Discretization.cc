@@ -1,11 +1,8 @@
-#include <iostream>
 #include "../inc/BC.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/CHEM.h"
-#include "../inc/BC.h"
 #include "../inc/IC.h"
 #include "../inc/LeastSquare.h"
-#include "../inc/PoissonEqn.h"
 #include "../inc/Gradient.h"
 #include "../inc/Flux.h"
 #include "../inc/Discretization.h"
@@ -16,14 +13,13 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 extern int NOC_ITER;
+extern Scalar Re;
 
 extern SX_MAT A_dp_2;
 extern SX_VEC Q_dp_2;
 extern SX_AMG dp_solver_2;
 
 /************************************************ Physical Property ***************************************************/
-
-static const Scalar Re = 1000.0;
 
 void calcCellProperty()
 {
