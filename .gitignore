@@ -1,9 +1,7 @@
 3rd_party/
 build/
-*.msh
-*.dat
-MeshDesc.txt
-Cavity
+bin/
+test/
 
 # OSX
 .DS_Store
