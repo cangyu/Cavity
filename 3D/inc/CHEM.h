@@ -1,5 +1,5 @@
-#ifndef __CHEM_H__
-#define __CHEM_H__
+#ifndef CHEM_H
+#define CHEM_H
 
 #include "custom_type.h"
 

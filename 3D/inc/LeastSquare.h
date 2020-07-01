@@ -1,6 +1,6 @@
-#ifndef __LEAST_SQUARE_H__
-#define __LEAST_SQUARE_H__
+#ifndef LEAST_SQUARE_H
+#define LEAST_SQUARE_H
 
 void calcLeastSquareCoef();
 
-#endif // !__LEAST_SQUARE_H__
+#endif

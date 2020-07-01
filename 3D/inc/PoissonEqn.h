@@ -1,5 +1,5 @@
-#ifndef __POISSON_EQN_H__
-#define __POISSON_EQN_H__
+#ifndef POISSON_EQN_H
+#define POISSON_EQN_H
 
 #include "custom_type.h"
 

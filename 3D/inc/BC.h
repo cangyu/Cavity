@@ -1,5 +1,5 @@
-#ifndef __BC_H__
-#define __BC_H__
+#ifndef BC_H
+#define BC_H
 
 void BC_TABLE();
 void BC();

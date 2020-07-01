@@ -1,5 +1,5 @@
-#ifndef __IO_H__
-#define __IO_H__
+#ifndef IO_H
+#define IO_H
 
 #include <string>
 #include <ostream>

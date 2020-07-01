@@ -14,7 +14,6 @@ extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 extern int NOC_ITER;
 extern Scalar Re;
-
 extern SX_MAT A_dp_2;
 extern SX_VEC Q_dp_2;
 extern SX_AMG dp_solver_2;
