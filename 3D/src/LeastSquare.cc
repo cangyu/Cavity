@@ -9,10 +9,14 @@ extern NaturalArray<Patch> patch;
 
 /**
  * Convert Eigen's intrinsic QR decomposition matrix into R^-1 * Q^T
- * @param J
- * @param J_INV
+ * @param J The coefficient matrix to be factorized.
+ * @param J_INV The general inverse of input matrix using QR decomposition.
  */
-static void extractQRMatrix(const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J, Eigen::Matrix<Scalar, 3, Eigen::Dynamic> &J_INV)
+static void extractQRMatrix
+(
+    const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J, 
+    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> &J_INV
+)
 {
     typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> Mat;
 

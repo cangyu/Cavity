@@ -3,8 +3,8 @@
 
 /**
  * Dynamic viscosity of ideal gas.
- * @param T
- * @return
+ * @param T Temperature in Kelvin.
+ * @return Dynamic viscosity with unit "Kg / (m * s)".
  */
 Scalar Sutherland(Scalar T)
 {
