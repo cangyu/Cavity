@@ -16,6 +16,7 @@ extern int NOC_ITER;
 extern Scalar Re;
 extern SX_MAT A_dp_2;
 extern SX_VEC Q_dp_2;
+extern SX_VEC x_dp_2;
 extern SX_AMG dp_solver_2;
 
 /************************************************ Physical Property ***************************************************/
@@ -353,15 +354,12 @@ void ForwardEuler(Scalar TimeStep)
     for(int k = 0; k < NOC_ITER; ++k)
     {
         calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
-        SX_VEC dp = sx_vec_create(NumOfCell);
-        sx_solver_amg_solve(&dp_solver_2, &dp, &Q_dp_2);
-
+        sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
         for (int i = 0; i < NumOfCell; ++i)
         {
             auto &c = cell.at(i);
-            c.p_prime = sx_vec_get_entry(&dp, i);
+            c.p_prime = sx_vec_get_entry(&x_dp_2, i);
         }
-
         calcPressureCorrectionGradient();
         calcFacePressureCorrectionGradient();
     }

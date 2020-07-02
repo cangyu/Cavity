@@ -39,6 +39,7 @@ int NOC_ITER = 1; /// Iteration
 /* Pressure-Correction equation coefficients */
 SX_MAT A_dp_2; /// The coefficient matrix
 SX_VEC Q_dp_2; /// The RHS
+SX_VEC x_dp_2; /// The solution
 SX_AMG dp_solver_2; /// The solver object
 
 /***************************************************** Solution Control ***********************************************/
@@ -139,6 +140,7 @@ void init()
 
     LOG_OUT << "\nPreparing Pressure-Correction equation coefficients ... ";
     Q_dp_2 = sx_vec_create(NumOfCell);
+    x_dp_2 = sx_vec_create(NumOfCell);
     tick_begin = clock();
     calcPressureCorrectionEquationCoef(A_dp_2);
     tick_end = clock();
@@ -208,6 +210,10 @@ int main(int argc, char *argv[])
     solve();
 
     /* Finalize */
+    sx_vec_destroy(&x_dp_2);
+    sx_vec_destroy(&Q_dp_2);
+    sx_mat_destroy(&A_dp_2);
+    sx_amg_data_destroy(&dp_solver_2);
     return 0;
 }
 
