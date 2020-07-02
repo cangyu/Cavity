@@ -178,11 +178,11 @@ int main(int argc, char *argv[])
             DATA_PATH = argv[cnt + 1]; /// Using I.C. from certain data file.
         else if (!std::strcmp(argv[cnt], "--tag"))
             RUN_TAG = argv[cnt + 1];
-        else if (!std::strcmp(argv[cnt], "--iter"))
+        else if (!std::strcmp(argv[cnt], "--iteration"))
             MAX_ITER = std::atoi(argv[cnt + 1]);
-        else if (!std::strcmp(argv[cnt], "--time"))
+        else if (!std::strcmp(argv[cnt], "--time-span"))
             MAX_TIME = std::atof(argv[cnt + 1]); /// In seconds by default.
-        else if (!std::strcmp(argv[cnt], "--interval"))
+        else if (!std::strcmp(argv[cnt], "--write-interval"))
             OUTPUT_GAP = std::atoi(argv[cnt + 1]);
         else if (!std::strcmp(argv[cnt], "--noc_method"))
             NOC_Method = std::atoi(argv[cnt + 1]);
