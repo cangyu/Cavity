@@ -316,9 +316,6 @@ void ForwardEuler(Scalar TimeStep)
     /// Update physical properties at centroid of each cell.
     calcCellProperty();
 
-    /// Ghost values on boundary if any.
-    calcFaceGhostVariable();
-
     /// Gradients at centroid of each cell.
     calcCellGradient();
 

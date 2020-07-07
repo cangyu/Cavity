@@ -128,12 +128,6 @@ struct Face
     BC_CATEGORY p_BC = Neumann, p_prime_BC = Neumann;
     BC_CATEGORY T_BC = Neumann;
 
-    /// Ghost variables if needed
-    Scalar rho_ghost = ZERO_SCALAR;
-    Vector U_ghost = ZERO_VECTOR;
-    Scalar p_ghost = ZERO_SCALAR;
-    Scalar T_ghost = ZERO_SCALAR;
-
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
 
@@ -193,10 +187,7 @@ struct Cell
     NaturalArray<Vector> St;
 
     /// Variables used by the least-squares method
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_rho;
-    std::array<Eigen::Matrix<Scalar, 3, Eigen::Dynamic>, 3> J_INV_U;
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_p, J_INV_p_prime;
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_T;
+    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV;
 
     /* Variables at current time-level */
     Scalar rho0 = ZERO_SCALAR;
