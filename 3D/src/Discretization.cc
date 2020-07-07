@@ -261,7 +261,7 @@ void calcFaceValue()
         }
 
         /// Conservative variables.
-        f.rhoU = f.rho * f.U;
+        // f.rhoU = f.rho * f.U;
     }
 }
 
@@ -363,6 +363,9 @@ void ForwardEuler(Scalar TimeStep)
         calcPressureCorrectionGradient();
         calcFacePressureCorrectionGradient();
     }
+
+    for(auto &f : face)
+        f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime;
 
     /// Update
     for (int i = 0; i < NumOfCell; ++i)

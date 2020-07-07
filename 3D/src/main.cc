@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
     int cnt = 1;
     while (cnt < argc)
     {
-        if (!std::strcmp(argv[cnt], "--mesh") || !std::strcmp(argv[cnt], "-m"))
+        if (!std::strcmp(argv[cnt], "--mesh"))
             MESH_PATH = argv[cnt + 1];
         else if (!std::strcmp(argv[cnt], "--data"))
             DATA_PATH = argv[cnt + 1]; /// Using I.C. from certain data file.

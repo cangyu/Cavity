@@ -346,7 +346,14 @@ void calcPressureCorrectionGradient()
     }
 }
 
-static inline Vector interpGradientToFace(const Vector &predicted_grad_phi_f, Scalar phi_C, Scalar phi_F, const Vector &e_CF, Scalar d_CF)
+static inline Vector interpGradientToFace
+(
+    const Vector &predicted_grad_phi_f,
+    Scalar phi_C,
+    Scalar phi_F,
+    const Vector &e_CF,
+    Scalar d_CF
+)
 {
     return predicted_grad_phi_f + ((phi_F - phi_C) / d_CF - predicted_grad_phi_f.dot(e_CF))*e_CF;
 }
