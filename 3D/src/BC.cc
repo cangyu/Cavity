@@ -9,73 +9,67 @@ extern NaturalArray<Patch> patch;
 
 void BC_TABLE()
 {
-    for (const auto &e : patch)
+    for (auto &e : patch)
     {
         if (e.name == "UP")
         {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->p_prime_BC = Neumann;
-                f->T_BC = Dirichlet;
-            }
+            e.rho_BC = Dirichlet;
+            e.U_BC[0] = Dirichlet;
+            e.U_BC[1] = Dirichlet;
+            e.U_BC[2] = Dirichlet;
+            e.p_BC = Neumann;
+            e.p_prime_BC = Neumann;
+            e.T_BC = Dirichlet;
         }
         else if (e.name == "DOWN")
         {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->p_prime_BC = Neumann;
-                f->T_BC = Dirichlet;
-            }
+            e.rho_BC = Dirichlet;
+            e.U_BC[0] = Dirichlet;
+            e.U_BC[1] = Dirichlet;
+            e.U_BC[2] = Dirichlet;
+            e.p_BC = Neumann;
+            e.p_prime_BC = Neumann;
+            e.T_BC = Dirichlet;
         }
         else if (e.name == "LEFT")
         {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->p_prime_BC = Neumann;
-                f->T_BC = Neumann;
-            }
+            e.rho_BC = Dirichlet;
+            e.U_BC[0] = Dirichlet;
+            e.U_BC[1] = Dirichlet;
+            e.U_BC[2] = Dirichlet;
+            e.p_BC = Neumann;
+            e.p_prime_BC = Neumann;
+            e.T_BC = Neumann;
         }
         else if (e.name == "RIGHT")
         {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->p_prime_BC = Neumann;
-                f->T_BC = Neumann;
-            }
+            e.rho_BC = Dirichlet;
+            e.U_BC[0] = Dirichlet;
+            e.U_BC[1] = Dirichlet;
+            e.U_BC[2] = Dirichlet;
+            e.p_BC = Neumann;
+            e.p_prime_BC = Neumann;
+            e.T_BC = Neumann;
         }
         else if (e.name == "FRONT")
         {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->p_prime_BC = Neumann;
-                f->T_BC = Neumann;
-            }
+            e.rho_BC = Dirichlet;
+            e.U_BC[0] = Dirichlet;
+            e.U_BC[1] = Dirichlet;
+            e.U_BC[2] = Dirichlet;
+            e.p_BC = Neumann;
+            e.p_prime_BC = Neumann;
+            e.T_BC = Neumann;
         }
         else if (e.name == "BACK")
         {
-            for (auto f : e.surface)
-            {
-                f->rho_BC = Dirichlet;
-                f->U_BC = { Dirichlet, Dirichlet, Dirichlet };
-                f->p_BC = Neumann;
-                f->p_prime_BC = Neumann;
-                f->T_BC = Neumann;
-            }
+            e.rho_BC = Dirichlet;
+            e.U_BC[0] = Dirichlet;
+            e.U_BC[1] = Dirichlet;
+            e.U_BC[2] = Dirichlet;
+            e.p_BC = Neumann;
+            e.p_prime_BC = Neumann;
+            e.T_BC = Neumann;
         }
         else
             throw unexpected_patch(e.name);
