@@ -1,8 +1,8 @@
 #ifndef CUSTOM_TYPE_H
 #define CUSTOM_TYPE_H
 
-#include <vector>
 #include <string>
+#include <vector>
 #include <array>
 #include <cstddef>
 #include <stdexcept>
@@ -23,12 +23,10 @@ typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
 #define ZERO_VECTOR Vector::Zero()
 #define ZERO_TENSOR Tensor::Zero()
 
-/****************************************************** BC types ******************************************************/
-
-enum BC_CATEGORY { Dirichlet = 0, Neumann, Robin };
-static const std::array<std::string, 3> BC_CATEGORY_STR = { "Dirichlet", "Neumann", "Robin" };
-
 /******************************************************* Types ********************************************************/
+
+/* BC */
+enum BC_CATEGORY { Dirichlet = 0, Neumann, Robin };
 
 /* 1-based array */
 template<typename T>
@@ -68,8 +66,6 @@ public:
     }
 };
 
-/******************************************************* Types ********************************************************/
-
 /* Geom elements */
 struct Cell;
 struct Patch;
@@ -78,11 +74,11 @@ struct Point
     /// 1-based global index
     int index = ZERO_INDEX;
 
+    /// Boundary flag
+    bool atBdry;
+
     /// 3D cartesian location
     Vector coordinate = ZERO_VECTOR;
-
-    /// Boundary flag
-    bool atBdry = false;
 
     /// Connectivity to cells
     NaturalArray<Cell*> dependentCell;
@@ -98,6 +94,9 @@ struct Face
 {
     /// 1-based global index
     int index = ZERO_INDEX;
+
+    /// Boundary flag
+    bool atBdry;
 
     /// 3D cartesian location of face centroid
     Vector center = ZERO_VECTOR;
@@ -116,17 +115,8 @@ struct Face
     Vector r0 = ZERO_VECTOR, r1 = ZERO_VECTOR; /// Displacement vector
     Scalar ksi0 = ZERO_SCALAR, ksi1 = ZERO_SCALAR; /// Displacement ratio
 
-    /// Boundary flag
-    bool atBdry = false;
-
     /// Possible connection to high-level
     Patch *parent = nullptr;
-
-    /// B.C. specification for each variable
-    BC_CATEGORY rho_BC = Dirichlet;
-    std::array<BC_CATEGORY, 3> U_BC = { Dirichlet, Dirichlet, Dirichlet };
-    BC_CATEGORY p_BC = Neumann, p_prime_BC = Neumann;
-    BC_CATEGORY T_BC = Neumann;
 
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
@@ -142,7 +132,6 @@ struct Face
     Vector rhoU_star = ZERO_VECTOR; /// Used by the Fractional-Step Method
 
     /// Gradient of physical variables
-    /// Only used on internal faces
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
@@ -186,8 +175,11 @@ struct Cell
     NaturalArray<Vector> Se;
     NaturalArray<Vector> St;
 
-    /// Variables used by the least-squares method
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV;
+    /// Coefficient matrix used by the least-square method
+    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_rho;
+    std::array<Eigen::Matrix<Scalar, 3, Eigen::Dynamic>, 3> J_INV_U;
+    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_p, J_INV_p_prime;
+    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_T;
 
     /* Variables at current time-level */
     Scalar rho0 = ZERO_SCALAR;
@@ -227,10 +219,21 @@ struct Cell
 };
 struct Patch
 {
+    /// Identifier
     std::string name;
-    int BC;
+
+    /// Components
     NaturalArray<Face*> surface;
     NaturalArray<Point*> vertex;
+
+    /// B.C. classification
+    int BC;
+
+    /// B.C. specification for each variable
+    BC_CATEGORY rho_BC;
+    std::array<BC_CATEGORY, 3> U_BC;
+    BC_CATEGORY p_BC, p_prime_BC;
+    BC_CATEGORY T_BC;
 };
 
 /********************************************** Errors and Exceptions *************************************************/
@@ -241,7 +244,16 @@ struct failed_to_open_file : public std::runtime_error
 };
 struct unsupported_boundary_condition : public std::invalid_argument
 {
+    static const std::array<std::string, 3> BC_CATEGORY_STR;
     explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("\"" + BC_CATEGORY_STR[x] + "\" condition is not supported.") {}
+};
+struct dirichlet_bc_is_not_supported : public unsupported_boundary_condition
+{
+    dirichlet_bc_is_not_supported() : unsupported_boundary_condition(Dirichlet) {}
+};
+struct neumann_bc_is_not_supported : public unsupported_boundary_condition
+{
+    neumann_bc_is_not_supported() : unsupported_boundary_condition(Neumann) {}
 };
 struct robin_bc_is_not_supported : public unsupported_boundary_condition
 {
@@ -257,9 +269,8 @@ struct inconsistent_connectivity : public std::runtime_error
 };
 struct unexpected_patch : public std::runtime_error
 {
-    explicit unexpected_patch(const std::string &name) : std::runtime_error("Patch \"" + name + "\" is not expected to be a boundary patch.") {}
+    explicit unexpected_patch(const std::string &name) : std::runtime_error("\"" + name + "\" is not a pre-defined boundary patch.") {}
 };
-
 struct insufficient_vertexes : public std::runtime_error
 {
     explicit insufficient_vertexes(size_t i) : std::runtime_error("No enough vertices within cell " + std::to_string(i) + ".") {}
