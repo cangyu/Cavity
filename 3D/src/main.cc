@@ -15,7 +15,9 @@
 /***************************************************** Global Variables ***********************************************/
 
 /* Grid utilities */
-int NumOfPnt = 0, NumOfFace = 0, NumOfCell = 0;
+int NumOfPnt = 0;
+int NumOfFace = 0;
+int NumOfCell = 0;
 NaturalArray<Point> pnt; /// Node objects
 NaturalArray<Face> face; /// Face objects
 NaturalArray<Cell> cell; /// Cell objects
@@ -29,7 +31,7 @@ Scalar dt = 1e-3; /// s
 bool use_fixed_dt = false;
 
 /* Global I/O style and redirection */
-std::string SEP;
+std::string SEP = "  ";
 std::ostream &LOG_OUT = std::cout;
 
 /* Non-Orthogonal Correction */
@@ -91,12 +93,6 @@ void solve()
  */
 void init()
 {
-    /// Separation style
-    SEP = "  ";
-
-    /// Timing vars
-    clock_t tick_begin, tick_end;
-
     /// Check tag
     if (RUN_TAG.empty())
         RUN_TAG = time_stamp_str();
@@ -122,9 +118,9 @@ void init()
     std::ofstream ml_out(fn_mesh_log);
     if (ml_out.fail())
         throw failed_to_open_file(fn_mesh_log);
-    tick_begin = clock();
+    clock_t tick_begin = clock();
     read_fluent_mesh(MESH_PATH, ml_out);
-    tick_end = clock();
+    clock_t tick_end = clock();
     ml_out.close();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
@@ -134,7 +130,7 @@ void init()
 
     LOG_OUT << "\nPreparing Least-Square coefficients ... ";
     tick_begin = clock();
-    calcLeastSquareCoef();
+    calc_least_square_coefficient_matrix();
     tick_end = clock();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
@@ -214,6 +210,7 @@ int main(int argc, char *argv[])
     sx_vec_destroy(&Q_dp_2);
     sx_mat_destroy(&A_dp_2);
     sx_amg_data_destroy(&dp_solver_2);
+
     return 0;
 }
 

@@ -44,19 +44,16 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
 
             if (curFace->atBdry) /// Boundary Case.
             {
-                if (curFace->p_prime_BC == Dirichlet)
+                switch (curFace->parent->p_prime_BC)
                 {
-                    /// When p is given on boundary, p' is 0-value there.
-                    cur_coef[C.index] -= E_by_d;
+                case Dirichlet:
+                    cur_coef[C.index] -= E_by_d; /// When p is given on boundary, p' is 0-value there.
+                    break;
+                case Neumann:
+                    break;/// When p is not determined on boundary, p' is 0-gradient there, thus contribution is 0 and no need to handle.
+                case Robin:
+                    throw robin_bc_is_not_supported();
                 }
-                else if (curFace->p_prime_BC == Neumann)
-                {
-                    /// When p is not determined on boundary, p' is 0-gradient
-                    /// there, thus contribution is 0 and no need to handle.
-                    continue;
-                }
-                else
-                    throw unsupported_boundary_condition(curFace->p_prime_BC);
             }
             else /// Internal Case.
             {
@@ -123,7 +120,7 @@ void calcPressureCorrectionEquationRHS
             /// Additional contribution due to cross-diffusion
             if(curFace->atBdry)
             {
-                if(curFace->p_prime_BC == Dirichlet)
+                if(curFace->parent->p_prime_BC == Dirichlet)
                     cur_rhs -= curFace->grad_p_prime.dot(T_f);
             }
             else
@@ -139,18 +136,7 @@ void calcPressureCorrectionEquationRHS
 /// Borrow from SciPy V1.4.1
 /// https://github.com/scipy/scipy/blob/v1.4.1/scipy/sparse/sparsetools/coo.h
 template <class I, class T>
-static void coo_tocsr
-(
-    const I n_row,
-    const I n_col,
-    const I nnz,
-    const I Ai[],
-    const I Aj[],
-    const T Ax[],
-    I Bp[],
-    I Bj[],
-    T Bx[]
-)
+static void coo_tocsr(const I n_row, const I n_col, const I nnz, const I Ai[], const I Aj[], const T Ax[], I Bp[], I Bj[], T Bx[])
 {
     //compute number of non-zero entries per row of A 
     std::fill(Bp, Bp + n_row, 0);
