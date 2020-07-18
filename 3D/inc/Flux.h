@@ -1,6 +1,6 @@
 #ifndef FLUX_H
 #define FLUX_H
 
-void calcCellFlux();
+void calc_cell_flux();
 
 #endif
