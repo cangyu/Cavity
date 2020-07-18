@@ -1,7 +1,6 @@
 #include "../inc/BC.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/CHEM.h"
-#include "../inc/IC.h"
 #include "../inc/Gradient.h"
 #include "../inc/Flux.h"
 #include "../inc/Discretization.h"
@@ -22,7 +21,7 @@ extern SX_AMG dp_solver_2;
 
 /************************************************ Physical Property ***************************************************/
 
-void calcCellProperty()
+void update_cell_property()
 {
     for (auto &c : cell)
     {
@@ -32,7 +31,7 @@ void calcCellProperty()
     }
 }
 
-void calcFaceProperty()
+void update_face_property()
 {
     for (auto &f : face)
     {
@@ -167,11 +166,10 @@ static void calcInternalFacePrimitiveValue(Face &f)
         f.rho = f.c1->rho + f.c1->grad_rho.dot(f.r1);
 }
 
-void calcFaceValue()
+void calc_face_primitive_var()
 {
     for (auto &f : face)
     {
-        /// Primitive variables.
         if (f.atBdry)
         {
             if (f.c0)
@@ -182,25 +180,54 @@ void calcFaceValue()
                 throw empty_connectivity(f.index);
         } else
             calcInternalFacePrimitiveValue(f);
-
-        /// Conservative variables.
-        // f.rhoU = f.rho * f.U;
     }
 }
 
-void calcFaceViscousStress()
+void calc_face_viscous_shear_stress()
 {
-    for (auto &f : face)
+    for(auto &f : face)
     {
-        const Scalar loc_div3 = (f.grad_U(0, 0) + f.grad_U(1, 1) + f.grad_U(2, 2)) / 3.0;
+        if(f.atBdry)
+        {
+            Cell *c;
+            bool adj_to_0;
+            if(f.c0)
+            {
+                c = f.c0;
+                adj_to_0 = true;
+            }
+            else if(f.c1)
+            {
+                c = f.c1;
+                adj_to_0 = false;
+            }
+            else
+                throw empty_connectivity(f.index);
 
-        f.tau(0, 0) = 2 * f.mu * (f.grad_U(0, 0) - loc_div3);
-        f.tau(1, 1) = 2 * f.mu * (f.grad_U(1, 1) - loc_div3);
-        f.tau(2, 2) = 2 * f.mu * (f.grad_U(2, 2) - loc_div3);
+            const Vector &n = adj_to_0 ? f.n01 : f.n10;
+            const Vector &r = adj_to_0 ? f.r0 : f.r1;
 
-        f.tau(0, 1) = f.tau(1, 0) = f.mu * (f.grad_U(0, 1) + f.grad_U(1, 0));
-        f.tau(1, 2) = f.tau(2, 1) = f.mu * (f.grad_U(1, 2) + f.grad_U(2, 1));
-        f.tau(2, 0) = f.tau(0, 2) = f.mu * (f.grad_U(2, 0) + f.grad_U(0, 2));
+            auto p = f.parent;
+            if(bc_is_wall(p->BC))
+            {
+                Vector dU = c->U - f.U;
+                dU -= dU.dot(n) * n;
+                const Vector tw = -f.mu / r.norm() * dU;
+                f.tau = tw * n.transpose();
+            }
+            else if(bc_is_symmetry(p->BC))
+            {
+                Vector dU = c->U.dot(n) * n;
+                const Vector t_cz = -2.0 * f.mu * dU / r.norm();
+                f.tau = t_cz * n.transpose();
+            }
+            else if(bc_is_inlet(p->BC) || bc_is_outlet(p->BC))
+                Stokes(f.mu, f.grad_U, f.tau);
+            else
+                throw unsupported_boundary_condition(get_bc_name(p->BC));
+        }
+        else
+            Stokes(f.mu, f.grad_U, f.tau);
     }
 }
 
@@ -223,39 +250,40 @@ Scalar calcTimeStep()
  */
 void ForwardEuler(Scalar TimeStep)
 {
-    /// Init
-    for (size_t i = 1; i <= NumOfCell; ++i)
+    /// Init primitive variables
+    for (auto &c : cell)
     {
-        auto &c = cell(i);
         c.rho = c.rho0;
         c.U = c.U0;
         c.p = c.p0;
         c.T = c.T0;
     }
 
-    /// Enforce boundary conditions.
-    BC();
-
     /// Update physical properties at centroid of each cell.
-    calcCellProperty();
+    update_cell_property();
 
-    /// Gradients at centroid of each cell.
+    /// Enforce boundary conditions for primitive variables.
+    set_bc_of_primitive_var();
+
+    /// Gradients of primitive variables at centroid of each cell.
     calc_cell_primitive_gradient();
 
-    /// Gradients at centroid of each face.
+    /// Gradients of primitive variables at centroid of each face.
     calc_face_primitive_gradient();
 
-    /// Interpolate values on each face.
-    calcFaceValue();
+    /// Interpolate values of primitive variables on each face.
+    calc_face_primitive_var();
 
     /// Update physical properties at centroid of each face.
-    calcFaceProperty();
+    update_face_property();
 
-    /// Viscous stress on each face.
-    calcFaceViscousStress();
+    /// Viscous shear stress on each face.
+    calc_face_viscous_shear_stress();
+
+    set_bc_of_conservative_var();
 
     /// Count flux of each cell.
-    calcCellFlux();
+    calc_cell_flux();
 
     /// Prediction Step
     for (auto &c : cell)
@@ -269,6 +297,8 @@ void ForwardEuler(Scalar TimeStep)
     }
 
     /// Correction Step
+    set_bc_of_pressure_correction();
+
     for (int k = 0; k < NOC_ITER; ++k)
     {
         calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
@@ -283,7 +313,10 @@ void ForwardEuler(Scalar TimeStep)
     }
 
     for (auto &f : face)
-        f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime;
+    {
+        if(!f.atBdry)
+            f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime;
+    }
 
     /// Update
     for (int i = 0; i < NumOfCell; ++i)
