@@ -2,7 +2,9 @@
 #include "../inc/IO.h"
 #include "../inc/IC.h"
 
-extern int NumOfPnt, NumOfFace, NumOfCell;
+extern int NumOfPnt;
+extern int NumOfFace;
+extern int NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
@@ -11,35 +13,6 @@ extern NaturalArray<Patch> patch;
 static const Scalar rho0 = 1.225; /// kg/m^3
 static const Scalar P0 = 0.0; /// Pa
 static const Scalar T0 = 300.0; /// K
-
-static void cell_ic_0()
-{
-    for (int i = 1; i <= NumOfCell; ++i)
-    {
-        auto &c_dst = cell(i);
-        c_dst.rho0 = rho0;
-        c_dst.U0 = ZERO_VECTOR;
-        c_dst.p0 = P0;
-        c_dst.T0 = T0;
-    }
-}
-
-static void cell_ic_1(const std::string &inp)
-{
-    read_tec_solution(inp);
-}
-
-static void node_ic_0()
-{
-    for (int i = 1; i <= NumOfPnt; ++i)
-    {
-        auto &n_dst = pnt(i);
-        n_dst.rho = rho0;
-        n_dst.U = ZERO_VECTOR;
-        n_dst.p = P0;
-        n_dst.T = T0;
-    }
-}
 
 static void interp_cell_to_node()
 {
@@ -69,18 +42,6 @@ static void interp_cell_to_node()
     }
 }
 
-static void face_ic_0()
-{
-    for (int i = 1; i <= NumOfFace; ++i)
-    {
-        auto &f_dst = face(i);
-        f_dst.rho = rho0;
-        f_dst.U = ZERO_VECTOR;
-        f_dst.p = P0;
-        f_dst.T = T0;
-    }
-}
-
 static void interp_cell_to_face()
 {
     for (int i = 1; i <= NumOfFace; ++i)
@@ -89,9 +50,13 @@ static void interp_cell_to_face()
 
         if (f_dst.atBdry)
         {
-            auto c = f_dst.c0;
-            if (!c)
+            Cell *c = nullptr;
+            if(f_dst.c0)
+                c = f_dst.c0;
+            else if(f_dst.c1)
                 c = f_dst.c1;
+            else
+                throw empty_connectivity(f_dst.index);
 
             f_dst.rho = c->rho0;
             f_dst.U = c->U0;
@@ -117,9 +82,18 @@ void IC(const std::string &inp)
 {
     /// Cell primitive vars
     if (inp.empty())
-        cell_ic_0();
+    {
+        for (int i = 1; i <= NumOfCell; ++i)
+        {
+            auto &c_dst = cell(i);
+            c_dst.rho0 = rho0;
+            c_dst.U0 = ZERO_VECTOR;
+            c_dst.p0 = P0;
+            c_dst.T0 = T0;
+        }
+    }
     else
-        cell_ic_1(inp);
+        read_tec_solution(inp);
 
     /// Cell conservative vars
     for (size_t i = 1; i <= NumOfCell; ++i)
@@ -128,17 +102,11 @@ void IC(const std::string &inp)
         c_dst.rhoU0 = c_dst.rho0 * c_dst.U0;
     }
 
-    /// Node primitive vars
-    if (inp.empty())
-        node_ic_0();
-    else
-        interp_cell_to_node();
+    /// Nodal values
+    interp_cell_to_node();
 
     /// Face primitive vars
-    if (inp.empty())
-        face_ic_0();
-    else
-        interp_cell_to_face();
+    interp_cell_to_face();
 
     /// Face conservative vars
     for (size_t i = 1; i <= NumOfFace; ++i)
