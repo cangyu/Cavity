@@ -2,6 +2,7 @@
 #include <fstream>
 #include <cstring>
 #include <cstdlib>
+#include <regex>
 #include <filesystem>
 #include "../inc/IO.h"
 #include "../inc/IC.h"
@@ -93,26 +94,6 @@ void solve()
  */
 void init()
 {
-    /// Check tag
-    if (RUN_TAG.empty())
-        RUN_TAG = time_stamp_str();
-
-    /// Report
-    if (std::filesystem::create_directory(RUN_TAG))
-        LOG_OUT << "Output directory set to: \"" << RUN_TAG << "\"" << std::endl;
-    else
-        throw std::runtime_error("Failed to create output directory.");
-
-    LOG_OUT << "\nRe=" << Re << std::endl;
-
-    if (use_fixed_dt)
-        LOG_OUT << "\nUsing fixed time-step: " << dt << std::endl;
-
-    LOG_OUT << "\nMax iterations: " << MAX_ITER << std::endl;
-    LOG_OUT << "\nMax run time: " << MAX_TIME << "s" << std::endl;
-    LOG_OUT << "\nRecord solution every " << OUTPUT_GAP << " iteration" << std::endl;
-    LOG_OUT << "\nNon-Orthogonal correction iterations: " << NOC_ITER << std::endl;
-
     LOG_OUT << "\nLoading mesh \"" << MESH_PATH << "\" ... ";
     const std::string fn_mesh_log = RUN_TAG + "/MeshDesc.txt";
     std::ofstream ml_out(fn_mesh_log);
@@ -166,6 +147,9 @@ void init()
  */
 int main(int argc, char *argv[])
 {
+    bool need_to_create_folder = true;
+    bool resume_mode = false;
+
     /* Parse parameters */
     int cnt = 1;
     while (cnt < argc)
@@ -182,12 +166,18 @@ int main(int argc, char *argv[])
             MAX_TIME = std::atof(argv[cnt + 1]); /// In seconds by default.
         else if (!std::strcmp(argv[cnt], "--write-interval"))
             OUTPUT_GAP = std::atoi(argv[cnt + 1]);
-        else if (!std::strcmp(argv[cnt], "--noc_method"))
+        else if (!std::strcmp(argv[cnt], "--noc-method"))
             NOC_Method = std::atoi(argv[cnt + 1]);
-        else if (!std::strcmp(argv[cnt], "--noc_iter"))
+        else if (!std::strcmp(argv[cnt], "--noc-iter"))
             NOC_ITER = std::atoi(argv[cnt + 1]);
         else if (!std::strcmp(argv[cnt], "--Re"))
             Re = std::atof(argv[cnt + 1]);
+        else if(!std::strcmp(argv[cnt], "--resume-from"))
+        {
+            need_to_create_folder = false;
+            resume_mode = true;
+            RUN_TAG = argv[cnt + 1];
+        }
         else if (!std::strcmp(argv[cnt], "--time-step"))
         {
             use_fixed_dt = true;
@@ -198,6 +188,36 @@ int main(int argc, char *argv[])
 
         cnt += 2;
     }
+
+    /* Establish output destination */
+    if (RUN_TAG.empty())
+        RUN_TAG = time_stamp_str();
+    
+    if(need_to_create_folder)
+    {
+        auto ret = std::filesystem::create_directory(RUN_TAG);
+        if (!ret)
+        {
+            std::cerr << "Failed to create output directory!" << std::endl;
+            return -1;
+        }
+    }
+
+    /* Continuation */
+    if(resume_mode)
+    {
+        // TODO
+    }
+
+    /* Report */
+    LOG_OUT << "Output directory set to: \"" << RUN_TAG << "\"" << std::endl;
+    LOG_OUT << "\nRe=" << Re << std::endl;
+    if (use_fixed_dt)
+        LOG_OUT << "\nUsing fixed time-step: " << dt << std::endl;
+    LOG_OUT << "\nMax iterations: " << MAX_ITER << std::endl;
+    LOG_OUT << "\nMax run time: " << MAX_TIME << "s" << std::endl;
+    LOG_OUT << "\nRecord solution every " << OUTPUT_GAP << " iteration" << std::endl;
+    LOG_OUT << "\nNon-Orthogonal correction iterations: " << NOC_ITER << std::endl;
 
     /* Initialize environment */
     init();
