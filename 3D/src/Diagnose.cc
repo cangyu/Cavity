@@ -1,3 +1,4 @@
+#include <cmath>
 #include <functional>
 #include "../inc/custom_type.h"
 #include "../inc/Diagnose.h"
@@ -50,11 +51,14 @@ static Scalar stat_div(const Cell &c)
 
 static Scalar stat_cfl(const Cell &c)
 {
-    return c.grad_U.norm() * dt;
+    static const Scalar A = 3 * std::sqrt(3);
+
+    return A * c.grad_U.norm() * dt;
 }
 
 void diagnose()
 {
+    LOG_OUT << std::endl;
     stat_min_max("ConvectionFlux_X", [](const Cell &c) { return c.convection_flux.x(); });
     stat_min_max("ConvectionFlux_Y", [](const Cell &c) { return c.convection_flux.y(); });
     stat_min_max("ConvectionFlux_Z", [](const Cell &c) { return c.convection_flux.z(); });
