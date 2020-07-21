@@ -2,6 +2,7 @@
 build/
 bin/
 test/
+mesh/
 
 # OSX
 .DS_Store
