@@ -43,6 +43,34 @@ void update_face_property()
 
 /*********************************************** Spatial Discretization ***********************************************/
 
+void interp_nodal_primitive_var()
+{
+    for (int i = 1; i <= NumOfPnt; ++i)
+    {
+        auto &n_dst = pnt(i);
+
+        const auto &dc = n_dst.dependentCell;
+        const auto &wf = n_dst.cellWeightingCoef;
+
+        const auto N = dc.size();
+        if (N != wf.size())
+            throw std::runtime_error("Inconsistency detected!");
+
+        n_dst.rho = ZERO_SCALAR;
+        n_dst.U = ZERO_VECTOR;
+        n_dst.p = ZERO_SCALAR;
+        n_dst.T = ZERO_SCALAR;
+        for (int j = 0; j < N; ++j)
+        {
+            const auto cwf = wf.at(j);
+            n_dst.rho += cwf * dc.at(j)->rho0;
+            n_dst.U += cwf * dc.at(j)->U0;
+            n_dst.p += cwf * dc.at(j)->p0;
+            n_dst.T += cwf * dc.at(j)->T0;
+        }
+    }
+}
+
 static void calcBoundaryFacePrimitiveValue(Face &f, Cell *c, const Vector &d)
 {
     auto p = f.parent;
@@ -231,24 +259,7 @@ void calc_face_viscous_shear_stress()
     }
 }
 
-/*********************************************** Temporal Discretization **********************************************/
-
-/**
- * Transient time-step for each explicit marching iteration.
- * @return Current time-step used for temporal integration.
- */
-Scalar calcTimeStep()
-{
-    Scalar ret = 5e-3;
-    return ret;
-}
-
-/**
- * 1st-order explicit time-marching.
- * Pressure-Velocity coupling is solved using Fractional-Step Method.
- * @param TimeStep
- */
-void ForwardEuler(Scalar TimeStep)
+void prepare_next_run()
 {
     /// Init primitive variables
     for (auto &c : cell)
@@ -282,6 +293,28 @@ void ForwardEuler(Scalar TimeStep)
 
     set_bc_of_conservative_var();
 
+    set_bc_of_pressure_correction();
+}
+
+/*********************************************** Temporal Discretization **********************************************/
+
+/**
+ * Transient time-step for each explicit marching iteration.
+ * @return Current time-step used for temporal integration.
+ */
+Scalar calcTimeStep()
+{
+    Scalar ret = 5e-3;
+    return ret;
+}
+
+/**
+ * 1st-order explicit time-marching.
+ * Pressure-Velocity coupling is solved using Fractional-Step Method.
+ * @param TimeStep
+ */
+void ForwardEuler(Scalar TimeStep)
+{
     /// Count flux of each cell.
     calc_cell_flux();
 
@@ -297,8 +330,6 @@ void ForwardEuler(Scalar TimeStep)
     }
 
     /// Correction Step
-    set_bc_of_pressure_correction();
-
     for (int k = 0; k < NOC_ITER; ++k)
     {
         calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
@@ -312,17 +343,14 @@ void ForwardEuler(Scalar TimeStep)
         calc_face_pressure_correction_gradient();
     }
 
+    /// Update
     for (auto &f : face)
     {
         if(!f.atBdry)
             f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime;
     }
-
-    /// Update
-    for (int i = 0; i < NumOfCell; ++i)
+    for (auto &c : cell)
     {
-        auto &c = cell.at(i);
-
         /// Density
         c.continuity_res = 0.0;
         c.rho0 = c.rho + TimeStep * c.continuity_res;
@@ -338,6 +366,8 @@ void ForwardEuler(Scalar TimeStep)
         c.energy_res = 0.0;
         c.T0 = c.T + TimeStep * c.energy_res;
     }
+
+    prepare_next_run();
 }
 
 /********************************************************* END ********************************************************/
