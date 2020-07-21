@@ -109,7 +109,7 @@ static void calcBoundaryFacePrimitiveValue(Face &f, Cell *c, const Vector &d)
     case Dirichlet:
         break;
     case Neumann:
-        f.p = c->p + f.grad_p.dot(d);
+        f.p = c->p + c->grad_p.dot(d);
         break;
     case Robin:
         throw robin_bc_is_not_supported();
@@ -212,7 +212,7 @@ void calc_face_viscous_shear_stress()
             {
                 Vector dU = c->U - f.U;
                 dU -= dU.dot(n) * n;
-                const Vector tw = -f.mu / r.norm() * dU;
+                const Vector tw = -f.mu / r.dot(n) * dU;
                 f.tau = tw * n.transpose();
             }
             else if(bc_is_symmetry(p->BC))
