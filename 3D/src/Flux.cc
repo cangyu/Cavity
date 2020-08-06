@@ -29,7 +29,7 @@ static void calcCellMomentumFlux()
             const auto &Sf = c.S.at(j);
 
             /// convection term
-            const Vector cur_convection_flux = f->rhoU * f->U.dot(Sf);
+            const Vector cur_convection_flux = f->rhoU.dot(Sf) * f->U;
             c.convection_flux += cur_convection_flux;
 
             /// pressure term

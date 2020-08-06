@@ -137,7 +137,7 @@ static void calcBoundaryFacePrimitiveValue(Face &f, Cell *c, const Vector &d)
     case Dirichlet:
         break;
     case Neumann:
-        f.p = c->p + c->grad_p.dot(d);
+        f.p = c->p + f.grad_p.dot(d);
         break;
     case Robin:
         throw robin_bc_is_not_supported();
@@ -173,13 +173,14 @@ static void calcInternalFacePrimitiveValue(Face &f)
     f.T = f.ksi0 * T_0 + f.ksi1 * T_1;
 
     /// velocity
-    if (f.U.dot(f.n01) > 0)
+    if (f.rhoU.dot(f.n01) > 0)
     {
         const Scalar u_0 = f.c0->U.x() + f.c0->grad_U.col(0).dot(f.r0);
         const Scalar v_0 = f.c0->U.y() + f.c0->grad_U.col(1).dot(f.r0);
         const Scalar w_0 = f.c0->U.z() + f.c0->grad_U.col(2).dot(f.r0);
         f.U = {u_0, v_0, w_0};
-    } else
+    } 
+    else
     {
         const Scalar u_1 = f.c1->U.x() + f.c1->grad_U.col(0).dot(f.r1);
         const Scalar v_1 = f.c1->U.y() + f.c1->grad_U.col(1).dot(f.r1);
@@ -188,7 +189,7 @@ static void calcInternalFacePrimitiveValue(Face &f)
     }
 
     /// density
-    if (f.U.dot(f.n01) > 0)
+    if (f.rhoU.dot(f.n01) > 0)
         f.rho = f.c0->rho + f.c0->grad_rho.dot(f.r0);
     else
         f.rho = f.c1->rho + f.c1->grad_rho.dot(f.r1);
@@ -326,7 +327,9 @@ void ForwardEuler(Scalar TimeStep)
     for (auto &f : face)
     {
         if (!f.atBdry)
-            f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
+        {
+            f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star - TimeStep * (f.grad_p - 0.5*(f.c0->grad_p + f.c1->grad_p));
+        }
     }
 
     /// Correction Step
