@@ -328,7 +328,9 @@ void ForwardEuler(Scalar TimeStep)
     {
         if (!f.atBdry)
         {
-            f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star - TimeStep * (f.grad_p - 0.5*(f.c0->grad_p + f.c1->grad_p));
+            f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
+            const Vector rhoU_prime = -TimeStep * (f.grad_p - 0.5*(f.c1->grad_p + f.c0->grad_p));
+            f.rhoU_star += rhoU_prime;
         }
     }
 
