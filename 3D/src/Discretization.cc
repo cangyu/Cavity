@@ -114,7 +114,7 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.p = f.c0->p + (f.sn_grad_p * f.n01 + f.c0->grad_p).dot(f.r0) / 2;
+                    f.p = f.c0->p + (f.c0->grad_p - f.c0->grad_p.dot(f.n01) * f.n01).dot(f.r0);
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -200,7 +200,7 @@ void calcFaceValue()
                 case Dirichlet:
                     break;
                 case Neumann:
-                    f.p = f.c1->p + (f.sn_grad_p * f.n10 + f.c1->grad_p).dot(f.r1) / 2;
+                    f.p = f.c1->p + (f.c1->grad_p - f.c1->grad_p.dot(f.n10) * f.n10).dot(f.r1);
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -238,7 +238,7 @@ void calcFaceValue()
             f.T = f.ksi0 * T_0 + f.ksi1 * T_1;
 
             /// velocity
-            if (f.U.dot(f.n01) > 0)
+            if (f.rhoU.dot(f.n01) > 0)
             {
                 const Scalar u_0 = f.c0->U.x() + f.c0->grad_U.col(0).dot(f.r0);
                 const Scalar v_0 = f.c0->U.y() + f.c0->grad_U.col(1).dot(f.r0);
@@ -254,7 +254,7 @@ void calcFaceValue()
             }
 
             /// density
-            if (f.U.dot(f.n01) > 0)
+            if (f.rhoU.dot(f.n01) > 0)
                 f.rho = f.c0->rho + f.c0->grad_rho.dot(f.r0);
             else
                 f.rho = f.c1->rho + f.c1->grad_rho.dot(f.r1);
@@ -269,15 +269,43 @@ void calcFaceViscousStress()
 {
     for (auto &f : face)
     {
-        const Scalar loc_div3 = (f.grad_U(0, 0) + f.grad_U(1, 1) + f.grad_U(2, 2)) / 3.0;
+        if (f.atBdry)
+        {
+            Cell* c;
+            bool adj_to_0;
+            if (f.c0)
+            {
+                c = f.c0;
+                adj_to_0 = true;
+            }
+            else if (f.c1)
+            {
+                c = f.c1;
+                adj_to_0 = false;
+            }
+            else
+                throw empty_connectivity(f.index);
 
-        f.tau(0, 0) = 2 * f.mu * (f.grad_U(0, 0) - loc_div3);
-        f.tau(1, 1) = 2 * f.mu * (f.grad_U(1, 1) - loc_div3);
-        f.tau(2, 2) = 2 * f.mu * (f.grad_U(2, 2) - loc_div3);
+            const Vector& n = adj_to_0 ? f.n01 : f.n10;
+            const Vector& r = adj_to_0 ? f.r0 : f.r1;
 
-        f.tau(0, 1) = f.tau(1, 0) = f.mu * (f.grad_U(0, 1) + f.grad_U(1, 0));
-        f.tau(1, 2) = f.tau(2, 1) = f.mu * (f.grad_U(1, 2) + f.grad_U(2, 1));
-        f.tau(2, 0) = f.tau(0, 2) = f.mu * (f.grad_U(2, 0) + f.grad_U(0, 2));
+            Vector dU = c->U - f.U;
+            dU -= dU.dot(n) * n;
+            const Vector tw = -f.mu / r.dot(n) * dU;
+            f.tau = tw * n.transpose();
+        }
+        else
+        {
+            const Scalar loc_div3 = (f.grad_U(0, 0) + f.grad_U(1, 1) + f.grad_U(2, 2)) / 3.0;
+
+            f.tau(0, 0) = 2 * f.mu * (f.grad_U(0, 0) - loc_div3);
+            f.tau(1, 1) = 2 * f.mu * (f.grad_U(1, 1) - loc_div3);
+            f.tau(2, 2) = 2 * f.mu * (f.grad_U(2, 2) - loc_div3);
+
+            f.tau(0, 1) = f.tau(1, 0) = f.mu * (f.grad_U(0, 1) + f.grad_U(1, 0));
+            f.tau(1, 2) = f.tau(2, 1) = f.mu * (f.grad_U(1, 2) + f.grad_U(2, 1));
+            f.tau(2, 0) = f.tau(0, 2) = f.mu * (f.grad_U(2, 0) + f.grad_U(0, 2));
+        }
     }
 }
 
@@ -347,6 +375,10 @@ void ForwardEuler(Scalar TimeStep)
         if (!f.atBdry)
         {
             f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
+
+            Vector rhoU_prime = -TimeStep * (f.grad_p - 0.5*(f.c1->grad_p + f.c0->grad_p));
+
+            f.rhoU_star += rhoU_prime;
         }
     }
 
