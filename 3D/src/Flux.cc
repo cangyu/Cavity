@@ -26,7 +26,7 @@ static void calcCellMomentumFlux()
             const auto &S_f = c.S.at(j);
 
             // convection term
-            const Vector cur_convection_flux = f->rhoU * f->U.dot(S_f);
+            const Vector cur_convection_flux = f->rhoU.dot(S_f) * f->U;
             c.convection_flux += cur_convection_flux;
 
             // pressure term
@@ -34,7 +34,7 @@ static void calcCellMomentumFlux()
             c.pressure_flux += cur_pressure_flux;
 
             // viscous term
-            const Vector cur_viscous_flux = { S_f.dot(f->tau.col(0)), S_f.dot(f->tau.col(1)), S_f.dot(f->tau.col(2)) };
+            const Vector cur_viscous_flux = f->tau * S_f;
             c.viscous_flux += cur_viscous_flux;
         }
     }
