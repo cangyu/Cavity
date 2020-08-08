@@ -329,8 +329,11 @@ void ForwardEuler(Scalar TimeStep)
         if (!f.at_boundary)
         {
             f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
-            const Vector rhoU_prime = -TimeStep * (f.grad_p - 0.5*(f.c1->grad_p + f.c0->grad_p));
-            f.rhoU_star += rhoU_prime;
+            const Vector mean_grad_p = 0.5*(f.c1->grad_p + f.c0->grad_p);
+            const Vector d10 = f.c1->centroid - f.c0->centroid;
+            const Vector compact_grad_p = (f.c1->p - f.c0->p) / (d10.dot(d10)) * d10;
+            const Vector rhoU_rc = -TimeStep * (compact_grad_p - mean_grad_p); /// Rhie-Chow interpolation
+            f.rhoU_star += rhoU_rc;
         }
     }
 
