@@ -49,8 +49,8 @@ void interp_nodal_primitive_var()
     {
         auto &n_dst = pnt(i);
 
-        const auto &dc = n_dst.dependentCell;
-        const auto &wf = n_dst.cellWeightingCoef;
+        const auto &dc = n_dst.dependent_cell;
+        const auto &wf = n_dst.cell_weights;
 
         const auto N = dc.size();
         if (N != wf.size())
@@ -199,7 +199,7 @@ void calc_face_primitive_var()
 {
     for (auto &f : face)
     {
-        if (f.atBdry)
+        if (f.at_boundary)
         {
             if (f.c0)
                 calcBoundaryFacePrimitiveValue(f, f.c0, f.r0);
@@ -216,7 +216,7 @@ void calc_face_viscous_shear_stress()
 {
     for(auto &f : face)
     {
-        if(f.atBdry)
+        if(f.at_boundary)
         {
             Cell *c;
             bool adj_to_0;
@@ -326,7 +326,7 @@ void ForwardEuler(Scalar TimeStep)
     /// rhoU* at internal face.
     for (auto &f : face)
     {
-        if (!f.atBdry)
+        if (!f.at_boundary)
         {
             f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
             const Vector rhoU_prime = -TimeStep * (f.grad_p - 0.5*(f.c1->grad_p + f.c0->grad_p));
@@ -351,7 +351,7 @@ void ForwardEuler(Scalar TimeStep)
     /// Update
     for (auto &f : face)
     {
-        if(!f.atBdry)
+        if(!f.at_boundary)
             f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime;
     }
     for (auto &c : cell)

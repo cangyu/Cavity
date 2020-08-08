@@ -75,14 +75,14 @@ struct Point
     int index = ZERO_INDEX;
 
     /// Boundary flag
-    bool atBdry;
+    bool at_boundary;
 
     /// 3D cartesian location
     Vector coordinate = ZERO_VECTOR;
 
     /// Connectivity to cells
-    NaturalArray<Cell*> dependentCell;
-    NaturalArray<Scalar> cellWeightingCoef; /// Harmonic by default
+    NaturalArray<Cell*> dependent_cell;
+    NaturalArray<Scalar> cell_weights; /// Harmonic by default
 
     /// Primitive variables
     Scalar rho = ZERO_SCALAR;
@@ -96,16 +96,17 @@ struct Face
     int index = ZERO_INDEX;
 
     /// Boundary flag
-    bool atBdry;
+    bool at_boundary;
 
     /// 3D cartesian location of face centroid
-    Vector center = ZERO_VECTOR;
+    Vector centroid = ZERO_VECTOR;
 
     /// Area of the face
     Scalar area = ZERO_SCALAR;
 
-    /// Unit normal vector from either side
-    Vector n01 = ZERO_VECTOR, n10 = ZERO_VECTOR;
+    /// Unit normal vector
+    Vector n01 = ZERO_VECTOR; /// From c0 to c1
+    Vector n10 = ZERO_VECTOR; /// From c1 to c0
 
     /// Connectivity to nodes
     NaturalArray<Point*> vertex;
@@ -152,7 +153,7 @@ struct Cell
     int index = ZERO_INDEX;
 
     /// 3D cartesian location of cell centroid
-    Vector center = ZERO_VECTOR;
+    Vector centroid = ZERO_VECTOR;
 
     /// Volume of the cell
     Scalar volume = ZERO_SCALAR;

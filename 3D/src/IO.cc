@@ -129,14 +129,14 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         n_dst.coordinate = { c_src.x(), c_src.y(), c_src.z() };
 
         // Boundary flag.
-        n_dst.atBdry = n_src.atBdry;
+        n_dst.at_boundary = n_src.atBdry;
 
         // Adjacent cells.
         // Used for interpolation from cell-centered to nodal.
-        n_dst.dependentCell.resize(n_src.dependentCell.size());
-        n_dst.cellWeightingCoef.resize(n_src.dependentCell.size());
+        n_dst.dependent_cell.resize(n_src.dependentCell.size());
+        n_dst.cell_weights.resize(n_src.dependentCell.size());
         for (auto j = 1; j <= n_src.dependentCell.size(); ++j)
-            n_dst.dependentCell(j) = &cell(n_src.dependentCell(j));
+            n_dst.dependent_cell(j) = &cell(n_src.dependentCell(j));
     }
 
     /// Update face information.
@@ -147,11 +147,11 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
 
         // Assign face index.
         f_dst.index = i;
-        f_dst.atBdry = f_src.atBdry;
+        f_dst.at_boundary = f_src.atBdry;
 
-        // Face center location.
+        // Face centroid location.
         const auto &c_src = f_src.center;
-        f_dst.center = { c_src.x(), c_src.y(), c_src.z() };
+        f_dst.centroid = {c_src.x(), c_src.y(), c_src.z() };
 
         // Face area.
         f_dst.area = f_src.area;
@@ -184,9 +184,9 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         // Assign cell index.
         c_dst.index = i;
 
-        // Cell center location.
+        // Cell centroid location.
         const auto &centroid_src = c_src.center;
-        c_dst.center = { centroid_src.x(), centroid_src.y(), centroid_src.z() };
+        c_dst.centroid = {centroid_src.x(), centroid_src.y(), centroid_src.z() };
 
         // Cell volume.
         c_dst.volume = c_src.volume;
@@ -228,35 +228,35 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
     {
         auto &n_dst = pnt(i);
         Scalar s = 0.0;
-        for (int j = 1; j <= n_dst.cellWeightingCoef.size(); ++j)
+        for (int j = 1; j <= n_dst.cell_weights.size(); ++j)
         {
-            auto curAdjCell = n_dst.dependentCell(j);
-            const Scalar coef = 1.0 / (n_dst.coordinate - curAdjCell->center).norm();
-            n_dst.cellWeightingCoef(j) = coef;
+            auto curAdjCell = n_dst.dependent_cell(j);
+            const Scalar coef = 1.0 / (n_dst.coordinate - curAdjCell->centroid).norm();
+            n_dst.cell_weights(j) = coef;
             s += coef;
         }
-        for (int j = 1; j <= n_dst.cellWeightingCoef.size(); ++j)
-            n_dst.cellWeightingCoef(j) /= s;
+        for (int j = 1; j <= n_dst.cell_weights.size(); ++j)
+            n_dst.cell_weights(j) /= s;
     }
 
-    /// Cell center to face center vectors and ratios.
+    /// Cell centroid to face centroid vectors and ratios.
     for (int i = 1; i <= NumOfFace; ++i)
     {
         auto &f_dst = face(i);
 
         /// Displacement vectors.
         if (f_dst.c0)
-            f_dst.r0 = f_dst.center - f_dst.c0->center;
+            f_dst.r0 = f_dst.centroid - f_dst.c0->centroid;
         else
             f_dst.r0 = ZERO_VECTOR;
 
         if (f_dst.c1)
-            f_dst.r1 = f_dst.center - f_dst.c1->center;
+            f_dst.r1 = f_dst.centroid - f_dst.c1->centroid;
         else
             f_dst.r1 = ZERO_VECTOR;
 
         /// Displacement ratios.
-        if (f_dst.atBdry)
+        if (f_dst.at_boundary)
         {
             if (f_dst.c0)
             {
@@ -394,9 +394,9 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
             // Displacement vector.
             auto &cur_d = cur_cell.d[j];
             if(cur_adj_cell == nullptr)
-                cur_d = cur_face->center - cur_cell.center;
+                cur_d = cur_face->centroid - cur_cell.centroid;
             else
-                cur_d = cur_adj_cell->center - cur_cell.center;
+                cur_d = cur_adj_cell->centroid - cur_cell.centroid;
 
             // Non-Orthogonal correction
             calc_non_orthogonal_correction_vector(NOC_Method, cur_d, cur_cell.S[j], cur_cell.Se[j], cur_cell.St[j]);

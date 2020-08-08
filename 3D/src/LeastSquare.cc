@@ -61,9 +61,9 @@ void calc_least_square_coefficient_matrix()
             /// Possible coefficients for current face
             auto curFace = c.surface.at(j);
             Vector d, n;
-            if (curFace->atBdry)
+            if (curFace->at_boundary)
             {
-                d = curFace->center - c.center;
+                d = curFace->centroid - c.centroid;
                 n = c.S.at(j) / curFace->area;
 
                 /// Density
@@ -174,7 +174,7 @@ void calc_least_square_coefficient_matrix()
             else
             {
                 auto curAdjCell = c.adjCell.at(j);
-                d = curAdjCell->center - c.center;
+                d = curAdjCell->centroid - c.centroid;
 
                 /// Density
                 J_rho.row(j) << d.x(), d.y(), d.z();

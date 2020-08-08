@@ -44,7 +44,7 @@ void IC(const std::string &inp)
 
     for(auto &f : face)
     {
-        if(!f.atBdry)
+        if(!f.at_boundary)
             f.rhoU = f.rho * f.U;
     }
 }

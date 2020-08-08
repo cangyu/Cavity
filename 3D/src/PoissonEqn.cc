@@ -42,7 +42,7 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
 
             auto curFace = C.surface(f);
 
-            if (curFace->atBdry) /// Boundary Case.
+            if (curFace->at_boundary) /// Boundary Case.
             {
                 switch (curFace->parent->p_prime_BC)
                 {
@@ -112,13 +112,13 @@ void calcPressureCorrectionEquationRHS
             const auto &T_f = C.St.at(f);
 
             /// Raw contribution
-            if(curFace->atBdry)
+            if(curFace->at_boundary)
                 cur_rhs += curFace->rhoU.dot(S_f) / dt;
             else
                 cur_rhs += curFace->rhoU_star.dot(S_f) / dt;
 
             /// Additional contribution due to cross-diffusion
-            if(curFace->atBdry)
+            if(curFace->at_boundary)
             {
                 if(curFace->parent->p_prime_BC == Dirichlet)
                     cur_rhs -= curFace->grad_p_prime.dot(T_f);

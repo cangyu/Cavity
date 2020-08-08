@@ -20,7 +20,7 @@ void calc_cell_primitive_gradient()
         for (int i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
-            if (curFace->atBdry)
+            if (curFace->at_boundary)
             {
                 switch(curFace->parent->rho_BC)
                 {
@@ -48,7 +48,7 @@ void calc_cell_primitive_gradient()
         for (int i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
-            if (curFace->atBdry)
+            if (curFace->at_boundary)
             {
                 switch(curFace->parent->U_BC[0])
                 {
@@ -76,7 +76,7 @@ void calc_cell_primitive_gradient()
         for (int i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
-            if (curFace->atBdry)
+            if (curFace->at_boundary)
             {
                 switch (curFace->parent->U_BC[1])
                 {
@@ -104,7 +104,7 @@ void calc_cell_primitive_gradient()
         for (int i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
-            if (curFace->atBdry)
+            if (curFace->at_boundary)
             {
                 switch (curFace->parent->U_BC[2])
                 {
@@ -132,7 +132,7 @@ void calc_cell_primitive_gradient()
         for (int i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
-            if (curFace->atBdry)
+            if (curFace->at_boundary)
             {
                 switch (curFace->parent->p_BC)
                 {
@@ -160,7 +160,7 @@ void calc_cell_primitive_gradient()
         for (int i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
-            if (curFace->atBdry)
+            if (curFace->at_boundary)
             {
                 switch (curFace->parent->T_BC)
                 {
@@ -198,7 +198,7 @@ void calc_cell_pressure_correction_gradient()
         {
             auto curFace = c.surface.at(i);
 
-            if (curFace->atBdry)
+            if (curFace->at_boundary)
             {
                 switch (curFace->parent->p_prime_BC)
                 {
@@ -256,7 +256,7 @@ void calc_face_primitive_gradient()
 
     for (auto &f : face)
     {
-        if (f.atBdry)
+        if (f.at_boundary)
         {
             Cell *c;
             bool adj_to_0;
@@ -273,8 +273,8 @@ void calc_face_primitive_gradient()
             else
                 throw empty_connectivity(f.index);
 
-            const Vector &r_C = c->center;
-            const Vector &r_F = f.center;
+            const Vector &r_C = c->centroid;
+            const Vector &r_F = f.centroid;
             Vector e_CF = r_F - r_C;
             const Scalar d = e_CF.norm(); /// Distance from cell centroid to face centroid.
             e_CF /= d; /// Unit displacement vector from cell centroid to face centroid.
@@ -376,8 +376,8 @@ void calc_face_primitive_gradient()
         }
         else
         {
-            const Vector &r_C = f.c0->center;
-            const Vector &r_F = f.c1->center;
+            const Vector &r_C = f.c0->centroid;
+            const Vector &r_F = f.c1->centroid;
             Vector e_CF = r_F - r_C;
             const Scalar d_CF = e_CF.norm(); /// Distance from local cell centroid to remote cell centroid.
             e_CF /= d_CF; /// Unit vector from local cell "f.c0" to remote cell "f.c1".
@@ -429,13 +429,13 @@ void calc_face_pressure_correction_gradient()
 {
     for (auto &f : face)
     {
-        if (f.atBdry)
+        if (f.at_boundary)
         {
             Cell *c = f.c0 ? f.c0 : f.c1;
             bool adj_to_0 = c == f.c0;
 
-            const Vector &r_C = c->center;
-            const Vector &r_F = f.center;
+            const Vector &r_C = c->centroid;
+            const Vector &r_F = f.centroid;
             Vector e_CF = r_F - r_C;
             const Scalar d_CF = e_CF.norm(); /// Distance between cell centroid and face centroid.
             e_CF /= d_CF; /// Unit displacement vector from cell centroid to face centroid.
@@ -455,8 +455,8 @@ void calc_face_pressure_correction_gradient()
         }
         else
         {
-            const Vector &r_C = f.c0->center;
-            const Vector &r_F = f.c1->center;
+            const Vector &r_C = f.c0->centroid;
+            const Vector &r_F = f.c1->centroid;
             Vector e_CF = r_F - r_C;
             const Scalar d_CF = e_CF.norm();
             e_CF /= d_CF;
