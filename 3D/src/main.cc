@@ -100,7 +100,7 @@ void init()
     if (ml_out.fail())
         throw failed_to_open_file(fn_mesh_log);
     clock_t tick_begin = clock();
-    read_fluent_mesh(MESH_PATH, ml_out);
+    read_mesh(MESH_PATH, ml_out);
     clock_t tick_end = clock();
     ml_out.close();
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;

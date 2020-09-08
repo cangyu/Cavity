@@ -1,41 +1,12 @@
-#include "../3rd_party/TYDF/inc/xf.h"
+#include <string>
 #include "../inc/custom_type.h"
 #include "../inc/BC.h"
 
-extern int NumOfPnt;
-extern int NumOfFace;
-extern int NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
-
-using GridTool::XF::BC;
-
-std::string get_bc_name(int bc)
-{
-    return BC::idx2str(bc);
-}
-
-bool bc_is_wall(int bc)
-{
-    return bc == BC::WALL;
-}
-
-bool bc_is_symmetry(int bc)
-{
-    return bc == BC::SYMMETRY;
-}
-
-bool bc_is_inlet(int bc)
-{
-    return bc == BC::VELOCITY_INLET;
-}
-
-bool bc_is_outlet(int bc)
-{
-    return bc == BC::PRESSURE_OUTLET;
-}
 
 void BC_TABLE()
 {
@@ -50,6 +21,7 @@ void BC_TABLE()
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Dirichlet;
+            e.BC = BC_PHY::Wall;
         }
         else if (e.name == "DOWN")
         {
@@ -60,6 +32,7 @@ void BC_TABLE()
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Dirichlet;
+            e.BC = BC_PHY::Wall;
         }
         else if (e.name == "LEFT")
         {
@@ -70,6 +43,7 @@ void BC_TABLE()
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
+            e.BC = BC_PHY::Wall;
         }
         else if (e.name == "RIGHT")
         {
@@ -80,6 +54,7 @@ void BC_TABLE()
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
+            e.BC = BC_PHY::Wall;
         }
         else if (e.name == "FRONT")
         {
@@ -90,6 +65,7 @@ void BC_TABLE()
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
+            e.BC = BC_PHY::Wall;
         }
         else if (e.name == "BACK")
         {
@@ -100,6 +76,7 @@ void BC_TABLE()
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
+            e.BC = BC_PHY::Wall;
         }
         else
             throw unexpected_patch(e.name);

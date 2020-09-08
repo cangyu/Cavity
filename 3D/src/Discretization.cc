@@ -237,23 +237,23 @@ void calc_face_viscous_shear_stress()
             const Vector &r = adj_to_0 ? f.r0 : f.r1;
 
             auto p = f.parent;
-            if(bc_is_wall(p->BC))
+            if(p->BC==BC_PHY::Wall)
             {
                 Vector dU = c->U - f.U;
                 dU -= dU.dot(n) * n;
                 const Vector tw = -f.mu / r.dot(n) * dU;
                 f.tau = tw * n.transpose();
             }
-            else if(bc_is_symmetry(p->BC))
+            else if(p->BC == BC_PHY::Symmetry)
             {
                 Vector dU = c->U.dot(n) * n;
                 const Vector t_cz = -2.0 * f.mu * dU / r.norm();
                 f.tau = t_cz * n.transpose();
             }
-            else if(bc_is_inlet(p->BC) || bc_is_outlet(p->BC))
+            else if(p->BC == BC_PHY::Inlet || p->BC == BC_PHY::Outlet)
                 Stokes(f.mu, f.grad_U, f.tau);
             else
-                throw unsupported_boundary_condition(get_bc_name(p->BC));
+                throw unsupported_boundary_condition(p->BC);
         }
         else
             Stokes(f.mu, f.grad_U, f.tau);

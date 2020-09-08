@@ -27,6 +27,12 @@ typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
 
 /* BC */
 enum BC_CATEGORY { Dirichlet = 0, Neumann, Robin };
+enum class BC_PHY : int {
+    Wall = 0,
+    Inlet = 1,
+    Outlet = 2,
+    Symmetry = 3
+};
 
 /* 1-based array */
 template<typename T>
@@ -228,7 +234,7 @@ struct Patch
     NaturalArray<Point*> vertex;
 
     /// B.C. classification
-    int BC;
+    BC_PHY BC;
 
     /// B.C. specification for each variable
     BC_CATEGORY rho_BC;
@@ -250,6 +256,8 @@ struct unsupported_boundary_condition : public std::invalid_argument
     explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("\"" + BC_CATEGORY_STR[x] + "\" condition is not supported.") {}
 
     explicit unsupported_boundary_condition(const std::string &bc) : std::invalid_argument("\"" + bc + "\" is not supported.") {}
+
+    explicit unsupported_boundary_condition(BC_PHY bc) : std::invalid_argument("\"" + std::to_string((int)bc) + "\" is not supported.") {}
 };
 struct dirichlet_bc_is_not_supported : public unsupported_boundary_condition
 {

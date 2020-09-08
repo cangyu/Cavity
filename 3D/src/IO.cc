@@ -1,5 +1,5 @@
 #include <map>
-#include "../3rd_party/TYDF/inc/xf.h"
+#include <fstream>
 #include "../inc/IO.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -36,16 +36,10 @@ static int n_prism = -1;
  * @param E Orthogonal part after decomposing "S".
  * @param T Non-Orthogonal part after decomposing "S", satisfying "S = E + T".
  */
-static void calc_non_orthogonal_correction_vector
-(
-    int opt,
-    const Vector &d,
-    const Vector &S,
-    Vector &E,
-    Vector &T
-)
+static void calc_noc_vector(int opt, const Vector &d, const Vector &S, Vector &E, Vector &T)
 {
-    const Vector e = d / d.norm();
+    Vector e = d;
+    e /= d.norm();
     const Scalar S_mod = S.norm();
     const Scalar cos_theta = e.dot(S) / S_mod;
 
@@ -66,162 +60,235 @@ static void calc_non_orthogonal_correction_vector
  * @param MESH_PATH Path to target mesh file.
  * @param LOG_OUT Output stream used to hold progress indications.
  */
-void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
+void read_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
 {
-    using namespace GridTool;
-
-    /// An external package is used to load Fluent mesh.
-    const XF::MESH mesh(MESH_PATH, LOG_OUT);
+    std::ifstream fin(MESH_PATH);
+    if(fin.fail())
+        throw std::runtime_error("Failed to open input mesh file.");
 
     /// Update counting of geom elements.
-    NumOfPnt = mesh.numOfNode();
-    NumOfFace = mesh.numOfFace();
-    NumOfCell = mesh.numOfCell();
+    fin >> NumOfPnt >> NumOfFace >> NumOfCell;
+    int NumOfPatch;
+    fin >> NumOfPatch;
 
-    /// Update composition
-    n_tet = n_hex = n_prism = n_pyramid = 0;
-    for(int i = 1; i <= NumOfCell; ++i)
+    /// Allocate memory for geom entities and related physical variables.
+    pnt.resize(NumOfPnt);
+    face.resize(NumOfFace);
+    cell.resize(NumOfCell);
+    patch.resize(NumOfPatch);
+
+    /// Update nodal information.
+    for (int i = 1; i <= NumOfPnt; ++i)
     {
-        const auto &e = mesh.cell(i);
-        switch(e.type)
+        auto &n_dst = pnt(i);
+
+        // 1-based global index.
+        n_dst.index = i;
+
+        // Boundary flag.
+        int flag;
+        fin >> flag;
+        if(flag == 1)
+            n_dst.at_boundary = true;
+        else if(flag == 0)
+            n_dst.at_boundary = false;
+        else
+            throw std::invalid_argument("Invalid node boundary flag.");
+
+        // 3D location.
+        fin >> n_dst.coordinate.x();
+        fin >> n_dst.coordinate.y();
+        fin >> n_dst.coordinate.z();
+
+        // Adjacent nodes.
+        size_t n_node;
+        fin >> n_node;
+        for(size_t j = 0; j < n_node; ++j)
         {
-        case XF::CELL::HEXAHEDRAL:
-            ++n_hex;
-            break;
-        case XF::CELL::TETRAHEDRAL:
-            ++n_tet;
-            break;
-        case XF::CELL::PYRAMID:
-            ++n_pyramid;
-            break;
-        case XF::CELL::WEDGE:
-            ++n_prism;
-            break;
-        default:
-            throw std::runtime_error("Unexpected cell element type.");
+            size_t tmp;
+            fin >> tmp;
+        }
+
+        // Dependent faces.
+        size_t n_face;
+        fin >> n_face;
+        for(size_t j = 0; j < n_face; ++j)
+        {
+            size_t tmp;
+            fin >> tmp;
+        }
+
+        // Dependent cells.
+        size_t n_cell;
+        fin >> n_cell;
+        n_dst.dependent_cell.resize(n_cell);
+        n_dst.cell_weights.resize(n_cell);
+        for (size_t j = 1; j <= n_cell; ++j)
+        {
+            size_t tmp;
+            fin >> tmp;
+            n_dst.dependent_cell(j) = &cell(tmp);
         }
     }
 
-    /// Update mesh type flag
+    /// Update face information.
+    for (int i = 1; i <= NumOfFace; ++i)
+    {
+        auto &f_dst = face(i);
+
+        // 1-based global index.
+        f_dst.index = i;
+
+        // Boundary flag.
+        int flag;
+        fin >> flag;
+        if(flag == 1)
+            f_dst.at_boundary = true;
+        else if(flag == 0)
+            f_dst.at_boundary = false;
+        else
+            throw std::invalid_argument("Invalid face boundary flag.");
+
+        // Shape
+        int shape;
+        fin >> shape;
+        if(shape != 3 && shape != 4)
+            throw std::invalid_argument("Unsupported face shape.");
+
+        // Centroid
+        fin >> f_dst.centroid.x();
+        fin >> f_dst.centroid.y();
+        fin >> f_dst.centroid.z();
+
+        // Area.
+        fin >> f_dst.area;
+
+        // Included nodes.
+        f_dst.vertex.resize(shape);
+        for (int j = 1; j <= shape; ++j)
+        {
+            size_t tmp;
+            fin >> tmp;
+            f_dst.vertex(j) = &pnt(tmp);
+        }
+
+        // Adjacent cells.
+        size_t c0, c1;
+        fin >> c0 >> c1;
+        if(c0==0)
+            f_dst.c0 = nullptr;
+        else
+            f_dst.c0 = &cell(c0);
+
+        if(c1==0)
+            f_dst.c1 = nullptr;
+        else
+            f_dst.c1 = &cell(c1);
+
+        // Unit normal vector.
+        fin >> f_dst.n01.x();
+        fin >> f_dst.n01.y();
+        fin >> f_dst.n01.z();
+
+        fin >> f_dst.n10.x();
+        fin >> f_dst.n10.y();
+        fin >> f_dst.n10.z();
+    }
+
+    /// Update cell information.
+    n_tet = n_hex = n_prism = n_pyramid = 0;
+    for (int i = 1; i <= NumOfCell; ++i)
+    {
+        auto &c_dst = cell(i);
+
+        // 1-based global index.
+        c_dst.index = i;
+
+        // Shape
+        int shape;
+        fin >> shape;
+        int N1, N2;
+        if(shape == 2)
+        {
+            ++n_tet;
+            N1 = 4;
+            N2 = 4;
+        }
+        else if(shape == 4)
+        {
+            ++n_hex;
+            N1 = 8;
+            N2 = 6;
+        }
+        else if(shape == 5)
+        {
+            ++n_pyramid;
+            N1 = 5;
+            N2 = 5;
+        }
+        else if(shape == 6)
+        {
+            ++n_prism;
+            N1 = 6;
+            N2 = 5;
+        }
+        else
+            throw std::invalid_argument("Unsupported face shape.");
+
+        // Centroid
+        fin >> c_dst.centroid.x();
+        fin >> c_dst.centroid.y();
+        fin >> c_dst.centroid.z();
+
+        // Volume
+        fin >> c_dst.volume;
+
+        // Included nodes.
+        c_dst.vertex.resize(N1);
+        for (int j = 1; j <= N1; ++j)
+        {
+            size_t tmp;
+            fin >> tmp;
+            c_dst.vertex(j) = &pnt(tmp);
+        }
+
+        // Included faces.
+        c_dst.surface.resize(N2);
+        for (int j = 1; j <= N2; ++j)
+        {
+            size_t tmp;
+            fin >> tmp;
+            c_dst.surface(j) = &face(tmp);
+        }
+
+        // Adjacent cells.
+        c_dst.adjCell.resize(N2);
+        for (int j = 1; j <= N2; ++j)
+        {
+            size_t tmp;
+            fin >> tmp;
+            c_dst.adjCell(j) = tmp==0 ? nullptr : &cell(tmp);
+        }
+
+        // Surface vectors.
+        c_dst.S.resize(N2);
+        for (int j = 1; j <= N2; ++j)
+        {
+            auto &loc_S = c_dst.S(j);
+            fin >> loc_S.x();
+            fin >> loc_S.y();
+            fin >> loc_S.z();
+            loc_S *= c_dst.surface(j)->area;
+        }
+    }
+
+    /// Update mesh type flag.
     if(n_tet == NumOfCell)
         IO_MT = TECPLOT_FE_MESH_TYPE::TET;
     else if(n_hex == NumOfCell)
         IO_MT = TECPLOT_FE_MESH_TYPE::HEX;
     else
         IO_MT = TECPLOT_FE_MESH_TYPE::POLY;
-
-    /// Allocate memory for geom entities and related physical variables.
-    pnt.resize(NumOfPnt);
-    face.resize(NumOfFace);
-    cell.resize(NumOfCell);
-
-    /// Update nodal information.
-    for (int i = 1; i <= NumOfPnt; ++i)
-    {
-        const auto &n_src = mesh.node(i);
-        auto &n_dst = pnt(i);
-
-        // 1-based global index.
-        n_dst.index = i;
-
-        // 3D location.
-        const auto &c_src = n_src.coordinate;
-        n_dst.coordinate = { c_src.x(), c_src.y(), c_src.z() };
-
-        // Boundary flag.
-        n_dst.at_boundary = n_src.atBdry;
-
-        // Adjacent cells.
-        // Used for interpolation from cell-centered to nodal.
-        n_dst.dependent_cell.resize(n_src.dependentCell.size());
-        n_dst.cell_weights.resize(n_src.dependentCell.size());
-        for (auto j = 1; j <= n_src.dependentCell.size(); ++j)
-            n_dst.dependent_cell(j) = &cell(n_src.dependentCell(j));
-    }
-
-    /// Update face information.
-    for (int i = 1; i <= NumOfFace; ++i)
-    {
-        const auto &f_src = mesh.face(i);
-        auto &f_dst = face(i);
-
-        // Assign face index.
-        f_dst.index = i;
-        f_dst.at_boundary = f_src.atBdry;
-
-        // Face centroid location.
-        const auto &c_src = f_src.center;
-        f_dst.centroid = {c_src.x(), c_src.y(), c_src.z() };
-
-        // Face area.
-        f_dst.area = f_src.area;
-
-        // Face unit normal.
-        f_dst.n10 = { f_src.n_RL.x(), f_src.n_RL.y(), f_src.n_RL.z() };
-        f_dst.n01 = { f_src.n_LR.x(), f_src.n_LR.y(), f_src.n_LR.z() };
-
-        // Face included nodes.
-        const auto N1 = f_src.includedNode.size();
-        f_dst.vertex.resize(N1);
-        for (int j = 1; j <= N1; ++j)
-            f_dst.vertex(j) = &pnt(f_src.includedNode(j));
-
-        // Face adjacent 2 cells.
-        // It should be noted that both "c0" and "c1" used in this solver
-        // is DIFFERENT from that defined in Fluent Mesh Convention!!!
-        // In fact, "c0" corresponds to "cr"(rightCell) and
-        // "c1" corresponds to "cl"(leftCell) in Fluent Mesh.
-        f_dst.c0 = f_src.leftCell ? &cell(f_src.leftCell) : nullptr;
-        f_dst.c1 = f_src.rightCell ? &cell(f_src.rightCell) : nullptr;
-    }
-
-    /// Update cell information.
-    for (int i = 1; i <= NumOfCell; ++i)
-    {
-        const auto &c_src = mesh.cell(i);
-        auto &c_dst = cell(i);
-
-        // Assign cell index.
-        c_dst.index = i;
-
-        // Cell centroid location.
-        const auto &centroid_src = c_src.center;
-        c_dst.centroid = {centroid_src.x(), centroid_src.y(), centroid_src.z() };
-
-        // Cell volume.
-        c_dst.volume = c_src.volume;
-
-        // Cell included nodes.
-        const auto N1 = c_src.includedNode.size();
-        c_dst.vertex.resize(N1);
-        for (int j = 1; j <= N1; ++j)
-            c_dst.vertex(j) = &pnt(c_src.includedNode(j));
-
-        // Cell included faces.
-        const auto N2 = c_src.includedFace.size();
-        c_dst.surface.resize(N2);
-        for (int j = 1; j <= N2; ++j)
-        {
-            const auto cfi = c_src.includedFace(j);
-            c_dst.surface(j) = &face(cfi);
-        }
-
-        // Cell adjacent cells.
-        c_dst.adjCell.resize(N2);
-        for (int j = 1; j <= N2; ++j)
-        {
-            const auto adjIdx = c_src.adjacentCell(j);
-            c_dst.adjCell(j) = adjIdx ? &cell(adjIdx) : nullptr;
-        }
-
-        // Cell surface vectors.
-        c_dst.S.resize(N2);
-        for (int j = 0; j < N2; ++j)
-        {
-            const auto &csv = c_src.S.at(j);
-            c_dst.S.at(j) = { csv.x(), csv.y(), csv.z() };
-        }
-    }
 
     /// Nodal interpolation coefficients.
     for (int i = 1; i <= NumOfPnt; ++i)
@@ -231,9 +298,9 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         for (int j = 1; j <= n_dst.cell_weights.size(); ++j)
         {
             auto curAdjCell = n_dst.dependent_cell(j);
-            const Scalar coef = 1.0 / (n_dst.coordinate - curAdjCell->centroid).norm();
-            n_dst.cell_weights(j) = coef;
-            s += coef;
+            const Scalar weighting = 1.0 / (n_dst.coordinate - curAdjCell->centroid).norm();
+            n_dst.cell_weights(j) = weighting;
+            s += weighting;
         }
         for (int j = 1; j <= n_dst.cell_weights.size(); ++j)
             n_dst.cell_weights(j) /= s;
@@ -279,95 +346,28 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
         }
     }
 
-    /// Count valid patches.
-    size_t NumOfPatch = 0;
-    for (int i = 1; i <= mesh.numOfZone(); ++i)
-    {
-        const auto &z_src = mesh.zone(i);
-
-        const auto curZoneIdx = z_src.ID;
-        auto curZonePtr = z_src.obj;
-        auto curFace = dynamic_cast<XF::FACE*>(curZonePtr);
-        if (curFace)
-        {
-            if (curFace->identity() != XF::SECTION::FACE || curFace->zone() != curZoneIdx)
-                throw std::runtime_error("Inconsistency detected.");
-
-            if (XF::BC::str2idx(z_src.type) != XF::BC::INTERIOR)
-                ++NumOfPatch;
-        }
-    }
-
     /// Update boundary patch information.
-    patch.resize(NumOfPatch);
-    for (int i = 1, cnt = 0; i <= mesh.numOfZone(); ++i)
+    for (int i = 1; i <= NumOfPatch; ++i)
     {
-        const auto &curZone = mesh.zone(i);
-        auto curFace = dynamic_cast<XF::FACE*>(curZone.obj);
-        if (curFace == nullptr || XF::BC::str2idx(curZone.type) == XF::BC::INTERIOR)
-            continue;
+        auto &p_dst = patch(i);
+        fin >> p_dst.name;
 
-        auto &p_dst = patch[cnt];
-        p_dst.name = curZone.name;
-        p_dst.BC = XF::BC::str2idx(curZone.type);
-        p_dst.surface.resize(curFace->num());
-        const auto loc_first = curFace->first_index();
-        const auto loc_last = curFace->last_index();
-        for (auto j = loc_first; j <= loc_last; ++j)
+        size_t n_face, n_node;
+        fin >> n_face >> n_node;
+        p_dst.surface.resize(n_face);
+        p_dst.vertex.resize(n_node);
+        for (size_t j = 0; j < n_face; ++j)
         {
-            p_dst.surface.at(j - loc_first) = &face(j);
-            face(j).parent = &p_dst;
+            size_t tmp;
+            fin >> tmp;
+            auto ptr = p_dst.surface.at(j) = &face(tmp);
+            ptr->parent = &p_dst;
         }
-        cnt += 1;
-    }
-
-    /// Update nodal inclusion within each boundary patch.
-    for(auto &p : patch)
-    {
-        const auto &s = p.surface;
-
-        /// Counting nodes.
-        std::map<int, size_t> n2n;
-        size_t cnt = 0;
-        for(auto f : s)
+        for(size_t j = 0; j < n_node; ++j)
         {
-            const auto &vl = f->vertex;
-            for(auto v : vl)
-            {
-                const int ci = v->index;
-                auto it = n2n.find(ci);
-                if(it == n2n.end())
-                {
-                    ++cnt;
-                    n2n[ci] = cnt;
-                }
-            }
-        }
-
-        /// Allocate storage.
-        p.vertex.resize(n2n.size(), nullptr);
-
-        /// Link connectivity.
-        std::vector<bool> flag(n2n.size(), false);
-        for(auto f : s)
-        {
-            const auto &vl = f->vertex;
-            for(auto v : vl)
-            {
-                const int ci = v->index;
-                auto it = n2n.find(ci);
-                if(it == n2n.end())
-                    throw std::runtime_error("Previous operation failed.");
-                else
-                {
-                    const auto loc_idx = it->second - 1; /// 0-based
-                    if(!flag[loc_idx])
-                    {
-                        p.vertex[loc_idx] = v;
-                        flag[loc_idx] = true;
-                    }
-                }
-            }
+            size_t tmp;
+            fin >> tmp;
+            p_dst.vertex.at(j) = &pnt(tmp);
         }
     }
 
@@ -376,7 +376,6 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
     {
         auto &cur_cell = cell(i);
         const auto Nf = cur_cell.surface.size();
-
         if(cur_cell.adjCell.size() != Nf)
             throw std::runtime_error("Inconsistency detected!");
 
@@ -399,7 +398,7 @@ void read_fluent_mesh(const std::string &MESH_PATH, std::ostream &LOG_OUT)
                 cur_d = cur_adj_cell->centroid - cur_cell.centroid;
 
             // Non-Orthogonal correction
-            calc_non_orthogonal_correction_vector(NOC_Method, cur_d, cur_cell.S[j], cur_cell.Se[j], cur_cell.St[j]);
+            calc_noc_vector(NOC_Method, cur_d, cur_cell.S[j], cur_cell.Se[j], cur_cell.St[j]);
         }
     }
 }
