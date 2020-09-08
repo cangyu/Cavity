@@ -57,6 +57,9 @@ static int OUTPUT_GAP = 10;
 static int MAX_ITER = 100000;
 static Scalar MAX_TIME = 100.0; /// s
 
+static int iter = 0;
+static Scalar t = 0.0; /// s
+
 /******************************************************* Functions ****************************************************/
 
 /**
@@ -65,8 +68,6 @@ static Scalar MAX_TIME = 100.0; /// s
 void solve()
 {
     clock_t tick_begin, tick_end;
-    int iter = 0;
-    Scalar t = 0.0; /// s
     bool done = false;
 
     LOG_OUT << "\nStarting calculation ... " << std::endl;
@@ -84,7 +85,14 @@ void solve()
         diagnose();
         LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
-            record_computation_domain(RUN_TAG, iter, t);
+        {
+            const std::string fn = RUN_TAG + "/ITER" + std::to_string(iter) + ".txt";
+            std::ofstream dts(fn);
+            if(dts.fail())
+                throw failed_to_open_file(fn);
+            write_data(dts, iter, t);
+            dts.close();
+        }
     }
     LOG_OUT << "\nFinished!" << std::endl;
 }
@@ -94,16 +102,21 @@ void solve()
  */
 void init()
 {
+    clock_t tick_begin, tick_end;
+
     LOG_OUT << "\nLoading mesh \"" << MESH_PATH << "\" ... ";
-    const std::string fn_mesh_log = RUN_TAG + "/MeshDesc.txt";
-    std::ofstream ml_out(fn_mesh_log);
-    if (ml_out.fail())
-        throw failed_to_open_file(fn_mesh_log);
-    clock_t tick_begin = clock();
-    read_mesh(MESH_PATH, ml_out);
-    clock_t tick_end = clock();
-    ml_out.close();
-    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+    {
+        std::ifstream ml(MESH_PATH);
+        if(ml.fail())
+            throw failed_to_open_file(MESH_PATH);
+
+        tick_begin = clock();
+        read_mesh(ml);
+        tick_end = clock();
+
+        ml.close();
+        LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+    }
 
     LOG_OUT << "\nSetting B.C. type of each variable ... ";
     BC_TABLE();
@@ -125,17 +138,34 @@ void init()
 
     prepare_dp_solver(A_dp_2, dp_solver_2);
 
-    LOG_OUT << "\nSetting I.C. ";
-    if (!DATA_PATH.empty())
-        LOG_OUT << "from \"" << DATA_PATH << "\" ";
-    LOG_OUT << "... ";
-    tick_begin = clock();
-    IC(DATA_PATH);
-    tick_end = clock();
-    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+    if(DATA_PATH.empty())
+    {
+        LOG_OUT << "\nSetting I.C. ... ";
+        tick_begin = clock();
+        IC();
+        tick_end = clock();
+        LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << "\nWriting initial output ... ";
-    record_computation_domain(RUN_TAG, 0, 0.0);
+        LOG_OUT << "\nWriting initial output ... ";
+        const std::string fn = RUN_TAG + "/ITER" + std::to_string(0) + ".txt";
+        std::ofstream dts(fn);
+        if(dts.fail())
+            throw failed_to_open_file(fn);
+        write_data(dts, 0, 0.0);
+        dts.close();
+    }
+    else
+    {
+        LOG_OUT << "\nSetting I.C. from \"" + DATA_PATH + "\" ... ";
+        std::ifstream dts(DATA_PATH);
+        if(dts.fail())
+            throw failed_to_open_file(DATA_PATH);
+        tick_begin = clock();
+        read_data(dts, iter, t);
+        tick_end = clock();
+        LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+        dts.close();
+    }
     LOG_OUT << "Done!" << std::endl;
 }
 

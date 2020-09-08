@@ -1,11 +1,8 @@
 #include "../inc/custom_type.h"
-#include "../inc/Discretization.h"
-#include "../inc/IO.h"
+#include "../inc/Miscellaneous.h"
 #include "../inc/IC.h"
 
-extern int NumOfPnt;
-extern int NumOfFace;
-extern int NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
@@ -18,33 +15,37 @@ static const Scalar T0 = 300.0; /// K
 /**
  * Initial conditions on all cells.
  */
-void IC(const std::string &inp)
+void IC()
 {
-    /// Cell primitive vars
-    if (inp.empty())
-    {
-        for (auto &c_dst : cell)
-        {
-            c_dst.rho0 = rho0;
-            c_dst.U0 = ZERO_VECTOR;
-            c_dst.p0 = P0;
-            c_dst.T0 = T0;
-        }
-    }
-    else
-        read_tec_solution(inp);
-
-    /// Cell conservative vars
+    /// Cell
     for (auto &c_dst : cell)
     {
-        c_dst.rhoU0 = c_dst.rho0 * c_dst.U0;
+        /// Primitive variables
+        c_dst.rho0 = rho0;
+        c_dst.U0 = ZERO_VECTOR;
+        c_dst.p0 = P0;
+        c_dst.T0 = T0;
+
+        /// Conservative variables
+        c_dst.rhoU0 = ZERO_VECTOR;
     }
 
-    prepare_next_run();
-
+    /// Internal Face
     for(auto &f : face)
     {
         if(!f.at_boundary)
-            f.rhoU = f.rho * f.U;
+        {
+            /// Primitive variables
+            f.rho = rho0;
+            f.U = ZERO_VECTOR;
+            f.p = P0;
+            f.T = T0;
+
+            /// Conservative variables
+            f.rhoU = ZERO_VECTOR;
+        }
     }
+
+    /// Node
+    interp_nodal_primitive_var();
 }

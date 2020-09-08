@@ -5,9 +5,7 @@
 #include "../inc/Flux.h"
 #include "../inc/Discretization.h"
 
-extern int NumOfPnt;
-extern int NumOfFace;
-extern int NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
@@ -19,57 +17,7 @@ extern SX_VEC Q_dp_2;
 extern SX_VEC x_dp_2;
 extern SX_AMG dp_solver_2;
 
-/************************************************ Physical Property ***************************************************/
-
-void update_cell_property()
-{
-    for (auto &c : cell)
-    {
-        /// Dynamic viscosity
-        // c.mu = Sutherland(c.T);
-        c.mu = c.rho / Re;
-    }
-}
-
-void update_face_property()
-{
-    for (auto &f : face)
-    {
-        /// Dynamic viscosity
-        // f.mu = Sutherland(f.T);
-        f.mu = f.rho / Re;
-    }
-}
-
 /*********************************************** Spatial Discretization ***********************************************/
-
-void interp_nodal_primitive_var()
-{
-    for (int i = 1; i <= NumOfPnt; ++i)
-    {
-        auto &n_dst = pnt(i);
-
-        const auto &dc = n_dst.dependent_cell;
-        const auto &wf = n_dst.cell_weights;
-
-        const auto N = dc.size();
-        if (N != wf.size())
-            throw std::runtime_error("Inconsistency detected!");
-
-        n_dst.rho = ZERO_SCALAR;
-        n_dst.U = ZERO_VECTOR;
-        n_dst.p = ZERO_SCALAR;
-        n_dst.T = ZERO_SCALAR;
-        for (int j = 0; j < N; ++j)
-        {
-            const auto cwf = wf.at(j);
-            n_dst.rho += cwf * dc.at(j)->rho0;
-            n_dst.U += cwf * dc.at(j)->U0;
-            n_dst.p += cwf * dc.at(j)->p0;
-            n_dst.T += cwf * dc.at(j)->T0;
-        }
-    }
-}
 
 static void calcBoundaryFacePrimitiveValue(Face &f, Cell *c, const Vector &d)
 {
@@ -272,7 +220,12 @@ void prepare_next_run()
     }
 
     /// Update physical properties at centroid of each cell.
-    update_cell_property();
+    for (auto &c : cell)
+    {
+        /// Dynamic viscosity
+        // c.mu = Sutherland(c.T);
+        c.mu = c.rho / Re;
+    }
 
     /// Enforce boundary conditions for primitive variables.
     set_bc_of_primitive_var();
@@ -287,7 +240,12 @@ void prepare_next_run()
     calc_face_primitive_var();
 
     /// Update physical properties at centroid of each face.
-    update_face_property();
+    for (auto &f : face)
+    {
+        /// Dynamic viscosity
+        // f.mu = Sutherland(f.T);
+        f.mu = f.rho / Re;
+    }
 
     /// Viscous shear stress on each face.
     calc_face_viscous_shear_stress();
@@ -359,20 +317,12 @@ void ForwardEuler(Scalar TimeStep)
     }
     for (auto &c : cell)
     {
-        /// Density
-        c.continuity_res = 0.0;
-        c.rho0 = c.rho + TimeStep * c.continuity_res;
-
         /// Velocity
         c.rhoU0 = c.rhoU_star - TimeStep * c.grad_p_prime;
         c.U0 = c.rhoU0 / c.rho0;
 
         /// Pressure
         c.p0 = c.p + c.p_prime;
-
-        /// Temperature
-        c.energy_res = 0.0;
-        c.T0 = c.T + TimeStep * c.energy_res;
     }
 
     prepare_next_run();

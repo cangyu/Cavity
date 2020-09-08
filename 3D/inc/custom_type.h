@@ -214,11 +214,6 @@ struct Cell
     Vector grad_T = ZERO_VECTOR;
     Vector grad_p_prime = ZERO_VECTOR; /// Used by pressure correction
 
-    /// Equation residuals
-    Scalar continuity_res = ZERO_SCALAR;
-    Vector momentum_res = ZERO_VECTOR;
-    Scalar energy_res = ZERO_SCALAR;
-
     /// Flux within momentum equation
     Vector pressure_flux = ZERO_VECTOR;
     Vector convection_flux = ZERO_VECTOR;

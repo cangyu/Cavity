@@ -6,5 +6,6 @@
 
 double duration(const clock_t &startTime, const clock_t &endTime);
 std::string time_stamp_str();
+void interp_nodal_primitive_var();
 
 #endif

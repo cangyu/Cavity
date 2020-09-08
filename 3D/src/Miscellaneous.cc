@@ -4,11 +4,12 @@
 #include "../inc/Miscellaneous.h"
 #include "../inc/custom_type.h"
 
-const std::array<std::string, 3> unsupported_boundary_condition::BC_CATEGORY_STR = {
-        "Dirichlet",
-        "Neumann",
-        "Robin"
-};
+extern int NumOfPnt, NumOfFace, NumOfCell;
+extern NaturalArray<Point> pnt;
+extern NaturalArray<Face> face;
+extern NaturalArray<Cell> cell;
+
+const std::array<std::string, 3> unsupported_boundary_condition::BC_CATEGORY_STR = {"Dirichlet","Neumann","Robin"};
 
 double duration(const clock_t &startTime, const clock_t &endTime)
 {
@@ -21,4 +22,32 @@ std::string time_stamp_str()
     std::ostringstream ss;
     ss << std::put_time(std::localtime(&tt), "%Y%m%d-%H%M%S");
     return ss.str();
+}
+
+void interp_nodal_primitive_var()
+{
+    for (int i = 1; i <= NumOfPnt; ++i)
+    {
+        auto &n_dst = pnt(i);
+
+        const auto &dc = n_dst.dependent_cell;
+        const auto &wf = n_dst.cell_weights;
+
+        const auto N = dc.size();
+        if (N != wf.size())
+            throw std::runtime_error("Inconsistency detected!");
+
+        n_dst.rho = ZERO_SCALAR;
+        n_dst.U = ZERO_VECTOR;
+        n_dst.p = ZERO_SCALAR;
+        n_dst.T = ZERO_SCALAR;
+        for (int j = 0; j < N; ++j)
+        {
+            const auto cwf = wf.at(j);
+            n_dst.rho += cwf * dc.at(j)->rho0;
+            n_dst.U += cwf * dc.at(j)->U0;
+            n_dst.p += cwf * dc.at(j)->p0;
+            n_dst.T += cwf * dc.at(j)->T0;
+        }
+    }
 }
