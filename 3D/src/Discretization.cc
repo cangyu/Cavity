@@ -208,17 +208,8 @@ void calc_face_viscous_shear_stress()
     }
 }
 
-void prepare_next_run()
+void reconstruction()
 {
-    /// Init primitive variables
-    for (auto &c : cell)
-    {
-        c.rho = c.rho0;
-        c.U = c.U0;
-        c.p = c.p0;
-        c.T = c.T0;
-    }
-
     /// Update physical properties at centroid of each cell.
     for (auto &c : cell)
     {
@@ -274,12 +265,14 @@ Scalar calcTimeStep()
  */
 void ForwardEuler(Scalar TimeStep)
 {
+    reconstruction();
+
     /// Count flux of each cell.
     calc_cell_flux();
 
     /// Prediction Step
     for (auto &c : cell)
-        c.rhoU_star = c.rhoU0 + TimeStep / c.volume * (-c.convection_flux - c.pressure_flux + c.viscous_flux);
+        c.rhoU_star = c.rhoU + TimeStep / c.volume * (-c.convection_flux - c.pressure_flux + c.viscous_flux);
 
     /// rhoU* at internal face.
     for (auto &f : face)
@@ -318,14 +311,12 @@ void ForwardEuler(Scalar TimeStep)
     for (auto &c : cell)
     {
         /// Velocity
-        c.rhoU0 = c.rhoU_star - TimeStep * c.grad_p_prime;
-        c.U0 = c.rhoU0 / c.rho0;
+        c.rhoU = c.rhoU_star - TimeStep * c.grad_p_prime;
+        c.U = c.rhoU / c.rho;
 
         /// Pressure
-        c.p0 = c.p + c.p_prime;
+        c.p += c.p_prime;
     }
-
-    prepare_next_run();
 }
 
 /********************************************************* END ********************************************************/

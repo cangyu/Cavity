@@ -21,13 +21,13 @@ void IC()
     for (auto &c_dst : cell)
     {
         /// Primitive variables
-        c_dst.rho0 = rho0;
-        c_dst.U0 = ZERO_VECTOR;
-        c_dst.p0 = P0;
-        c_dst.T0 = T0;
+        c_dst.rho = rho0;
+        c_dst.U = ZERO_VECTOR;
+        c_dst.p = P0;
+        c_dst.T = T0;
 
         /// Conservative variables
-        c_dst.rhoU0 = ZERO_VECTOR;
+        c_dst.rhoU = ZERO_VECTOR;
     }
 
     /// Internal Face

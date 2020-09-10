@@ -2,7 +2,6 @@
 #include <sstream>
 #include <iomanip>
 #include "../inc/Miscellaneous.h"
-#include "../inc/custom_type.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
@@ -44,10 +43,40 @@ void interp_nodal_primitive_var()
         for (int j = 0; j < N; ++j)
         {
             const auto cwf = wf.at(j);
-            n_dst.rho += cwf * dc.at(j)->rho0;
-            n_dst.U += cwf * dc.at(j)->U0;
-            n_dst.p += cwf * dc.at(j)->p0;
-            n_dst.T += cwf * dc.at(j)->T0;
+            n_dst.rho += cwf * dc.at(j)->rho;
+            n_dst.U += cwf * dc.at(j)->U;
+            n_dst.p += cwf * dc.at(j)->p;
+            n_dst.T += cwf * dc.at(j)->T;
         }
     }
+}
+
+/**
+ * Calculate vectors used for NON-ORTHOGONAL correction locally.
+ * @param opt Choice of method.
+ * 1 - Minimum Correction
+ * 2 - Orthogonal Correction
+ * 3 - Over-Relaxed Correction
+ * @param d Local displacement vector.
+ * @param S Local surface outward normal vector.
+ * @param E Orthogonal part after decomposing "S".
+ * @param T Non-Orthogonal part after decomposing "S", satisfying "S = E + T".
+ */
+void calc_noc_vec(int opt, const Vector &d, const Vector &S, Vector &E, Vector &T)
+{
+    Vector e = d;
+    e /= d.norm();
+    const Scalar S_mod = S.norm();
+    const Scalar cos_theta = e.dot(S) / S_mod;
+
+    if(opt == 1)
+        E = S_mod * cos_theta * e;
+    else if(opt == 2)
+        E = S_mod * e;
+    else if(opt == 3)
+        E = S_mod / cos_theta * e;
+    else
+        throw std::invalid_argument("Invalid NON-ORTHOGONAL correction option!");
+
+    T = S - E;
 }

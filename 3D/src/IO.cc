@@ -1,5 +1,6 @@
 #include <iomanip>
 #include <map>
+#include "../inc/Miscellaneous.h"
 #include "../inc/IO.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -8,36 +9,6 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 extern int NOC_Method;
-
-/**
- * Calculate vectors used for NON-ORTHOGONAL correction locally.
- * @param opt Choice of method.
- * 1 - Minimum Correction
- * 2 - Orthogonal Correction
- * 3 - Over-Relaxed Correction
- * @param d Local displacement vector.
- * @param S Local surface outward normal vector.
- * @param E Orthogonal part after decomposing "S".
- * @param T Non-Orthogonal part after decomposing "S", satisfying "S = E + T".
- */
-static void calc_noc_vec(int opt, const Vector &d, const Vector &S, Vector &E, Vector &T)
-{
-    Vector e = d;
-    e /= d.norm();
-    const Scalar S_mod = S.norm();
-    const Scalar cos_theta = e.dot(S) / S_mod;
-
-    if(opt == 1)
-        E = S_mod * cos_theta * e;
-    else if(opt == 2)
-        E = S_mod * e;
-    else if(opt == 3)
-        E = S_mod / cos_theta * e;
-    else
-        throw std::invalid_argument("Invalid NON-ORTHOGONAL correction option!");
-
-    T = S - E;
-}
 
 /**
  * Load computation mesh, which is written in FLUENT format.
@@ -369,69 +340,71 @@ void read_mesh(std::istream &fin)
     }
 }
 
-void write_data(std::ostream &f_out, int iter, Scalar t)
+void write_data(std::ostream &out, int iter, Scalar t)
 {
     static const char SEP = ' ';
 
-    f_out << iter << SEP << t << std::endl;
-    f_out << NumOfPnt << SEP << NumOfFace << SEP << NumOfCell << std::endl;
+    out << iter << SEP << t << std::endl;
+    out << NumOfPnt << SEP << NumOfFace << SEP << NumOfCell << std::endl;
 
     for(const auto &e : pnt)
     {
-        f_out << e.rho << SEP;
-        f_out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
-        f_out << e.p << SEP;
-        f_out << e.T << std::endl;
+        out << e.rho << SEP;
+        out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
+        out << e.p << SEP;
+        out << e.T << std::endl;
     }
 
     for(const auto &e : face)
     {
-        f_out << e.rho << SEP;
-        f_out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
-        f_out << e.p << SEP;
-        f_out << e.T << std::endl;
+        out << e.rho << SEP;
+        out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
+        out << e.p << SEP;
+        out << e.T << std::endl;
     }
 
     for(const auto &e : cell)
     {
-        f_out << e.rho << SEP;
-        f_out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
-        f_out << e.p << SEP;
-        f_out << e.T << std::endl;
+        out << e.rho << SEP;
+        out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
+        out << e.p << SEP;
+        out << e.T << std::endl;
     }
 }
 
-void read_data(std::istream &fin, int &iter, Scalar &t)
+void read_data(std::istream &in, int &iter, Scalar &t)
 {
-    fin >> iter >> t;
+    in >> iter >> t;
 
     int n_node, n_face, n_cell;
-    fin >> n_node >> n_face >> n_cell;
+    in >> n_node >> n_face >> n_cell;
 
     if(n_node != NumOfPnt || n_face != NumOfFace || n_cell != NumOfCell)
         throw std::runtime_error("Input data is not consistent with given mesh!");
 
     for(auto &e : pnt)
     {
-        fin >> e.rho;
-        fin >> e.U.x() >> e.U.y() >> e.U.z();
-        fin >> e.p;
-        fin >> e.T;
+        in >> e.rho;
+        in >> e.U.x() >> e.U.y() >> e.U.z();
+        in >> e.p;
+        in >> e.T;
     }
 
     for(auto &e : face)
     {
-        fin >> e.rho;
-        fin >> e.U.x() >> e.U.y() >> e.U.z();
-        fin >> e.p;
-        fin >> e.T;
+        in >> e.rho;
+        in >> e.U.x() >> e.U.y() >> e.U.z();
+        in >> e.p;
+        in >> e.T;
+        e.rhoU = e.rho * e.U;
     }
 
     for(auto &e : cell)
     {
-        fin >> e.rho;
-        fin >> e.U.x() >> e.U.y() >> e.U.z();
-        fin >> e.p;
-        fin >> e.T;
+        in >> e.rho;
+        in >> e.U.x() >> e.U.y() >> e.U.z();
+        in >> e.p;
+        in >> e.T;
+        e.rhoU = e.rho * e.U;
     }
 }

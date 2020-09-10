@@ -1,9 +1,7 @@
 #include "../inc/custom_type.h"
 #include "../inc/Flux.h"
 
-extern int NumOfPnt;
-extern int NumOfFace;
-extern int NumOfCell;
+extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;

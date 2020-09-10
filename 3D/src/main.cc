@@ -62,6 +62,11 @@ static Scalar t = 0.0; /// s
 
 /******************************************************* Functions ****************************************************/
 
+static void data_file_path(int n, std::string &fn)
+{
+    fn = RUN_TAG + "/ITER" + std::to_string(n) + ".txt";
+}
+
 /**
  * Directive function guiding explicit time-marching iterations.
  */
@@ -86,7 +91,8 @@ void solve()
         LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
         {
-            const std::string fn = RUN_TAG + "/ITER" + std::to_string(iter) + ".txt";
+            std::string fn;
+            data_file_path(iter, fn);
             std::ofstream dts(fn);
             if(dts.fail())
                 throw failed_to_open_file(fn);
@@ -147,7 +153,8 @@ void init()
         LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
         LOG_OUT << "\nWriting initial output ... ";
-        const std::string fn = RUN_TAG + "/ITER" + std::to_string(0) + ".txt";
+        std::string fn;
+        data_file_path(0, fn);
         std::ofstream dts(fn);
         if(dts.fail())
             throw failed_to_open_file(fn);

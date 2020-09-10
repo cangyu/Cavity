@@ -188,14 +188,6 @@ struct Cell
     Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_p, J_INV_p_prime;
     Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_T;
 
-    /* Variables at current time-level */
-    Scalar rho0 = ZERO_SCALAR;
-    Vector U0 = ZERO_VECTOR;
-    Scalar p0 = ZERO_SCALAR;
-    Scalar T0 = ZERO_SCALAR;
-    Vector rhoU0 = ZERO_VECTOR;
-
-    /* Variables at new time-level */
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
 
@@ -205,6 +197,7 @@ struct Cell
     Scalar p = ZERO_SCALAR;
     Scalar p_prime = ZERO_SCALAR; /// Used by pressure correction
     Scalar T = ZERO_SCALAR;
+    Vector rhoU = ZERO_VECTOR;
     Vector rhoU_star = ZERO_VECTOR; /// Used by the Fractional-Step Method
 
     /// Gradient of physical variables
