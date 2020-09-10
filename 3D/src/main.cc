@@ -91,6 +91,7 @@ void solve()
         LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
         if (done || !(iter % OUTPUT_GAP))
         {
+            interp_nodal_primitive_var();
             std::string fn;
             data_file_path(iter, fn);
             std::ofstream dts(fn);
