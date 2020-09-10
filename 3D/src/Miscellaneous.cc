@@ -1,6 +1,7 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include "../inc/BC.h"
 #include "../inc/Miscellaneous.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -49,6 +50,8 @@ void interp_nodal_primitive_var()
             n_dst.T += cwf * dc.at(j)->T;
         }
     }
+
+    set_bc_nodal();
 }
 
 /**

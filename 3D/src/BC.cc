@@ -172,3 +172,62 @@ void set_bc_of_conservative_var()
         for (auto f : e.surface)
             f->rhoU = f->rho * f->U;
 }
+
+void set_bc_nodal()
+{
+    for(const auto &e : patch)
+    {
+        if (e.name == "UP")
+        {
+            for (auto f : e.vertex)
+            {
+                f->rho = rho0;
+                f->U = U_UP;
+                f->T = T_UP;
+            }
+        }
+        else if (e.name == "DOWN")
+        {
+            for (auto f : e.vertex)
+            {
+                f->rho = rho0;
+                f->U = ZERO_VECTOR;
+                f->T = T_DOWN;
+            }
+        }
+        else if (e.name == "LEFT")
+        {
+            for (auto f : e.vertex)
+            {
+                f->rho = rho0;
+                f->U = ZERO_VECTOR;
+            }
+        }
+        else if (e.name == "RIGHT")
+        {
+            for (auto f : e.vertex)
+            {
+                f->rho = rho0;
+                f->U = ZERO_VECTOR;
+            }
+        }
+        else if (e.name == "FRONT")
+        {
+            for (auto f : e.vertex)
+            {
+                f->rho = rho0;
+                f->U = ZERO_VECTOR;
+            }
+        }
+        else if (e.name == "BACK")
+        {
+            for (auto f : e.vertex)
+            {
+                f->rho = rho0;
+                f->U = ZERO_VECTOR;
+            }
+        }
+        else
+            throw unexpected_patch(e.name);
+    }
+}
