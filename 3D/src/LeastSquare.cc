@@ -15,10 +15,10 @@ extern NaturalArray<Patch> patch;
  * @param J_INV The general inverse of input matrix using QR decomposition.
  */
 static void extract_qr_matrix
-(
-    const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J, 
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> &J_INV
-)
+        (
+                const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J,
+                Eigen::Matrix<Scalar, 3, Eigen::Dynamic> &J_INV
+        )
 {
     typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> Mat;
 
@@ -66,14 +66,16 @@ void calc_least_square_coefficient_matrix()
                 d = curFace->centroid - c.centroid;
                 n = c.S.at(j) / curFace->area;
 
+                const Scalar w = 1.0 / d.norm();
+
                 /// Density
                 switch (curFace->parent->rho_BC)
                 {
                 case Dirichlet:
-                    J_rho.row(j) << d.x(), d.y(), d.z();
+                    J_rho.row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_rho.row(j) << n.x(), n.y(), n.z();
+                    J_rho.row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -85,10 +87,10 @@ void calc_least_square_coefficient_matrix()
                 switch (curFace->parent->U_BC[0])
                 {
                 case Dirichlet:
-                    J_U[0].row(j) << d.x(), d.y(), d.z();
+                    J_U[0].row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_U[0].row(j) << n.x(), n.y(), n.z();
+                    J_U[0].row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -100,10 +102,10 @@ void calc_least_square_coefficient_matrix()
                 switch (curFace->parent->U_BC[1])
                 {
                 case Dirichlet:
-                    J_U[1].row(j) << d.x(), d.y(), d.z();
+                    J_U[1].row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_U[1].row(j) << n.x(), n.y(), n.z();
+                    J_U[1].row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -115,10 +117,10 @@ void calc_least_square_coefficient_matrix()
                 switch (curFace->parent->U_BC[2])
                 {
                 case Dirichlet:
-                    J_U[2].row(j) << d.x(), d.y(), d.z();
+                    J_U[2].row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_U[2].row(j) << n.x(), n.y(), n.z();
+                    J_U[2].row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -130,10 +132,10 @@ void calc_least_square_coefficient_matrix()
                 switch (curFace->parent->p_BC)
                 {
                 case Dirichlet:
-                    J_p.row(j) << d.x(), d.y(), d.z();
+                    J_p.row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_p.row(j) << n.x(), n.y(), n.z();
+                    J_p.row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -145,10 +147,10 @@ void calc_least_square_coefficient_matrix()
                 switch (curFace->parent->p_prime_BC)
                 {
                 case Dirichlet:
-                    J_p_prime.row(j) << d.x(), d.y(), d.z();
+                    J_p_prime.row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_p_prime.row(j) << n.x(), n.y(), n.z();
+                    J_p_prime.row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -160,10 +162,10 @@ void calc_least_square_coefficient_matrix()
                 switch (curFace->parent->T_BC)
                 {
                 case Dirichlet:
-                    J_T.row(j) << d.x(), d.y(), d.z();
+                    J_T.row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_T.row(j) << n.x(), n.y(), n.z();
+                    J_T.row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -176,26 +178,28 @@ void calc_least_square_coefficient_matrix()
                 auto curAdjCell = c.adjCell.at(j);
                 d = curAdjCell->centroid - c.centroid;
 
+                const Scalar w = 1.0 / d.norm();
+
                 /// Density
-                J_rho.row(j) << d.x(), d.y(), d.z();
+                J_rho.row(j) << w * d.x(), w * d.y(), w * d.z();
 
                 /// Velocity-X
-                J_U[0].row(j) << d.x(), d.y(), d.z();
+                J_U[0].row(j) << w * d.x(), w * d.y(), w * d.z();
 
                 /// Velocity-Y
-                J_U[1].row(j) << d.x(), d.y(), d.z();
+                J_U[1].row(j) << w * d.x(), w * d.y(), w * d.z();
 
                 /// Velocity-Z
-                J_U[2].row(j) << d.x(), d.y(), d.z();
+                J_U[2].row(j) << w * d.x(), w * d.y(), w * d.z();
 
                 /// Pressure
-                J_p.row(j) << d.x(), d.y(), d.z();
+                J_p.row(j) << w * d.x(), w * d.y(), w * d.z();
 
                 /// Pressure-Correction
-                J_p_prime.row(j) << d.x(), d.y(), d.z();
+                J_p_prime.row(j) << w * d.x(), w * d.y(), w * d.z();
 
                 /// Temperature
-                J_T.row(j) << d.x(), d.y(), d.z();
+                J_T.row(j) << w * d.x(), w * d.y(), w * d.z();
             }
         }
 

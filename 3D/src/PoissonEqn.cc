@@ -47,7 +47,7 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
                 switch (curFace->parent->p_prime_BC)
                 {
                 case Dirichlet:
-                    cur_coef[C.index] -= E_by_d; /// When p is given on boundary, p' is 0-value there.
+                    cur_coef[C.index] +=E_f.norm() / (curFace->centroid - C.centroid).norm() ; /// When p is given on boundary, p' is 0-value there.
                     break;
                 case Neumann:
                     break;/// When p is not determined on boundary, p' is 0-gradient there, thus contribution is 0 and no need to handle.
@@ -61,15 +61,15 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
                 if (!F)
                     throw inconsistent_connectivity("Cell shouldn't be empty!");
 
-                cur_coef[F->index] += E_by_d;
-                cur_coef[C.index] -= E_by_d;
+                cur_coef[C.index] += E_f.norm() / (F->centroid - C.centroid).norm();
+                cur_coef[F->index] -= E_f.norm() / (F->centroid - C.centroid).norm();
             }
         }
 
         /// Record current line.
         /// Convert index to 0-based.
         for (const auto &it : cur_coef)
-            coef.emplace_back(C.index - 1, it.first - 1, -1.0 * it.second);
+            coef.emplace_back(C.index - 1, it.first - 1, it.second);
     }
 
     /// Set reference.
@@ -113,20 +113,19 @@ void calcPressureCorrectionEquationRHS
 
             /// Raw contribution
             if(curFace->at_boundary)
-                cur_rhs += curFace->rhoU.dot(S_f) / dt;
+                cur_rhs -= curFace->rhoU.dot(S_f) / dt;
             else
-                cur_rhs += curFace->rhoU_star.dot(S_f) / dt;
+                cur_rhs -= curFace->rhoU_star.dot(S_f) / dt;
 
             /// Additional contribution due to cross-diffusion
             if(curFace->at_boundary)
             {
                 if(curFace->parent->p_prime_BC == Dirichlet)
-                    cur_rhs -= curFace->grad_p_prime.dot(T_f);
+                    cur_rhs += curFace->grad_p_prime.dot(T_f);
             }
             else
-                cur_rhs -= curFace->grad_p_prime.dot(T_f);
+                cur_rhs += curFace->grad_p_prime.dot(T_f);
         }
-        cur_rhs *= -1.0;
     }
 
     /// Set reference

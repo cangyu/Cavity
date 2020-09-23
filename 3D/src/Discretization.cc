@@ -1,3 +1,4 @@
+#include <iostream>
 #include "../inc/BC.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/CHEM.h"
@@ -221,6 +222,8 @@ void reconstruction()
     /// Enforce boundary conditions for primitive variables.
     set_bc_of_primitive_var();
 
+    calcFaceGhostVariable();
+
     /// Gradients of primitive variables at centroid of each cell.
     calc_cell_primitive_gradient();
 
@@ -286,20 +289,44 @@ void ForwardEuler(Scalar TimeStep)
             const Vector rhoU_rc = -TimeStep * (compact_grad_p - mean_grad_p); /// Rhie-Chow interpolation
             f.rhoU_star += rhoU_rc;
         }
+        f.grad_p_prime.setZero();
     }
 
     /// Correction Step
-    for (int k = 0; k < NOC_ITER; ++k)
+    Scalar res = 1.0;
+    std::vector<Scalar> prev_dp(NumOfCell, 0.0);
+    std::vector<Scalar> prev_dp_f(NumOfFace, 0.0);
+    while(res > 1e-10)
     {
+        res = 0.0;
+        Scalar max_dp = 0.0, min_dp = 1e16;
+        size_t max_dp_idx, min_dp_idx;
+
         calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
         sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
         for (int i = 0; i < NumOfCell; ++i)
         {
             auto &c = cell.at(i);
             c.p_prime = sx_vec_get_entry(&x_dp_2, i);
+            res += std::fabs(c.p_prime - prev_dp[i]);
+            prev_dp[i] = c.p_prime;
+            if(std::fabs(c.p_prime) > max_dp)
+            {
+                max_dp = std::fabs(c.p_prime);
+                max_dp_idx = c.index;
+            }
+            if(std::fabs(c.p_prime) < min_dp)
+            {
+                min_dp = std::fabs(c.p_prime);
+                min_dp_idx = c.index;
+            }
         }
         calc_cell_pressure_correction_gradient();
         calc_face_pressure_correction_gradient();
+        res /= NumOfCell;
+        std::cout << "||dp - dp_prev|| = " << res << std::endl;
+        std::cout << "|dp|_max = " << max_dp << " at " << max_dp_idx << std::endl;
+        std::cout << "|dp|_min = " << min_dp << " at " << min_dp_idx << std::endl;
     }
 
     /// Update

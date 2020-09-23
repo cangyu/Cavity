@@ -36,6 +36,9 @@ static void stat_min_max(const std::string& var_name, const std::function<Scalar
         LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
 }
 
+static Scalar max_div, min_div;
+static size_t max_div_idx, min_div_idx;
+
 static Scalar stat_div(const Cell &c)
 {
     Scalar ret = 0.0;
@@ -46,6 +49,13 @@ static Scalar stat_div(const Cell &c)
         ret += curFace->rhoU.dot(c.S.at(i));
     }
     ret /= c.volume;
+
+    if(std::abs(ret) > max_div)
+    {
+        max_div = ret;
+        max_div_idx = c.index;
+    }
+
     return ret;
 }
 
@@ -83,6 +93,14 @@ void diagnose()
     stat_min_max("p'", [](const Cell &c) { return c.p_prime; });
     stat_min_max("T", [](const Cell &c) { return c.T; });
     LOG_OUT << std::endl;
+
+    max_div = 0.0;
+
     stat_min_max("div", stat_div);
     stat_min_max("CFL", stat_cfl);
+
+    LOG_OUT << "Max divergence at cell" << max_div_idx << ": (";
+    LOG_OUT << cell(max_div_idx).centroid.x() << ", ";
+    LOG_OUT << cell(max_div_idx).centroid.y() << ", ";
+    LOG_OUT << cell(max_div_idx).centroid.z() << ")" << std::endl;
 }

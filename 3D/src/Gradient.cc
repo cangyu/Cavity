@@ -9,6 +9,202 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
+void calcFaceGhostVariable()
+{
+    for (auto &f : face)
+    {
+        if (f.at_boundary)
+        {
+            if (f.c0)
+            {
+                /// density
+                switch (f.parent->rho_BC)
+                {
+                case Neumann:
+                    f.rho_ghost = f.c0->rho + 2 * f.sn_grad_rho * f.r0.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.rho_ghost = f.rho; /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// velocity-x
+                switch (f.parent->U_BC[0])
+                {
+                case Neumann:
+                    f.U_ghost.x() = f.c0->U[0] + 2 * f.sn_grad_U.x() * f.r0.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.U_ghost.x() = f.U.x(); /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// velocity-y
+                switch (f.parent->U_BC[1])
+                {
+                case Neumann:
+                    f.U_ghost.y() = f.c0->U[1] + 2 * f.sn_grad_U.y() * f.r0.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.U_ghost.y() = f.U.y(); /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// velocity-z
+                switch (f.parent->U_BC[2])
+                {
+                case Neumann:
+                    f.U_ghost.z() = f.c0->U[2] + 2 * f.sn_grad_U.z() * f.r0.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.U_ghost.z() = f.U.z(); /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// pressure
+                switch (f.parent->p_BC)
+                {
+                case Neumann:
+                    f.p_ghost = f.c0->p + 2 * f.sn_grad_p * f.r0.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.p_ghost = f.p; /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// temperature
+                switch (f.parent->T_BC)
+                {
+                case Neumann:
+                    f.T_ghost = f.c0->T + 2 * f.sn_grad_T * f.r0.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.T_ghost = f.T; /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+            }
+            else if (f.c1)
+            {
+                /// density
+                switch (f.parent->rho_BC)
+                {
+                case Neumann:
+                    f.rho_ghost = f.c1->rho + 2 * f.sn_grad_rho * f.r1.norm();  /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.rho_ghost = f.rho; /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// velocity-x
+                switch (f.parent->U_BC[0])
+                {
+                case Neumann:
+                    f.U_ghost.x() = f.c1->U[0] + 2 * f.sn_grad_U.x() * f.r1.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.U_ghost.x() = f.U.x(); /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// velocity-y
+                switch (f.parent->U_BC[1])
+                {
+                case Neumann:
+                    f.U_ghost.y() = f.c1->U[1] + 2 * f.sn_grad_U.y() * f.r1.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.U_ghost.y() = f.U.y(); /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// velocity-z
+                switch (f.parent->U_BC[2])
+                {
+                case Neumann:
+                    f.U_ghost.z() = f.c1->U[2] + 2 * f.sn_grad_U.z() * f.r1.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.U_ghost.z() = f.U.z(); /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// pressure
+                switch (f.parent->p_BC)
+                {
+                case Neumann:
+                    f.p_ghost = f.c1->p + 2 * f.sn_grad_p * f.r1.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.p_ghost = f.p; /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+
+                /// temperature
+                switch (f.parent->T_BC)
+                {
+                case Neumann:
+                    f.T_ghost = f.c1->T + 2 * f.sn_grad_T * f.r1.norm(); /// May not accurate, should be validated or corrected further.
+                    break;
+                case Dirichlet:
+                    f.T_ghost = f.T; /// Will not be used.
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+            }
+            else
+                throw empty_connectivity(f.index);
+        }
+    }
+}
+
 void calc_cell_primitive_gradient()
 {
     for (auto &c : cell)
@@ -25,10 +221,10 @@ void calc_cell_primitive_gradient()
                 switch(curFace->parent->rho_BC)
                 {
                 case Dirichlet:
-                    dphi(i) = curFace->rho - c.rho;
+                    dphi(i) = (curFace->rho - c.rho)/(curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    dphi(i) = curFace->sn_grad_rho;
+                    dphi(i) = (curFace->rho_ghost - c.rho)/2.0/(curFace->centroid - c.centroid).norm();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -39,7 +235,7 @@ void calc_cell_primitive_gradient()
             else
             {
                 auto curAdjCell = c.adjCell.at(i);
-                dphi(i) = curAdjCell->rho - c.rho;
+                dphi(i) = (curAdjCell->rho - c.rho)/(curAdjCell->centroid - c.centroid).norm();
             }
         }
         c.grad_rho = c.J_INV_rho * dphi;
@@ -53,10 +249,10 @@ void calc_cell_primitive_gradient()
                 switch(curFace->parent->U_BC[0])
                 {
                 case Dirichlet:
-                    dphi(i) = curFace->U.x() - c.U.x();
+                    dphi(i) = (curFace->U.x() - c.U.x())/(curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    dphi(i) = curFace->sn_grad_U.x();
+                    dphi(i) = (curFace->U_ghost.x() - c.U.x())/2.0/(curFace->centroid - c.centroid).norm();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -67,7 +263,7 @@ void calc_cell_primitive_gradient()
             else
             {
                 auto curAdjCell = c.adjCell.at(i);
-                dphi(i) = curAdjCell->U.x() - c.U.x();
+                dphi(i) = (curAdjCell->U.x() - c.U.x())/(curAdjCell->centroid - c.centroid).norm();
             }
         }
         c.grad_U.col(0) = c.J_INV_U[0] * dphi;
@@ -81,10 +277,10 @@ void calc_cell_primitive_gradient()
                 switch (curFace->parent->U_BC[1])
                 {
                 case Dirichlet:
-                    dphi(i) = curFace->U.y() - c.U.y();
+                    dphi(i) = (curFace->U.y() - c.U.y())/(curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    dphi(i) = curFace->sn_grad_U.y();
+                    dphi(i) = (curFace->U_ghost.y() - c.U.y())/2.0/(curFace->centroid - c.centroid).norm();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -95,7 +291,7 @@ void calc_cell_primitive_gradient()
             else
             {
                 auto curAdjCell = c.adjCell.at(i);
-                dphi(i) = curAdjCell->U.y() - c.U.y();
+                dphi(i) = (curAdjCell->U.y() - c.U.y())/(curAdjCell->centroid - c.centroid).norm();
             }
         }
         c.grad_U.col(1) = c.J_INV_U[1] * dphi;
@@ -109,10 +305,10 @@ void calc_cell_primitive_gradient()
                 switch (curFace->parent->U_BC[2])
                 {
                 case Dirichlet:
-                    dphi(i) = curFace->U.z() - c.U.z();
+                    dphi(i) = (curFace->U.z() - c.U.z())/(curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    dphi(i) = curFace->sn_grad_U.z();
+                    dphi(i) = (curFace->U_ghost.z() - c.U.z())/2.0/(curFace->centroid - c.centroid).norm();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -123,7 +319,7 @@ void calc_cell_primitive_gradient()
             else
             {
                 auto curAdjCell = c.adjCell.at(i);
-                dphi(i) = curAdjCell->U.z() - c.U.z();
+                dphi(i) = (curAdjCell->U.z() - c.U.z())/(curAdjCell->centroid - c.centroid).norm();
             }
         }
         c.grad_U.col(2) = c.J_INV_U[2] * dphi;
@@ -137,10 +333,10 @@ void calc_cell_primitive_gradient()
                 switch (curFace->parent->p_BC)
                 {
                 case Dirichlet:
-                    dphi(i) = curFace->p - c.p;
+                    dphi(i) = (curFace->p - c.p)/(curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    dphi(i) = curFace->sn_grad_p;
+                    dphi(i) = (curFace->p_ghost - c.p)/2.0/(curFace->centroid - c.centroid).norm();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -151,7 +347,7 @@ void calc_cell_primitive_gradient()
             else
             {
                 auto curAdjCell = c.adjCell.at(i);
-                dphi(i) = curAdjCell->p - c.p;
+                dphi(i) = (curAdjCell->p - c.p)/(curAdjCell->centroid - c.centroid).norm();
             }
         }
         c.grad_p = c.J_INV_p * dphi;
@@ -165,10 +361,10 @@ void calc_cell_primitive_gradient()
                 switch (curFace->parent->T_BC)
                 {
                 case Dirichlet:
-                    dphi(i) = curFace->T - c.T;
+                    dphi(i) = (curFace->T - c.T)/(curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    dphi(i) = curFace->sn_grad_T;
+                    dphi(i) = (curFace->T_ghost - c.T)/2.0/(curFace->centroid - c.centroid).norm();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -179,7 +375,7 @@ void calc_cell_primitive_gradient()
             else
             {
                 auto curAdjCell = c.adjCell.at(i);
-                dphi(i) = curAdjCell->T - c.T;
+                dphi(i) = (curAdjCell->T - c.T)/(curAdjCell->centroid - c.centroid).norm();
             }
         }
         c.grad_T = c.J_INV_T * dphi;
@@ -203,7 +399,7 @@ void calc_cell_pressure_correction_gradient()
                 switch (curFace->parent->p_prime_BC)
                 {
                 case Dirichlet:
-                    dphi(i) = -c.p_prime; /// Zero-Value is assumed.
+                    dphi(i) = -c.p_prime/(curFace->centroid - c.centroid).norm() ; /// Zero-Value is assumed.
                     break;
                 case Neumann:
                     dphi(i) = 0.0; /// Zero-Gradient is assumed.
@@ -217,7 +413,7 @@ void calc_cell_pressure_correction_gradient()
             else
             {
                 auto curAdjCell = c.adjCell.at(i);
-                dphi(i) = curAdjCell->p_prime - c.p_prime;
+                dphi(i) = (curAdjCell->p_prime - c.p_prime)/(curAdjCell->centroid - c.centroid).norm();
             }
         }
         c.grad_p_prime = c.J_INV_p_prime * dphi;
