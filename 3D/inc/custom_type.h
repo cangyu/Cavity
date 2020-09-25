@@ -133,6 +133,7 @@ struct Face
 
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
+    Scalar kappa = ZERO_SCALAR;
 
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
@@ -140,6 +141,7 @@ struct Face
     Scalar p = ZERO_SCALAR;
     Scalar p_prime = ZERO_SCALAR; /// Used by pressure correction
     Scalar T = ZERO_SCALAR;
+    Scalar h = ZERO_SCALAR;
     Tensor tau = ZERO_TENSOR;
     Vector rhoU = ZERO_VECTOR;
     Vector rhoU_star = ZERO_VECTOR; /// Used by the Fractional-Step Method
@@ -196,16 +198,20 @@ struct Cell
 
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
+    Scalar kappa = ZERO_SCALAR;
 
     Scalar rho_prev = ZERO_SCALAR;
     Scalar p_prev = ZERO_SCALAR;
+    Scalar T_prev = ZERO_SCALAR;
 
     /// Physical variables
+    Tensor tau = ZERO_TENSOR;
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
     Scalar p_prime = ZERO_SCALAR; /// Used by pressure correction
     Scalar T = ZERO_SCALAR;
+    Scalar rhoh = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
     Vector rhoU_star = ZERO_VECTOR; /// Used by the Fractional-Step Method
     Scalar delta_m_dot = ZERO_SCALAR;

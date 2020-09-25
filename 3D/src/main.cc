@@ -94,6 +94,7 @@ void solve()
         {
             c.rho_prev = c.rho;
             c.p_prev = c.p;
+            c.T_prev = c.T;
         }
 
         if (done || !(iter % OUTPUT_GAP))

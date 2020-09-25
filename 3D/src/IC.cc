@@ -24,7 +24,7 @@ void IC()
         c_dst.rho = c_dst.rho_prev = rho0;
         c_dst.U = ZERO_VECTOR;
         c_dst.p = c_dst.p_prev = P0;
-        c_dst.T = T0;
+        c_dst.T = c_dst.T_prev = T0;
 
         /// Conservative variables
         c_dst.rhoU = ZERO_VECTOR;
