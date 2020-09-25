@@ -11,6 +11,7 @@ extern NaturalArray<Patch> patch;
 extern std::string SEP;
 extern std::ostream &LOG_OUT;
 extern Scalar dt;
+extern Scalar Re;
 
 static void stat_min_max(const std::string& var_name, const std::function<Scalar(const Cell&)> &extractor)
 {
@@ -59,8 +60,16 @@ static Scalar stat_div(const Cell &c)
     return ret;
 }
 
+static Scalar g_max_dt;
+
 static Scalar stat_cfl(const Cell &c)
 {
+    const Scalar L = std::pow(c.volume, 1.0 / 3);
+
+    Scalar loc_dt = 1.0 / (3.0 * c.U.norm() / L + 2.0 / Re * 3 / (L * L));
+    if(loc_dt < g_max_dt)
+        g_max_dt = loc_dt;
+
     static const Scalar A = 3 * std::sqrt(3);
 
     return A * c.grad_U.norm() * dt;
@@ -95,9 +104,12 @@ void diagnose()
     LOG_OUT << std::endl;
 
     max_div = 0.0;
+    g_max_dt = 1e15;
 
     stat_min_max("div", stat_div);
     stat_min_max("CFL", stat_cfl);
+
+    LOG_OUT << "Global max dt=" << g_max_dt << std::endl;
 
     LOG_OUT << "Max divergence at cell" << max_div_idx << ": (";
     LOG_OUT << cell(max_div_idx).centroid.x() << ", ";

@@ -197,6 +197,9 @@ struct Cell
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
 
+    Scalar rho_prev = ZERO_SCALAR;
+    Scalar p_prev = ZERO_SCALAR;
+
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
@@ -205,6 +208,7 @@ struct Cell
     Scalar T = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
     Vector rhoU_star = ZERO_VECTOR; /// Used by the Fractional-Step Method
+    Scalar delta_m_dot = ZERO_SCALAR;
 
     /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;

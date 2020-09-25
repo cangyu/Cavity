@@ -89,6 +89,13 @@ void solve()
         done = iter > MAX_ITER || t > MAX_TIME;
         diagnose();
         LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
+
+        for(auto &c : cell)
+        {
+            c.rho_prev = c.rho;
+            c.p_prev = c.p;
+        }
+
         if (done || !(iter % OUTPUT_GAP))
         {
             interp_nodal_primitive_var();
@@ -206,8 +213,6 @@ int main(int argc, char *argv[])
             OUTPUT_GAP = std::atoi(argv[cnt + 1]);
         else if (!std::strcmp(argv[cnt], "--noc-method"))
             NOC_Method = std::atoi(argv[cnt + 1]);
-        else if (!std::strcmp(argv[cnt], "--noc-iter"))
-            NOC_ITER = std::atoi(argv[cnt + 1]);
         else if (!std::strcmp(argv[cnt], "--Re"))
             Re = std::atof(argv[cnt + 1]);
         else if(!std::strcmp(argv[cnt], "--resume-from"))

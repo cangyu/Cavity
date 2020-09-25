@@ -3,7 +3,6 @@
 #include "../inc/PoissonEqn.h"
 #include "../inc/CHEM.h"
 #include "../inc/Gradient.h"
-#include "../inc/Flux.h"
 #include "../inc/Discretization.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -270,17 +269,41 @@ void ForwardEuler(Scalar TimeStep)
 {
     reconstruction();
 
-    /// Count flux of each cell.
-    calc_cell_flux();
+    /// Prediction of momentum
+    for(auto &c : cell)
+    {
+        c.pressure_flux.setZero();
+        c.convection_flux.setZero();
+        c.viscous_flux.setZero();
 
-    /// Prediction Step
-    for (auto &c : cell)
-        c.rhoU_star = c.rhoU + TimeStep / c.volume * (-c.convection_flux - c.pressure_flux + c.viscous_flux);
+        const auto Nf = c.S.size();
+        for (int j = 0; j < Nf; ++j)
+        {
+            auto f = c.surface.at(j);
+            const auto &Sf = c.S.at(j);
 
-    /// rhoU* at internal face.
+            /// convection term
+            const Vector cur_convection_flux = f->rhoU.dot(Sf) * f->U;
+            c.convection_flux += cur_convection_flux;
+
+            /// pressure term
+            const Vector cur_pressure_flux = f->p * Sf;
+            c.pressure_flux += cur_pressure_flux;
+
+            /// viscous term
+            const Vector cur_viscous_flux = f->tau * Sf;
+            c.viscous_flux += cur_viscous_flux;
+
+            c.rhoU_star = c.rhoU + TimeStep / c.volume * (-c.convection_flux - c.pressure_flux + c.viscous_flux);
+        }
+    }
+
+    /// rhoU* on each face
     for (auto &f : face)
     {
-        if (!f.at_boundary)
+        if(f.at_boundary)
+            f.rhoU_star = f.rhoU;
+        else
         {
             f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
             const Vector mean_grad_p = 0.5*(f.c1->grad_p + f.c0->grad_p);
@@ -290,6 +313,17 @@ void ForwardEuler(Scalar TimeStep)
             f.rhoU_star += rhoU_rc;
         }
         f.grad_p_prime.setZero();
+    }
+
+    /// Continuity imbalance
+    for(auto &c : cell)
+    {
+        c.delta_m_dot = c.volume / TimeStep * (c.rho - c.rho_prev);
+        for(size_t j = 0; j < c.surface.size(); ++j)
+        {
+            auto f = c.surface.at(j);
+            c.delta_m_dot += f->rhoU_star.dot(c.S.at(j));
+        }
     }
 
     /// Correction Step

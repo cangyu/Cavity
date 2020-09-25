@@ -85,7 +85,7 @@ void BC_TABLE()
 
 static const Scalar rho0 = 1.225; // kg/m3
 static const Vector U_UP = { 1.0, 0.0, 0.0 }; // m/s
-static const Scalar T_DOWN = 300.0, T_UP = 300.0; // K
+static const Scalar T_DOWN = 300.0, T_UP = 1500.0; // K
 
 /**
  * Boundary conditions on all related faces for all variables.

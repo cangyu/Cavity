@@ -27,7 +27,6 @@ add_executable(${PROJECT_NAME}
 	src/BC.cc
 	src/CHEM.cc
 	src/Discretization.cc
-	src/Flux.cc
 	src/Gradient.cc
 	src/LeastSquare.cc
 	src/PoissonEqn.cc
