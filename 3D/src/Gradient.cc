@@ -651,16 +651,18 @@ void calc_face_pressure_correction_gradient()
         }
         else
         {
-            const Vector &r_C = f.c0->centroid;
-            const Vector &r_F = f.c1->centroid;
-            Vector e_CF = r_F - r_C;
-            const Scalar d_CF = e_CF.norm();
-            e_CF /= d_CF;
+            f.grad_p_prime = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
 
-            const Vector grad_p_prime_bar = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
-            const Scalar p_prime_C = f.c0->p_prime;
-            const Scalar p_prime_F = f.c1->p_prime;
-            interpGradientToFace(grad_p_prime_bar, p_prime_C, p_prime_F, e_CF, d_CF, f.grad_p_prime);
+//            const Vector &r_C = f.c0->centroid;
+//            const Vector &r_F = f.c1->centroid;
+//            Vector e_CF = r_F - r_C;
+//            const Scalar d_CF = e_CF.norm();
+//            e_CF /= d_CF;
+//
+//            const Vector grad_p_prime_bar = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
+//            const Scalar p_prime_C = f.c0->p_prime;
+//            const Scalar p_prime_F = f.c1->p_prime;
+//            interpGradientToFace(grad_p_prime_bar, p_prime_C, p_prime_F, e_CF, d_CF, f.grad_p_prime);
         }
     }
 }
