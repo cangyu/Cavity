@@ -227,41 +227,6 @@ void read_mesh(std::istream &fin)
             fin >> loc_S.z();
             loc_S *= c_dst.surface(j)->area;
         }
-
-        if(i == 7791)
-        {
-            std::cout << "\ncell " << i << std::endl;
-            std::cout << c_dst.volume << std::endl;
-            std::cout << "(" << c_dst.centroid.x() << ", " << c_dst.centroid.y() << ", " << c_dst.centroid.z() << ")" << std::endl;
-        }
-
-        if(i == 47721)
-        {
-            std::cout << "\ncell " << i << std::endl;
-            std::cout << c_dst.volume << std::endl;
-            std::cout << "(" << c_dst.centroid.x() << ", " << c_dst.centroid.y() << ", " << c_dst.centroid.z() << ")" << std::endl;
-        }
-
-        if(i == 47856)
-        {
-            std::cout << "\ncell " << i << std::endl;
-            std::cout << c_dst.volume << std::endl;
-            std::cout << "(" << c_dst.centroid.x() << ", " << c_dst.centroid.y() << ", " << c_dst.centroid.z() << ")" << std::endl;
-        }
-
-        if(i == 1231)
-        {
-            std::cout << "\ncell " << i << std::endl;
-            std::cout << c_dst.volume << std::endl;
-            std::cout << "(" << c_dst.centroid.x() << ", " << c_dst.centroid.y() << ", " << c_dst.centroid.z() << ")" << std::endl;
-        }
-
-        if(i == 47720)
-        {
-            std::cout << "\ncell " << i << std::endl;
-            std::cout << c_dst.volume << std::endl;
-            std::cout << "(" << c_dst.centroid.x() << ", " << c_dst.centroid.y() << ", " << c_dst.centroid.z() << ")" << std::endl;
-        }
     }
 
     /// Nodal interpolation coefficients.
@@ -373,15 +338,6 @@ void read_mesh(std::istream &fin)
 
             // Non-Orthogonal correction
             calc_noc_vec(NOC_Method, cur_d, cur_cell.S[j], cur_cell.Se[j], cur_cell.St[j]);
-        }
-
-        if(i == 47720)
-        {
-            std::cout << "cell " << i << std::endl;
-            for(int j = 0; j < cur_cell.adjCell.size(); ++j)
-            {
-                std::cout << cur_cell.adjCell.at(j)->index << ": " << cur_cell.d.at(j).norm() << std::endl;
-            }
         }
     }
 }
