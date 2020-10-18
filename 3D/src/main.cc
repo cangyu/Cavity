@@ -36,7 +36,7 @@ std::string SEP = "  ";
 std::ostream &LOG_OUT = std::cout;
 
 /* Non-Orthogonal Correction */
-int NOC_Method = 2; /// Method
+int NOC_Method = 3; /// Method
 int NOC_ITER = 1; /// Iteration
 
 /* Pressure-Correction equation coefficients */
@@ -99,6 +99,12 @@ void solve()
                 throw failed_to_open_file(fn);
             write_data(dts, iter, t);
             dts.close();
+        }
+
+        if(diverged())
+        {
+            std::cerr << "Diverged!" << std::endl;
+            return;
         }
     }
     LOG_OUT << "\nFinished!" << std::endl;
