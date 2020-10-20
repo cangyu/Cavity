@@ -71,46 +71,6 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
         /// Convert index to 0-based.
         for (const auto &it : cur_coef)
             coef.emplace_back(C.index - 1, it.first - 1, it.second);
-
-        if(C.index == 47720)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 1231)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 7791)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 47721)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 47856)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
     }
 
     /// Set reference.

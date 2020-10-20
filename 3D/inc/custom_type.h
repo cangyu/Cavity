@@ -249,9 +249,7 @@ struct failed_to_open_file : public std::runtime_error
 };
 struct unsupported_boundary_condition : public std::invalid_argument
 {
-    static const std::array<std::string, 3> BC_CATEGORY_STR;
-
-    explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("\"" + BC_CATEGORY_STR[x] + "\" condition is not supported.") {}
+    explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("BC \"" + std::to_string((int)x) + "\" is not supported.") {}
 
     explicit unsupported_boundary_condition(const std::string &bc) : std::invalid_argument("\"" + bc + "\" is not supported.") {}
 

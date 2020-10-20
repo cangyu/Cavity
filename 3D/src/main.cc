@@ -35,10 +35,6 @@ bool use_fixed_dt = false;
 std::string SEP = "  ";
 std::ostream &LOG_OUT = std::cout;
 
-/* Non-Orthogonal Correction */
-int NOC_Method = 3; /// Method
-int NOC_ITER = 1; /// Iteration
-
 /* Pressure-Correction equation coefficients */
 SX_MAT A_dp_2; /// The coefficient matrix
 SX_VEC Q_dp_2; /// The RHS
@@ -217,8 +213,6 @@ int main(int argc, char *argv[])
             MAX_TIME = std::atof(argv[cnt + 1]); /// In seconds by default.
         else if (!std::strcmp(argv[cnt], "--write-interval"))
             OUTPUT_GAP = std::atoi(argv[cnt + 1]);
-        else if (!std::strcmp(argv[cnt], "--noc-method"))
-            NOC_Method = std::atoi(argv[cnt + 1]);
         else if (!std::strcmp(argv[cnt], "--Re"))
             Re = std::atof(argv[cnt + 1]);
         else if(!std::strcmp(argv[cnt], "--resume-from"))
@@ -266,7 +260,6 @@ int main(int argc, char *argv[])
     LOG_OUT << "\nMax iterations: " << MAX_ITER << std::endl;
     LOG_OUT << "\nMax run time: " << MAX_TIME << "s" << std::endl;
     LOG_OUT << "\nRecord solution every " << OUTPUT_GAP << " iteration" << std::endl;
-    LOG_OUT << "\nNon-Orthogonal correction iterations: " << NOC_ITER << std::endl;
 
     /* Initialize environment */
     init();
