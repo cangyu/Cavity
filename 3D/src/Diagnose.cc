@@ -116,3 +116,8 @@ void diagnose()
     LOG_OUT << cell(max_div_idx).centroid.y() << ", ";
     LOG_OUT << cell(max_div_idx).centroid.z() << ")" << std::endl;
 }
+
+bool diverged()
+{
+    return std::fabs(max_div) > 1e2;
+}

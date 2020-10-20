@@ -2,5 +2,6 @@
 #define DIAGNOSE_H
 
 void diagnose();
+bool diverged();
 
 #endif

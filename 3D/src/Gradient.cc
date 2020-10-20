@@ -627,40 +627,44 @@ void calc_face_pressure_correction_gradient()
     {
         if (f.at_boundary)
         {
-            Cell *c = f.c0 ? f.c0 : f.c1;
-            bool adj_to_0 = c == f.c0;
+            f.grad_p_prime.setZero();
 
-            const Vector &r_C = c->centroid;
-            const Vector &r_F = f.centroid;
-            Vector e_CF = r_F - r_C;
-            const Scalar d_CF = e_CF.norm(); /// Distance between cell centroid and face centroid.
-            e_CF /= d_CF; /// Unit displacement vector from cell centroid to face centroid.
-            const Vector &n = adj_to_0 ? f.n01 : f.n10; /// Unit outward surface normal vector.
-
-            switch (f.parent->p_prime_BC)
-            {
-            case Dirichlet:
-                interpGradientToFace(c->grad_p_prime, c->p_prime, ZERO_SCALAR, e_CF, d_CF, f.grad_p_prime); /// 0-value is assumed.
-                break;
-            case Neumann:
-                interpGradientToFace(c->grad_p_prime, ZERO_SCALAR, n, f.grad_p_prime); /// 0-gradient in normal direction is assumed.
-                break;
-            case Robin:
-                throw robin_bc_is_not_supported();
-            }
+//            Cell *c = f.c0 ? f.c0 : f.c1;
+//            bool adj_to_0 = c == f.c0;
+//
+//            const Vector &r_C = c->centroid;
+//            const Vector &r_F = f.centroid;
+//            Vector e_CF = r_F - r_C;
+//            const Scalar d_CF = e_CF.norm(); /// Distance between cell centroid and face centroid.
+//            e_CF /= d_CF; /// Unit displacement vector from cell centroid to face centroid.
+//            const Vector &n = adj_to_0 ? f.n01 : f.n10; /// Unit outward surface normal vector.
+//
+//            switch (f.parent->p_prime_BC)
+//            {
+//            case Dirichlet:
+//                interpGradientToFace(c->grad_p_prime, c->p_prime, ZERO_SCALAR, e_CF, d_CF, f.grad_p_prime); /// 0-value is assumed.
+//                break;
+//            case Neumann:
+//                interpGradientToFace(c->grad_p_prime, ZERO_SCALAR, n, f.grad_p_prime); /// 0-gradient in normal direction is assumed.
+//                break;
+//            case Robin:
+//                throw robin_bc_is_not_supported();
+//            }
         }
         else
         {
-            const Vector &r_C = f.c0->centroid;
-            const Vector &r_F = f.c1->centroid;
-            Vector e_CF = r_F - r_C;
-            const Scalar d_CF = e_CF.norm();
-            e_CF /= d_CF;
+            f.grad_p_prime = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
 
-            const Vector grad_p_prime_bar = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
-            const Scalar p_prime_C = f.c0->p_prime;
-            const Scalar p_prime_F = f.c1->p_prime;
-            interpGradientToFace(grad_p_prime_bar, p_prime_C, p_prime_F, e_CF, d_CF, f.grad_p_prime);
+//            const Vector &r_C = f.c0->centroid;
+//            const Vector &r_F = f.c1->centroid;
+//            Vector e_CF = r_F - r_C;
+//            const Scalar d_CF = e_CF.norm();
+//            e_CF /= d_CF;
+//
+//            const Vector grad_p_prime_bar = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
+//            const Scalar p_prime_C = f.c0->p_prime;
+//            const Scalar p_prime_F = f.c1->p_prime;
+//            interpGradientToFace(grad_p_prime_bar, p_prime_C, p_prime_F, e_CF, d_CF, f.grad_p_prime);
         }
     }
 }
