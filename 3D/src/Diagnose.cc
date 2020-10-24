@@ -121,3 +121,13 @@ bool diverged()
 {
     return std::fabs(max_div) > 1e2;
 }
+
+/**
+ * Transient time-step for each explicit marching iteration.
+ * @return Current time-step used for temporal integration.
+ */
+Scalar calcTimeStep()
+{
+    Scalar ret = 5e-3;
+    return ret;
+}

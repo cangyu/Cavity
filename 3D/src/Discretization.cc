@@ -250,16 +250,6 @@ void reconstruction()
 /*********************************************** Temporal Discretization **********************************************/
 
 /**
- * Transient time-step for each explicit marching iteration.
- * @return Current time-step used for temporal integration.
- */
-Scalar calcTimeStep()
-{
-    Scalar ret = 5e-3;
-    return ret;
-}
-
-/**
  * 1st-order explicit time-marching.
  * Pressure-Velocity coupling is solved using Fractional-Step Method.
  * @param TimeStep
@@ -332,8 +322,8 @@ void ForwardEuler(Scalar TimeStep)
     while(res > 1e-10)
     {
         res = 0.0;
-        Scalar max_dp = 0.0, min_dp = 1e16;
-        size_t max_dp_idx, min_dp_idx;
+        Scalar max_dp = 0.0;
+        size_t max_dp_idx;
 
         calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
         sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
@@ -348,18 +338,12 @@ void ForwardEuler(Scalar TimeStep)
                 max_dp = std::fabs(c.p_prime);
                 max_dp_idx = c.index;
             }
-            if(std::fabs(c.p_prime) < min_dp)
-            {
-                min_dp = std::fabs(c.p_prime);
-                min_dp_idx = c.index;
-            }
         }
         calc_cell_pressure_correction_gradient();
         calc_face_pressure_correction_gradient();
         res /= NumOfCell;
         std::cout << "||dp - dp_prev|| = " << res << std::endl;
         std::cout << "|dp|_max = " << max_dp << " at " << max_dp_idx << std::endl;
-        std::cout << "|dp|_min = " << min_dp << " at " << min_dp_idx << std::endl;
     }
 
     /// Update
