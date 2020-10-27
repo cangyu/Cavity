@@ -365,7 +365,20 @@ void ForwardEuler(Scalar TimeStep)
     {
         if (!f.at_boundary)
         {
-            f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime;
+            const Vector d01 = f.c1->centroid - f.c0->centroid;
+            const Vector e01 = d01 / d01.norm();
+
+            const Vector S01 = f.n01 * f.area;
+            const Scalar cosine_theta = d01.dot(S01) / (d01.norm() * S01.norm());
+            if (std::fabs(cosine_theta) < 1e-6)
+                throw std::invalid_argument("Too large skewness on face " + std::to_string(f.index));
+
+            const Scalar alpha = 1.0 / cosine_theta;
+
+            Scalar sn_grad_p_prime = alpha * (f.c1->p_prime - f.c0->p_prime) / d01.norm(); /// Orthogonal part
+            sn_grad_p_prime += (f.n01 - alpha * e01).dot(f.grad_p_prime); /// Non-Orthogonal part
+
+            f.rhoU = f.rhoU_star - TimeStep * sn_grad_p_prime * f.n01;
         }
     }
     for (auto& c : cell)
