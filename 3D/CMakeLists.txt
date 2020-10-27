@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(CAVITY VERSION 1.2.0)
+project(IncompressibleFlow VERSION 1.3.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,7 +21,7 @@ add_library(SXAMG STATIC
 
 target_include_directories(SXAMG PRIVATE 3rd_party/sxamg/include)
 
-add_executable(${PROJECT_NAME}
+add_executable(CAVITY
 	src/IO.cc
 	src/IC.cc
 	src/BC.cc
@@ -34,8 +34,9 @@ add_executable(${PROJECT_NAME}
 	src/Miscellaneous.cc
 	src/main.cc)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE SXAMG)
+target_link_libraries(CAVITY PRIVATE SXAMG)
 
-install(TARGETS ${PROJECT_NAME} 
-	RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/bin)
+target_include_directories(CAVITY PRIVATE /usr/local/include/eigen3)
+
+install(TARGETS CAVITY RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/bin)
 

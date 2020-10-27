@@ -115,7 +115,7 @@ int solve()
             c.p_prev = c.p;
         }
     }
-    LOG_OUT << "\nFinished in" << total_cpu_time << "s!" << std::endl;
+    LOG_OUT << "\nFinished in " << total_cpu_time << "s!" << std::endl;
 
     return 0;
 }

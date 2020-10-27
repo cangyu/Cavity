@@ -350,7 +350,9 @@ void ForwardEuler(Scalar TimeStep)
     for (auto &f : face)
     {
         if(!f.at_boundary)
+        {
             f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime;
+        }
     }
     for (auto &c : cell)
     {

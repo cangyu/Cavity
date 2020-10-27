@@ -6,8 +6,8 @@
 #include <array>
 #include <cstddef>
 #include <stdexcept>
-#include "../3rd_party/eigen/Eigen/Dense"
-#include "../3rd_party/eigen/Eigen/Sparse"
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include "../3rd_party/sxamg/include/sxamg.h"
 
 /***************************************************** Math types *****************************************************/
