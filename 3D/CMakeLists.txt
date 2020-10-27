@@ -21,6 +21,8 @@ add_library(SXAMG STATIC
 
 target_include_directories(SXAMG PRIVATE 3rd_party/sxamg/include)
 
+find_package(Eigen3 3.3.7 REQUIRED)
+
 add_executable(CAVITY
 	src/IO.cc
 	src/IC.cc
@@ -34,9 +36,6 @@ add_executable(CAVITY
 	src/Miscellaneous.cc
 	src/main.cc)
 
-target_link_libraries(CAVITY PRIVATE SXAMG)
-
-target_include_directories(CAVITY PRIVATE /usr/local/include/eigen3)
+target_link_libraries(CAVITY PRIVATE SXAMG Eigen3::Eigen)
 
 install(TARGETS CAVITY RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/bin)
-

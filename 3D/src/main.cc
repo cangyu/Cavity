@@ -93,7 +93,7 @@ int solve()
             std::cerr << "Diverged!" << std::endl;
             return -1;
         }
-        LOG_OUT << "\nCPU time: current=" << single_cpu_time << "s, total=" << total_cpu_time << "s" << std::endl;
+        LOG_OUT << "\n" << SEP << "CPU time: current=" << single_cpu_time << "s, total=" << total_cpu_time << "s" << std::endl;
 
         t += dt;
         done = iter > MAX_ITER || t > MAX_TIME;
