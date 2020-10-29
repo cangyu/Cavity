@@ -224,8 +224,6 @@ void reconstruction()
     /// Enforce boundary conditions for primitive variables.
     set_bc_of_primitive_var();
 
-    calcFaceGhostVariable();
-
     /// Gradients of primitive variables at centroid of each cell.
     calc_cell_primitive_gradient();
 
@@ -355,7 +353,7 @@ void ForwardEuler(Scalar TimeStep)
         ++poisson_noc_iter;
     }
     LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations, ";
-    LOG_OUT << "|p'|_max = " << max_dp << " @ cell " << max_dp_idx << " (";
+    LOG_OUT << "|p'|_max = " << max_dp << " @cell " << max_dp_idx << " (";
     LOG_OUT << cell.at(max_dp_idx - 1).centroid.x() << ", ";
     LOG_OUT << cell.at(max_dp_idx - 1).centroid.y() << ", ";
     LOG_OUT << cell.at(max_dp_idx - 1).centroid.z() << ")" << std::endl;

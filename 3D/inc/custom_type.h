@@ -125,12 +125,6 @@ struct Face
     /// Possible connection to high-level
     Patch *parent = nullptr;
 
-    // Ghost variables if needed
-    Scalar rho_ghost = ZERO_SCALAR;
-    Vector U_ghost = ZERO_VECTOR;
-    Scalar p_ghost = ZERO_SCALAR;
-    Scalar T_ghost = ZERO_SCALAR;
-
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
 
