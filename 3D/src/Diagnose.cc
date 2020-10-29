@@ -70,18 +70,6 @@ static Scalar stat_cfl(const Cell &c)
 void diagnose(bool &diverge_flag)
 {
     LOG_OUT << std::endl;
-    stat_min_max("ConvectionFlux_X", [](const Cell &c) { return c.convection_flux.x(); });
-    stat_min_max("ConvectionFlux_Y", [](const Cell &c) { return c.convection_flux.y(); });
-    stat_min_max("ConvectionFlux_Z", [](const Cell &c) { return c.convection_flux.z(); });
-    LOG_OUT << std::endl;
-    stat_min_max("PressureFlux_X", [](const Cell &c) { return c.pressure_flux.x(); });
-    stat_min_max("PressureFlux_Y", [](const Cell &c) { return c.pressure_flux.y(); });
-    stat_min_max("PressureFlux_Z", [](const Cell &c) { return c.pressure_flux.z(); });
-    LOG_OUT << std::endl;
-    stat_min_max("ViscousFlux_X", [](const Cell &c) { return c.viscous_flux.x(); });
-    stat_min_max("ViscousFlux_Y", [](const Cell &c) { return c.viscous_flux.y(); });
-    stat_min_max("ViscousFlux_Z", [](const Cell &c) { return c.viscous_flux.z(); });
-    LOG_OUT << std::endl;
     stat_min_max("rhoU*_X", [](const Cell &c) { return c.rhoU_star.x(); });
     stat_min_max("rhoU*_Y", [](const Cell &c) { return c.rhoU_star.y(); });
     stat_min_max("rhoU*_Z", [](const Cell &c) { return c.rhoU_star.z(); });
@@ -101,7 +89,7 @@ void diagnose(bool &diverge_flag)
     max_div = 0.0;
     stat_min_max("div", stat_div);
     diverge_flag = std::fabs(max_div) > 1e2;
-    LOG_OUT << SEP << "Max divergence at cell " << max_div_idx << ": (";
+    LOG_OUT << SEP << "Max divergence @cell " << max_div_idx << ": (";
     LOG_OUT << cell(max_div_idx).centroid.x() << ", ";
     LOG_OUT << cell(max_div_idx).centroid.y() << ", ";
     LOG_OUT << cell(max_div_idx).centroid.z() << ")" << std::endl;

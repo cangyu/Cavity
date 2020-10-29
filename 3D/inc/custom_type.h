@@ -210,11 +210,6 @@ struct Cell
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
     Vector grad_p_prime = ZERO_VECTOR; /// Used by pressure correction
-
-    /// Flux within momentum equation
-    Vector pressure_flux = ZERO_VECTOR;
-    Vector convection_flux = ZERO_VECTOR;
-    Vector viscous_flux = ZERO_VECTOR;
 };
 struct Patch
 {

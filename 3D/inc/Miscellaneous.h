@@ -3,7 +3,7 @@
 
 #include <ctime>
 #include <string>
-#include "../inc/custom_type.h"
+#include "custom_type.h"
 
 double duration(const clock_t &startTime, const clock_t &endTime);
 std::string time_stamp_str();
