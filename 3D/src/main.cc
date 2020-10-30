@@ -35,10 +35,6 @@ bool use_fixed_dt = false;
 std::string SEP = "  ";
 std::ostream &LOG_OUT = std::cout;
 
-/* Non-Orthogonal Correction */
-int NOC_Method = 2; /// Method
-int NOC_ITER = 1; /// Iteration
-
 /* Pressure-Correction equation coefficients */
 SX_MAT A_dp_2; /// The coefficient matrix
 SX_VEC Q_dp_2; /// The RHS
@@ -70,10 +66,11 @@ static void data_file_path(int n, std::string &fn)
 /**
  * Directive function guiding explicit time-marching iterations.
  */
-void solve()
+int solve()
 {
     clock_t tick_begin, tick_end;
-    bool done = false;
+    bool done = false, diverged = false;
+    Scalar single_cpu_time = 0.0, total_cpu_time = 0.0;
 
     LOG_OUT << "\nStarting calculation ... " << std::endl;
     while (!done)
@@ -82,21 +79,24 @@ void solve()
         if (!use_fixed_dt)
             dt = calcTimeStep();
         LOG_OUT << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
-        tick_begin = clock();
-        ForwardEuler(dt);
-        tick_end = clock();
+        {
+            tick_begin = clock();
+            ForwardEuler(dt);
+            tick_end = clock();
+        }
+        single_cpu_time = duration(tick_begin, tick_end);
+        total_cpu_time += single_cpu_time;
+
+        diagnose(diverged);
+        if(diverged)
+        {
+            std::cerr << "Diverged!" << std::endl;
+            return -1;
+        }
+        LOG_OUT << "\n" << SEP << "CPU time: current=" << single_cpu_time << "s, total=" << total_cpu_time << "s" << std::endl;
+
         t += dt;
         done = iter > MAX_ITER || t > MAX_TIME;
-        diagnose();
-        LOG_OUT << "\n" << SEP << duration(tick_begin, tick_end) << "s used." << std::endl;
-
-        for(auto &c : cell)
-        {
-            c.rho_prev = c.rho;
-            c.p_prev = c.p;
-            c.T_prev = c.T;
-        }
-
         if (done || !(iter % OUTPUT_GAP))
         {
             interp_nodal_primitive_var();
@@ -108,8 +108,17 @@ void solve()
             write_data(dts, iter, t);
             dts.close();
         }
+
+        for(auto &c : cell)
+        {
+            c.rho_prev = c.rho;
+            c.p_prev = c.p;
+            c.T_prev = c.T;
+        }
     }
-    LOG_OUT << "\nFinished!" << std::endl;
+    LOG_OUT << "\nFinished in " << total_cpu_time << "s!" << std::endl;
+
+    return 0;
 }
 
 /**
@@ -212,8 +221,6 @@ int main(int argc, char *argv[])
             MAX_TIME = std::atof(argv[cnt + 1]); /// In seconds by default.
         else if (!std::strcmp(argv[cnt], "--write-interval"))
             OUTPUT_GAP = std::atoi(argv[cnt + 1]);
-        else if (!std::strcmp(argv[cnt], "--noc-method"))
-            NOC_Method = std::atoi(argv[cnt + 1]);
         else if (!std::strcmp(argv[cnt], "--Re"))
             Re = std::atof(argv[cnt + 1]);
         else if(!std::strcmp(argv[cnt], "--resume-from"))
@@ -261,7 +268,6 @@ int main(int argc, char *argv[])
     LOG_OUT << "\nMax iterations: " << MAX_ITER << std::endl;
     LOG_OUT << "\nMax run time: " << MAX_TIME << "s" << std::endl;
     LOG_OUT << "\nRecord solution every " << OUTPUT_GAP << " iteration" << std::endl;
-    LOG_OUT << "\nNon-Orthogonal correction iterations: " << NOC_ITER << std::endl;
 
     /* Initialize environment */
     init();

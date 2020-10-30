@@ -1,8 +1,8 @@
-3rd_party/
-build/
-bin/
-test/
-mesh/
+3rd_party
+build*
+bin
+test
+mesh
 
 # OSX
 .DS_Store

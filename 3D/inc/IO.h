@@ -2,7 +2,7 @@
 #define IO_H
 
 #include <fstream>
-#include "../inc/custom_type.h"
+#include "custom_type.h"
 
 void read_mesh(std::istream &fin);
 void write_data(std::ostream &out, int iter, Scalar t);

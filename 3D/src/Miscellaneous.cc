@@ -9,8 +9,6 @@ extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 
-const std::array<std::string, 3> unsupported_boundary_condition::BC_CATEGORY_STR = {"Dirichlet","Neumann","Robin"};
-
 double duration(const clock_t &startTime, const clock_t &endTime)
 {
     return static_cast<double>(endTime - startTime) / CLOCKS_PER_SEC;
@@ -56,31 +54,14 @@ void interp_nodal_primitive_var()
 
 /**
  * Calculate vectors used for NON-ORTHOGONAL correction locally.
- * @param opt Choice of method.
- * 1 - Minimum Correction
- * 2 - Orthogonal Correction
- * 3 - Over-Relaxed Correction
  * @param d Local displacement vector.
  * @param S Local surface outward normal vector.
  * @param E Orthogonal part after decomposing "S".
  * @param T Non-Orthogonal part after decomposing "S", satisfying "S = E + T".
  */
-void calc_noc_vec(int opt, const Vector &d, const Vector &S, Vector &E, Vector &T)
+void calc_noc_vec(const Vector &d, const Vector &S, Vector &E, Vector &T)
 {
-    Vector e = d;
-    e /= d.norm();
-    const Scalar S_mod = S.norm();
-    const Scalar cos_theta = e.dot(S) / S_mod;
-
-    if(opt == 1)
-        E = S_mod * cos_theta * e;
-    else if(opt == 2)
-        E = S_mod * e;
-    else if(opt == 3)
-        E = S_mod / cos_theta * e;
-    else
-        throw std::invalid_argument("Invalid NON-ORTHOGONAL correction option!");
-
+    E = (S.dot(S) / d.dot(S)) * d; // OverRelaxed
     T = S - E;
 }
 

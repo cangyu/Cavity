@@ -6,8 +6,8 @@
 #include <array>
 #include <cstddef>
 #include <stdexcept>
-#include "../3rd_party/eigen/Eigen/Dense"
-#include "../3rd_party/eigen/Eigen/Sparse"
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include "../3rd_party/sxamg/include/sxamg.h"
 
 /***************************************************** Math types *****************************************************/
@@ -125,12 +125,6 @@ struct Face
     /// Possible connection to high-level
     Patch *parent = nullptr;
 
-    // Ghost variables if needed
-    Scalar rho_ghost = ZERO_SCALAR;
-    Vector U_ghost = ZERO_VECTOR;
-    Scalar p_ghost = ZERO_SCALAR;
-    Scalar T_ghost = ZERO_SCALAR;
-
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
     Scalar kappa = ZERO_SCALAR;
@@ -222,11 +216,6 @@ struct Cell
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
     Vector grad_p_prime = ZERO_VECTOR; /// Used by pressure correction
-
-    /// Flux within momentum equation
-    Vector pressure_flux = ZERO_VECTOR;
-    Vector convection_flux = ZERO_VECTOR;
-    Vector viscous_flux = ZERO_VECTOR;
 };
 struct Patch
 {
@@ -255,9 +244,7 @@ struct failed_to_open_file : public std::runtime_error
 };
 struct unsupported_boundary_condition : public std::invalid_argument
 {
-    static const std::array<std::string, 3> BC_CATEGORY_STR;
-
-    explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("\"" + BC_CATEGORY_STR[x] + "\" condition is not supported.") {}
+    explicit unsupported_boundary_condition(BC_CATEGORY x) : std::invalid_argument("BC \"" + std::to_string((int)x) + "\" is not supported.") {}
 
     explicit unsupported_boundary_condition(const std::string &bc) : std::invalid_argument("\"" + bc + "\" is not supported.") {}
 

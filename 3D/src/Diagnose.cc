@@ -37,8 +37,8 @@ static void stat_min_max(const std::string& var_name, const std::function<Scalar
         LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
 }
 
-static Scalar max_div, min_div;
-static size_t max_div_idx, min_div_idx;
+static Scalar max_div;
+static size_t max_div_idx;
 
 static Scalar stat_div(const Cell &c)
 {
@@ -60,35 +60,15 @@ static Scalar stat_div(const Cell &c)
     return ret;
 }
 
-static Scalar g_max_dt;
-
 static Scalar stat_cfl(const Cell &c)
 {
-    const Scalar L = std::pow(c.volume, 1.0 / 3);
-
-    Scalar loc_dt = 1.0 / (3.0 * c.U.norm() / L + 2.0 / Re * 3 / (L * L));
-    if(loc_dt < g_max_dt)
-        g_max_dt = loc_dt;
-
     static const Scalar A = 3 * std::sqrt(3);
 
     return A * c.grad_U.norm() * dt;
 }
 
-void diagnose()
+void diagnose(bool &diverge_flag)
 {
-    LOG_OUT << std::endl;
-    stat_min_max("ConvectionFlux_X", [](const Cell &c) { return c.convection_flux.x(); });
-    stat_min_max("ConvectionFlux_Y", [](const Cell &c) { return c.convection_flux.y(); });
-    stat_min_max("ConvectionFlux_Z", [](const Cell &c) { return c.convection_flux.z(); });
-    LOG_OUT << std::endl;
-    stat_min_max("PressureFlux_X", [](const Cell &c) { return c.pressure_flux.x(); });
-    stat_min_max("PressureFlux_Y", [](const Cell &c) { return c.pressure_flux.y(); });
-    stat_min_max("PressureFlux_Z", [](const Cell &c) { return c.pressure_flux.z(); });
-    LOG_OUT << std::endl;
-    stat_min_max("ViscousFlux_X", [](const Cell &c) { return c.viscous_flux.x(); });
-    stat_min_max("ViscousFlux_Y", [](const Cell &c) { return c.viscous_flux.y(); });
-    stat_min_max("ViscousFlux_Z", [](const Cell &c) { return c.viscous_flux.z(); });
     LOG_OUT << std::endl;
     stat_min_max("rhoU*_X", [](const Cell &c) { return c.rhoU_star.x(); });
     stat_min_max("rhoU*_Y", [](const Cell &c) { return c.rhoU_star.y(); });
@@ -103,16 +83,32 @@ void diagnose()
     stat_min_max("T", [](const Cell &c) { return c.T; });
     LOG_OUT << std::endl;
 
-    max_div = 0.0;
-    g_max_dt = 1e15;
-
-    stat_min_max("div", stat_div);
     stat_min_max("CFL", stat_cfl);
+    LOG_OUT << std::endl;
 
-    LOG_OUT << "Global max dt=" << g_max_dt << std::endl;
-
-    LOG_OUT << "Max divergence at cell" << max_div_idx << ": (";
+    max_div = 0.0;
+    stat_min_max("div", stat_div);
+    diverge_flag = std::fabs(max_div) > 1e2;
+    LOG_OUT << SEP << "Max divergence @cell " << max_div_idx << ": (";
     LOG_OUT << cell(max_div_idx).centroid.x() << ", ";
     LOG_OUT << cell(max_div_idx).centroid.y() << ", ";
     LOG_OUT << cell(max_div_idx).centroid.z() << ")" << std::endl;
+}
+
+/**
+ * Transient time-step for each explicit marching iteration.
+ * @return Current time-step used for temporal integration.
+ */
+Scalar calcTimeStep()
+{
+    Scalar g_max_dt = std::numeric_limits<Scalar>::max();
+
+    for(const auto &c : cell)
+    {
+        const Scalar L = std::pow(c.volume, 1.0 / 3);
+        Scalar loc_dt = 1.0 / (3.0 * c.U.norm() / L + 2.0 / Re * 3 / (L * L));
+        if(loc_dt < g_max_dt)
+            g_max_dt = loc_dt;
+    }
+    return 0.5 * g_max_dt;
 }

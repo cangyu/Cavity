@@ -15,10 +15,10 @@ extern NaturalArray<Patch> patch;
  * @param J_INV The general inverse of input matrix using QR decomposition.
  */
 static void extract_qr_matrix
-        (
-                const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J,
-                Eigen::Matrix<Scalar, 3, Eigen::Dynamic> &J_INV
-        )
+(
+    const Eigen::Matrix<Scalar, Eigen::Dynamic, 3> &J,
+    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> &J_INV
+)
 {
     typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> Mat;
 
@@ -75,7 +75,7 @@ void calc_least_square_coefficient_matrix()
                     J_rho.row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_rho.row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
+                    J_rho.row(j) << n.x(), n.y(), n.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -90,7 +90,7 @@ void calc_least_square_coefficient_matrix()
                     J_U[0].row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_U[0].row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
+                    J_U[0].row(j) << n.x(), n.y(), n.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -105,7 +105,7 @@ void calc_least_square_coefficient_matrix()
                     J_U[1].row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_U[1].row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
+                    J_U[1].row(j) << n.x(), n.y(), n.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -120,7 +120,7 @@ void calc_least_square_coefficient_matrix()
                     J_U[2].row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_U[2].row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
+                    J_U[2].row(j) << n.x(), n.y(), n.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -135,7 +135,7 @@ void calc_least_square_coefficient_matrix()
                     J_p.row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_p.row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
+                    J_p.row(j) << n.x(), n.y(), n.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -150,7 +150,7 @@ void calc_least_square_coefficient_matrix()
                     J_p_prime.row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_p_prime.row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
+                    J_p_prime.row(j) << n.x(), n.y(), n.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -165,7 +165,7 @@ void calc_least_square_coefficient_matrix()
                     J_T.row(j) << w * d.x(), w * d.y(), w * d.z();
                     break;
                 case Neumann:
-                    J_T.row(j) << w * 2.0 * d.x(), w * 2.0 * d.y(), w * 2.0 * d.z();
+                    J_T.row(j) << n.x(), n.y(), n.z();
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();

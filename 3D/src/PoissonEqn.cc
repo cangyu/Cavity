@@ -74,46 +74,6 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef, const std
         /// Convert index to 0-based.
         for (const auto &it : cur_coef)
             coef.emplace_back(C.index - 1, it.first - 1, it.second);
-
-        if(C.index == 47720)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 1231)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 7791)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 47721)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 47856)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
     }
 
     /// Set reference.
@@ -175,46 +135,6 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
         /// Convert index to 0-based.
         for (const auto &it : cur_coef)
             coef.emplace_back(C.index - 1, it.first - 1, it.second);
-
-        if(C.index == 47720)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 1231)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 7791)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 47721)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
-
-        if(C.index == 47856)
-        {
-            std::cout << "\ncoefficient for cell " << C.index << std::endl;
-
-            for (const auto &it : cur_coef)
-                std::cout << it.first << ": " << it.second << std::endl;
-        }
     }
 
     /// Set reference.
@@ -402,7 +322,7 @@ void prepare_dp_solver(SX_MAT &A, SX_AMG &mg)
 
     sx_amg_pars_init(&pars);
     pars.maxit = 200;
-    pars.verb = 2;
+    pars.verb = 0;
     pars.cs_type = SX_COARSE_RS;
     pars.interp_type = SX_INTERP_STD;
     pars.strong_threshold = 0.3;
