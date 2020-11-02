@@ -1,7 +1,7 @@
 #ifndef GRADIENT_H
 #define GRADIENT_H
 
-void calcFaceGhostVariable();
+void calc_least_square_coefficient_matrix();
 
 void calc_cell_primitive_gradient();
 void calc_cell_pressure_correction_gradient();

@@ -182,12 +182,6 @@ struct Cell
     NaturalArray<Vector> Se;
     NaturalArray<Vector> St;
 
-    /// Coefficient matrix used by the least-square method
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_rho;
-    std::array<Eigen::Matrix<Scalar, 3, Eigen::Dynamic>, 3> J_INV_U;
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_p, J_INV_p_prime;
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> J_INV_T;
-
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
 

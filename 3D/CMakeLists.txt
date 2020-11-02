@@ -30,7 +30,6 @@ add_executable(CAVITY
 	src/CHEM.cc
 	src/Discretization.cc
 	src/Gradient.cc
-	src/LeastSquare.cc
 	src/PoissonEqn.cc
 	src/Diagnose.cc
 	src/Miscellaneous.cc

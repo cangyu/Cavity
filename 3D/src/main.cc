@@ -7,7 +7,7 @@
 #include "../inc/IO.h"
 #include "../inc/IC.h"
 #include "../inc/BC.h"
-#include "../inc/LeastSquare.h"
+#include "../inc/Gradient.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/Discretization.h"
 #include "../inc/Diagnose.h"
