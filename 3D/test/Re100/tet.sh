@@ -9,3 +9,4 @@ mkdir raw
 mv *.txt raw/
 
 TEC_DATA_CONVERTER --composition tet --input-dir raw --output-dir tec
+

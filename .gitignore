@@ -1,8 +1,19 @@
-3rd_party
-build*
-bin
-test
-mesh
+3rd_party/
+build/
+bin/
+
+*.txt
+
+OpenFOAM/
+
+# Fluent
+*.cas
+*.dat
+*.msh
+
+#Tecplot
+*.plt
+*.lay
 
 # OSX
 .DS_Store
