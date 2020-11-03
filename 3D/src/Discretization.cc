@@ -15,7 +15,6 @@ extern SX_MAT A_dp_2;
 extern SX_VEC Q_dp_2;
 extern SX_VEC x_dp_2;
 extern SX_AMG dp_solver_2;
-
 extern std::string SEP;
 extern std::ostream& LOG_OUT;
 

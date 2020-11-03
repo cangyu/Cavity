@@ -4,10 +4,10 @@
 #include "custom_type.h"
 
 void calcPressureCorrectionEquationCoef(Eigen::SparseMatrix<Scalar> &A);
-void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs, double dt);
+void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs, Scalar dt);
 
 void calcPressureCorrectionEquationCoef(SX_MAT &B);
-void calcPressureCorrectionEquationRHS(SX_VEC &rhs, double dt);
+void calcPressureCorrectionEquationRHS(SX_VEC &rhs, Scalar dt);
 void prepare_dp_solver(SX_MAT &A, SX_AMG &mg);
 
 #endif
