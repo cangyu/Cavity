@@ -297,24 +297,14 @@ void ForwardEuler(Scalar TimeStep)
         else
         {
             f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
+
+            /// Momentum interpolation
+            const Vector d01 = f.c1->centroid - f.c0->centroid;
+            const Vector compact_grad_p = (f.c1->p - f.c0->p) / (d01.dot(d01)) * d01;
             const Vector mean_grad_p = 0.5 * (f.c1->grad_p + f.c0->grad_p);
-            const Vector d10 = f.c1->centroid - f.c0->centroid;
-            const Vector compact_grad_p = (f.c1->p - f.c0->p) / (d10.dot(d10)) * d10;
-            const Vector rhoU_rc = -TimeStep * (compact_grad_p - mean_grad_p); /// Rhie-Chow interpolation
-            f.rhoU_star += rhoU_rc;
+            f.rhoU_star -= TimeStep * (compact_grad_p - mean_grad_p);
         }
         f.grad_p_prime.setZero();
-    }
-
-    /// Continuity imbalance
-    for (auto& c : cell)
-    {
-        c.delta_m_dot = c.volume / TimeStep * (c.rho - c.rho_prev);
-        for (size_t j = 0; j < c.surface.size(); ++j)
-        {
-            auto f = c.surface.at(j);
-            c.delta_m_dot += f->rhoU_star.dot(c.S.at(j));
-        }
     }
 
     /// Correction Step
@@ -372,7 +362,6 @@ void ForwardEuler(Scalar TimeStep)
                 throw std::invalid_argument("Too large skewness on face " + std::to_string(f.index));
 
             const Scalar alpha = 1.0 / cosine_theta;
-
             Scalar sn_grad_p_prime = alpha * (f.c1->p_prime - f.c0->p_prime) / d01.norm(); /// Orthogonal part
             sn_grad_p_prime += (f.n01 - alpha * e01).dot(f.grad_p_prime); /// Non-Orthogonal part
 

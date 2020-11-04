@@ -108,12 +108,6 @@ int solve()
             write_data(dts, iter, t);
             dts.close();
         }
-
-        for(auto &c : cell)
-        {
-            c.rho_prev = c.rho;
-            c.p_prev = c.p;
-        }
     }
     LOG_OUT << "\nFinished in " << total_cpu_time << "s!" << std::endl;
 
