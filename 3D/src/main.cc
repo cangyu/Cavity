@@ -32,7 +32,7 @@ Scalar dt = 1e-3; /// s
 bool use_fixed_dt = false;
 
 /* Global I/O style and redirection */
-std::string SEP = "  ";
+std::string SEP;
 std::ostream &LOG_OUT = std::cout;
 
 /* Pressure-Correction equation coefficients */
@@ -50,7 +50,7 @@ static std::string RUN_TAG;
 static int OUTPUT_GAP = 10;
 
 /* Iteration timing and counting */
-static int MAX_ITER = 100000;
+static size_t MAX_ITER = 100000;
 static Scalar MAX_TIME = 100.0; /// s
 
 static int iter = 0;
@@ -70,7 +70,7 @@ int solve()
 {
     clock_t tick_begin, tick_end;
     bool done = false, diverged = false;
-    Scalar single_cpu_time = 0.0, total_cpu_time = 0.0;
+    Scalar single_cpu_time, total_cpu_time = 0.0;
 
     LOG_OUT << "\nStarting calculation ... " << std::endl;
     while (!done)
@@ -132,25 +132,38 @@ void init()
         tick_end = clock();
 
         ml.close();
-        LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
     }
+    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     LOG_OUT << "\nSetting B.C. type of each variable ... ";
     BC_TABLE();
     LOG_OUT << "Done!" << std::endl;
 
     LOG_OUT << "\nPreparing Least-Square coefficients ... ";
-    tick_begin = clock();
-    calc_least_square_coefficient_matrix();
-    tick_end = clock();
+    {
+        tick_begin = clock();
+        prepare_lsq();
+        tick_end = clock();
+    }
+    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+
+    LOG_OUT << "\nPreparing Green-Gauss coefficients ... ";
+    {
+        tick_begin = clock();
+        prepare_gg();
+        tick_end = clock();
+    }
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     LOG_OUT << "\nPreparing Pressure-Correction equation coefficients ... ";
-    Q_dp_2 = sx_vec_create(NumOfCell);
-    x_dp_2 = sx_vec_create(NumOfCell);
-    tick_begin = clock();
-    calcPressureCorrectionEquationCoef(A_dp_2);
-    tick_end = clock();
+    {
+        Q_dp_2 = sx_vec_create(NumOfCell);
+        x_dp_2 = sx_vec_create(NumOfCell);
+
+        tick_begin = clock();
+        calcPressureCorrectionEquationCoef(A_dp_2);
+        tick_end = clock();
+    }
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
     prepare_dp_solver(A_dp_2, dp_solver_2);
@@ -195,6 +208,7 @@ void init()
  */
 int main(int argc, char *argv[])
 {
+    SEP = "  ";
     bool need_to_create_folder = true;
     bool resume_mode = false;
 
@@ -209,13 +223,13 @@ int main(int argc, char *argv[])
         else if (!std::strcmp(argv[cnt], "--tag"))
             RUN_TAG = argv[cnt + 1];
         else if (!std::strcmp(argv[cnt], "--iteration"))
-            MAX_ITER = std::atoi(argv[cnt + 1]);
+            MAX_ITER = std::strtoul(argv[cnt + 1], nullptr, 10);
         else if (!std::strcmp(argv[cnt], "--time-span"))
-            MAX_TIME = std::atof(argv[cnt + 1]); /// In seconds by default.
+            MAX_TIME = std::strtod(argv[cnt + 1], nullptr); /// In seconds by default.
         else if (!std::strcmp(argv[cnt], "--write-interval"))
-            OUTPUT_GAP = std::atoi(argv[cnt + 1]);
+            OUTPUT_GAP = (int)std::strtol(argv[cnt + 1], nullptr, 10);
         else if (!std::strcmp(argv[cnt], "--Re"))
-            Re = std::atof(argv[cnt + 1]);
+            Re = std::strtod(argv[cnt + 1], nullptr);
         else if(!std::strcmp(argv[cnt], "--resume-from"))
         {
             need_to_create_folder = false;
@@ -225,7 +239,7 @@ int main(int argc, char *argv[])
         else if (!std::strcmp(argv[cnt], "--time-step"))
         {
             use_fixed_dt = true;
-            dt = std::atof(argv[cnt + 1]); /// In seconds by default.
+            dt = std::strtod(argv[cnt + 1], nullptr); /// In seconds by default.
         }
         else
             throw std::invalid_argument("Unrecognized option: \"" + std::string(argv[cnt]) + "\".");

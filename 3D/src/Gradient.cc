@@ -42,7 +42,7 @@ static void extract_qr_matrix(const MatX3 &J, Mat3X &J_INV)
 /**
  * QR decomposition matrix of each cell.
  */
-void calc_least_square_coefficient_matrix()
+void prepare_lsq()
 {
     MatX3 J_rho;
     std::array<MatX3, 3> J_U;
@@ -239,6 +239,28 @@ void calc_least_square_coefficient_matrix()
     }
 }
 
+/**
+ * Nodal interpolation coefficients regarding to its dependent cells.
+ */
+void prepare_gg()
+{
+    for (int i = 1; i <= NumOfPnt; ++i)
+    {
+        auto &n_dst = pnt(i);
+        const int N = n_dst.dependent_cell.size();
+        n_dst.cell_weights.resize(N);
+        Scalar s = 0.0;
+        for (int j = 1; j <= N; ++j)
+        {
+            auto curAdjCell = n_dst.dependent_cell(j);
+            const Scalar weighting = 1.0 / (n_dst.coordinate - curAdjCell->centroid).norm();
+            n_dst.cell_weights(j) = weighting;
+            s += weighting;
+        }
+        for (int j = 1; j <= n_dst.cell_weights.size(); ++j)
+            n_dst.cell_weights(j) /= s;
+    }
+}
 
 void calc_cell_primitive_gradient()
 {

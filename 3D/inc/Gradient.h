@@ -1,7 +1,9 @@
 #ifndef GRADIENT_H
 #define GRADIENT_H
 
-void calc_least_square_coefficient_matrix();
+void prepare_lsq();
+
+void prepare_gg();
 
 void calc_cell_primitive_gradient();
 

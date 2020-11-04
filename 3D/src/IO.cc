@@ -72,7 +72,6 @@ void read_mesh(std::istream &fin)
         size_t n_cell;
         fin >> n_cell;
         n_dst.dependent_cell.resize(n_cell);
-        n_dst.cell_weights.resize(n_cell);
         for (size_t j = 1; j <= n_cell; ++j)
         {
             size_t tmp;
@@ -226,22 +225,6 @@ void read_mesh(std::istream &fin)
             fin >> loc_S.z();
             loc_S *= c_dst.surface(j)->area;
         }
-    }
-
-    /// Nodal interpolation coefficients.
-    for (int i = 1; i <= NumOfPnt; ++i)
-    {
-        auto &n_dst = pnt(i);
-        Scalar s = 0.0;
-        for (int j = 1; j <= n_dst.cell_weights.size(); ++j)
-        {
-            auto curAdjCell = n_dst.dependent_cell(j);
-            const Scalar weighting = 1.0 / (n_dst.coordinate - curAdjCell->centroid).norm();
-            n_dst.cell_weights(j) = weighting;
-            s += weighting;
-        }
-        for (int j = 1; j <= n_dst.cell_weights.size(); ++j)
-            n_dst.cell_weights(j) /= s;
     }
 
     /// Cell centroid to face centroid vectors and ratios.
