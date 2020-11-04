@@ -1,10 +1,21 @@
+# Dependency
 3rd_party/
+
+# Build
 build/
 bin/
 
+# Console stream
+*.out
+*.err
+
+# Mesh
 *.txt
 
+# Tests
+V*/
 OpenFOAM/
+Fluent/
 
 # Fluent
 *.cas
