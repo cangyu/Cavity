@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=t7wRe100
+#SBATCH --job-name=Re400
 #SBATCH --partition=small
 #SBATCH --output=%j.out
 #SBATCH --error=%j.err
@@ -11,7 +11,7 @@
 
 RUN_DIR=`date +%F | sed 's/-//g'`-`date +%T | sed 's/://g'`
 
-$CAVITY_DIR/bin/CAVITY --mesh $MESH_DIR/CUBE/Fluent/tet/75470_translated.txt --Re 100 --time-span 10 --write-interval 100 --tag $RUN_DIR
+$CAVITY_DIR/bin/CAVITY --mesh $MESH_DIR/CUBE/Fluent/hex/90_translated.txt --Re 400 --time-span 40 --write-interval 200 --tag $RUN_DIR
 
 cd $RUN_DIR
 
@@ -19,5 +19,5 @@ mkdir raw
 
 mv *.txt raw/
 
-TEC_DATA_CONVERTER --composition tet --input-dir raw --output-dir tec
+TEC_DATA_CONVERTER --composition hex --input-dir raw --output-dir tec
 
