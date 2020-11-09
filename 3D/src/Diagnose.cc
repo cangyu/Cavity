@@ -70,10 +70,6 @@ static Scalar stat_cfl(const Cell &c)
 void diagnose(bool &diverge_flag)
 {
     LOG_OUT << std::endl;
-    stat_min_max("rhoU*_X", [](const Cell &c) { return c.rhoU_star.x(); });
-    stat_min_max("rhoU*_Y", [](const Cell &c) { return c.rhoU_star.y(); });
-    stat_min_max("rhoU*_Z", [](const Cell &c) { return c.rhoU_star.z(); });
-    LOG_OUT << std::endl;
     stat_min_max("rho", [](const Cell &c) { return c.rho; });
     stat_min_max("U_X", [](const Cell &c) { return c.U.x(); });
     stat_min_max("U_Y", [](const Cell &c) { return c.U.y(); });

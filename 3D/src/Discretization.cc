@@ -284,9 +284,9 @@ void ForwardEuler(Scalar TimeStep)
             /// viscous term
             const Vector cur_viscous_flux = f->tau * Sf;
             viscous_flux += cur_viscous_flux;
-
-            c.rhoU_star = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
         }
+
+        c.rhoU_star = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
     }
 
     /// rhoU* on each face
@@ -309,44 +309,36 @@ void ForwardEuler(Scalar TimeStep)
 
     /// Correction Step
     Scalar res = 1.0;
-    std::vector<Scalar> prev_dp(NumOfCell, 0.0);
-    std::vector<Scalar> prev_dp_f(NumOfFace, 0.0);
     Scalar poisson_noc_iter = 0;
-    Scalar max_dp = 0.0;
-    size_t max_dp_idx;
-    LOG_OUT << std::endl;
-    LOG_OUT << SEP << "Solving the Poisson equation for pressure-correction ..." << std::endl;
+    std::vector<Scalar> prev_dp(NumOfCell, 0.0);
+    LOG_OUT << "\n" << SEP << "Solving pressure-correction ..." << std::endl;
     while (res > 1e-10)
     {
-        res = 0.0;
-        max_dp = 0.0;
-
+        /// Solve
         calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
         sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
         for (int i = 0; i < NumOfCell; ++i)
         {
             auto& c = cell.at(i);
             c.p_prime = sx_vec_get_entry(&x_dp_2, i);
-            res += std::fabs(c.p_prime - prev_dp[i]);
-            prev_dp[i] = c.p_prime;
-            if (std::fabs(c.p_prime) > max_dp)
-            {
-                max_dp = std::fabs(c.p_prime);
-                max_dp_idx = c.index;
-            }
         }
         calc_cell_pressure_correction_gradient();
         calc_face_pressure_correction_gradient();
+
+        /// Record error
+        res = 0.0;
+        for (int i = 0; i < NumOfCell; ++i)
+        {
+            auto& c = cell.at(i);
+            res += std::fabs(c.p_prime - prev_dp[i]);
+            prev_dp[i] = c.p_prime;
+        }
         res /= NumOfCell;
         LOG_OUT << SEP << "||p' - p'_prev|| = " << res << std::endl;
 
         ++poisson_noc_iter;
     }
-    LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations, ";
-    LOG_OUT << "|p'|_max = " << max_dp << " @cell " << max_dp_idx << " (";
-    LOG_OUT << cell.at(max_dp_idx - 1).centroid.x() << ", ";
-    LOG_OUT << cell.at(max_dp_idx - 1).centroid.y() << ", ";
-    LOG_OUT << cell.at(max_dp_idx - 1).centroid.z() << ")" << std::endl;
+    LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations" << std::endl;
 
     /// Update
     for (auto& f : face)
