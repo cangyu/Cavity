@@ -1,18 +1,16 @@
-# Dependency
 3rd_party/
-
-# Build
 build/
 bin/
+test/
 
-# Console stream
+# HPC
 *.out
 *.err
-
-# Mesh
-*.txt
+*.sh
+*.slurm
 
 # Tests
+*.txt
 V*/
 OpenFOAM/
 Fluent/
