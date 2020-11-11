@@ -132,26 +132,32 @@ struct Face
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
-    Scalar p_prime = ZERO_SCALAR; /// Used by pressure correction
     Scalar T = ZERO_SCALAR;
     Tensor tau = ZERO_TENSOR;
     Vector rhoU = ZERO_VECTOR;
-    Vector rhoU_star = ZERO_VECTOR; /// Used by the Fractional-Step Method
 
     /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
-    Vector grad_p_prime = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
 
-    /// Gradient of physical variables in surface outward normal direction
+    /// Gradient of physical variables
+    /// in surface outward normal direction
     /// Only used on boundary faces
     Scalar sn_grad_rho = ZERO_SCALAR;
     Vector sn_grad_U = ZERO_VECTOR;
     Scalar sn_grad_p = ZERO_SCALAR;
-    Scalar sn_grad_p_prime = ZERO_SCALAR;
     Scalar sn_grad_T = ZERO_SCALAR;
+
+    /// Fractional-Step Method
+    Vector rhoU_star = ZERO_VECTOR;
+
+    /// Pressure-Correction
+    Scalar p_prime = ZERO_SCALAR;
+    Scalar sn_grad_p_prime = ZERO_SCALAR;
+    Vector grad_p_prime_sn = ZERO_VECTOR;
+    Vector grad_p_prime = ZERO_VECTOR;
 };
 struct Cell
 {

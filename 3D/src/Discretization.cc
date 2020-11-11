@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include "../inc/BC.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/CHEM.h"
@@ -17,8 +18,6 @@ extern SX_VEC x_dp_2;
 extern SX_AMG dp_solver_2;
 extern std::string SEP;
 extern std::ostream& LOG_OUT;
-
-/*********************************************** Spatial Discretization ***********************************************/
 
 static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
 {
@@ -168,23 +167,9 @@ void calc_face_viscous_shear_stress()
     {
         if (f.at_boundary)
         {
-            Cell* c;
-            bool adj_to_0;
-            if (f.c0)
-            {
-                c = f.c0;
-                adj_to_0 = true;
-            }
-            else if (f.c1)
-            {
-                c = f.c1;
-                adj_to_0 = false;
-            }
-            else
-                throw empty_connectivity(f.index);
-
-            const Vector& n = adj_to_0 ? f.n01 : f.n10;
-            const Vector& r = adj_to_0 ? f.r0 : f.r1;
+            auto c = f.c0 ? f.c0 : f.c1;
+            const Vector& n = f.c0 ? f.n01 : f.n10;
+            const Vector& r = f.c0 ? f.r0 : f.r1;
 
             auto p = f.parent;
             if (p->BC == BC_PHY::Wall)
@@ -248,7 +233,47 @@ void reconstruction()
     set_bc_of_pressure_correction();
 }
 
-/*********************************************** Temporal Discretization **********************************************/
+static int ppe(Scalar TimeStep)
+{
+    for(auto &c : cell)
+    {
+        c.p_prime = ZERO_SCALAR;
+        c.grad_p_prime.setZero();
+    }
+    for(auto &f : face)
+        f.grad_p_prime.setZero();
+
+    int cnt = 0; /// Iteration counter
+    Scalar l1 = 1.0, l2 = 1.0; /// Convergence monitor
+    while (l1 > 1e-10 || l2 > 1e-8)
+    {
+        /// Solve p' at cell centroid
+        calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
+        sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
+        l1 = 0.0;
+        for (int i = 0; i < NumOfCell; ++i)
+        {
+            auto& c = cell.at(i);
+            const Scalar new_val = sx_vec_get_entry(&x_dp_2, i);
+            l1 += std::fabs(new_val - c.p_prime);
+            c.p_prime = new_val;
+        }
+        l1 /= NumOfCell;
+
+        /// Calculate gradient of $p'$ at cell centroid
+        l2 = calc_cell_pressure_correction_gradient();
+
+        /// Interpolate gradient of $p'$ from cell centroid to face centroid
+        calc_face_pressure_correction_gradient();
+
+        /// Report
+        LOG_OUT << SEP << std::left << std::setw(14) << l1 << "    " << std::setw(26) << l2 << std::endl;
+
+        /// Next loop if needed
+        ++cnt;
+    }
+    return cnt;
+}
 
 /**
  * 1st-order explicit time-marching.
@@ -262,11 +287,9 @@ void ForwardEuler(Scalar TimeStep)
     /// Prediction of momentum
     for (auto& c : cell)
     {
-        Vector pressure_flux, convection_flux, viscous_flux;
-        pressure_flux.setZero();
-        convection_flux.setZero();
-        viscous_flux.setZero();
-
+        Vector pressure_flux(0.0, 0.0, 0.0);
+        Vector convection_flux(0.0, 0.0, 0.0);
+        Vector viscous_flux(0.0, 0.0, 0.0);
         const auto Nf = c.S.size();
         for (int j = 0; j < Nf; ++j)
         {
@@ -304,62 +327,43 @@ void ForwardEuler(Scalar TimeStep)
             const Vector mean_grad_p = 0.5 * (f.c1->grad_p + f.c0->grad_p);
             f.rhoU_star -= TimeStep * (compact_grad_p - mean_grad_p);
         }
-        f.grad_p_prime.setZero();
     }
 
     /// Correction Step
-    Scalar res = 1.0;
-    Scalar poisson_noc_iter = 0;
-    std::vector<Scalar> prev_dp(NumOfCell, 0.0);
     LOG_OUT << "\n" << SEP << "Solving pressure-correction ..." << std::endl;
-    while (res > 1e-10)
-    {
-        /// Solve
-        calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
-        sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
-        for (int i = 0; i < NumOfCell; ++i)
-        {
-            auto& c = cell.at(i);
-            c.p_prime = sx_vec_get_entry(&x_dp_2, i);
-        }
-        calc_cell_pressure_correction_gradient();
-        calc_face_pressure_correction_gradient();
-
-        /// Record error
-        res = 0.0;
-        for (int i = 0; i < NumOfCell; ++i)
-        {
-            auto& c = cell.at(i);
-            res += std::fabs(c.p_prime - prev_dp[i]);
-            prev_dp[i] = c.p_prime;
-        }
-        res /= NumOfCell;
-        LOG_OUT << SEP << "||p' - p'_prev|| = " << res << std::endl;
-
-        ++poisson_noc_iter;
-    }
+    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
+    LOG_OUT << SEP << "||p'-p'_prev||    ||grad(p')-grad(p')_prev||" << std::endl;
+    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
+    const int poisson_noc_iter = ppe(TimeStep);
+    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
     LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations" << std::endl;
+
+    /// Calculate $\frac{\partial p'}{\partial n}$ on face centroid
+    for (auto &f : face)
+    {
+        if (f.at_boundary)
+        {
+            const Vector &n = f.c0 ? f.n01 : f.n10;
+            f.grad_p_prime_sn = (f.grad_p_prime.dot(n)) * n;
+        }
+        else
+        {
+            const Vector d01 = f.c1->centroid - f.c0->centroid;
+            const Vector e01 = d01 / d01.norm();
+            const Scalar alpha = 1.0/f.n01.dot(e01);
+            const Scalar tmp1 = alpha * (f.c1->p_prime - f.c0->p_prime) / d01.norm();
+            const Scalar tmp2 = f.grad_p_prime.dot(f.n01 - alpha * e01);
+            f.grad_p_prime_sn = (tmp1 + tmp2) * f.n01;
+        }
+    }
 
     /// Update
     for (auto& f : face)
     {
         if (!f.at_boundary)
-        {
-            const Vector d01 = f.c1->centroid - f.c0->centroid;
-            const Vector e01 = d01 / d01.norm();
-
-            const Vector S01 = f.n01 * f.area;
-            const Scalar cosine_theta = d01.dot(S01) / (d01.norm() * S01.norm());
-            if (std::fabs(cosine_theta) < 1e-6)
-                throw std::invalid_argument("Too large skewness on face " + std::to_string(f.index));
-
-            const Scalar alpha = 1.0 / cosine_theta;
-            Scalar sn_grad_p_prime = alpha * (f.c1->p_prime - f.c0->p_prime) / d01.norm(); /// Orthogonal part
-            sn_grad_p_prime += (f.n01 - alpha * e01).dot(f.grad_p_prime); /// Non-Orthogonal part
-
-            f.rhoU = f.rhoU_star - TimeStep * sn_grad_p_prime * f.n01;
-        }
+            f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
     }
+
     for (auto& c : cell)
     {
         /// Velocity
@@ -370,5 +374,3 @@ void ForwardEuler(Scalar TimeStep)
         c.p += c.p_prime;
     }
 }
-
-/********************************************************* END ********************************************************/

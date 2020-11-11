@@ -439,8 +439,9 @@ void calc_cell_primitive_gradient()
     }
 }
 
-void calc_cell_pressure_correction_gradient()
+Scalar calc_cell_pressure_correction_gradient()
 {
+    Scalar error = 0.0;
     for (auto &c : cell)
     {
         const auto nF = c.surface.size();
@@ -456,10 +457,10 @@ void calc_cell_pressure_correction_gradient()
                 switch (curFace->parent->p_prime_BC)
                 {
                 case Dirichlet:
-                    dphi(i) = -c.p_prime / (curFace->centroid - c.centroid).norm(); /// Zero-Value is assumed.
+                    dphi(i) = (curFace->p_prime - c.p_prime) / (curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    dphi(i) = 0.0; /// Zero-Gradient is assumed.
+                    dphi(i) = curFace->sn_grad_p_prime;
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -473,8 +474,12 @@ void calc_cell_pressure_correction_gradient()
                 dphi(i) = (curAdjCell->p_prime - c.p_prime) / (curAdjCell->centroid - c.centroid).norm();
             }
         }
+        const Vector old_gpp = c.grad_p_prime;
         c.grad_p_prime = J_INV_p_prime.at(c.index - 1) * dphi;
+        error += (c.grad_p_prime - old_gpp).norm();
     }
+    error /= NumOfCell;
+    return error;
 }
 
 /**
@@ -491,18 +496,6 @@ static inline void interpGradientToFace(const Vector &gpf0, Scalar phi_C, Scalar
     dst = gpf0 + ((phi_F - phi_C) / d - gpf0.dot(e_CF)) * e_CF;
 }
 
-/**
- * Calculate gradient of any scalar "phi" on face from interpolation.
- * @param gpf0 Predicted gradient of "phi" on face.
- * @param sn_gpf Gradient of "phi" on face in surface normal direction.
- * @param n Surface outward unit normal vector.
- * @param dst Interpolation result.
- */
-static inline void interpGradientToFace(const Vector &gpf0, Scalar sn_gpf, const Vector &n, Vector &dst)
-{
-    dst = gpf0 - gpf0.dot(n) * n + sn_gpf * n;
-}
-
 void calc_face_primitive_gradient()
 {
     std::array<Vector, 3> gv;
@@ -511,169 +504,92 @@ void calc_face_primitive_gradient()
     {
         if (f.at_boundary)
         {
-            Cell *c;
-            bool adj_to_0;
-            if (f.c0)
-            {
-                c = f.c0;
-                adj_to_0 = true;
-            }
-            else if (f.c1)
-            {
-                c = f.c1;
-                adj_to_0 = false;
-            }
-            else
-                throw empty_connectivity(f.index);
-
-            const Vector &r_C = c->centroid;
-            const Vector &r_F = f.centroid;
-            Vector e_CF = r_F - r_C;
-            const Scalar d = e_CF.norm(); /// Distance from cell centroid to face centroid.
-            e_CF /= d; /// Unit displacement vector from cell centroid to face centroid.
-            const Vector &n = adj_to_0 ? f.n01 : f.n10; /// Unit outward surface normal vector.
+            auto c = f.c0 ? f.c0 : f.c1;
+            const Vector &n = f.c0 ? f.n01 : f.n10;
+            const Vector d = f.c0 ? f.r0 : f.r1;
+            const Vector alpha = n / n.dot(d);
+            const Tensor beta = Tensor::Identity() - alpha * d.transpose();
+            const Tensor gamma = Tensor::Identity() - n * n.transpose();
 
             /// density
-            switch (f.parent->rho_BC)
-            {
-            case Dirichlet:
-                interpGradientToFace(c->grad_rho, c->rho, f.rho, e_CF, d, f.grad_rho);
-                break;
-            case Neumann:
-                interpGradientToFace(c->grad_rho, f.sn_grad_rho, n, f.grad_rho);
-                break;
-            case Robin:
-                throw robin_bc_is_not_supported();
-            default:
-                break;
-            }
+            if (f.parent->rho_BC == Dirichlet)
+                f.grad_rho = alpha * (f.rho - c->rho) + beta * c->grad_rho;
+            else if (f.parent->rho_BC == Neumann)
+                f.grad_rho = n * f.sn_grad_rho + gamma * c->grad_rho;
+            else
+                throw unsupported_boundary_condition(f.parent->rho_BC);
 
             /// velocity-x
-            switch (f.parent->U_BC[0])
-            {
-            case Dirichlet:
-                interpGradientToFace(c->grad_U.col(0), c->U.x(), f.U.x(), e_CF, d, gv[0]);
-                break;
-            case Neumann:
-                interpGradientToFace(c->grad_U.col(0), f.sn_grad_U.x(), n, gv[0]);
-                break;
-            case Robin:
-                throw robin_bc_is_not_supported();
-            default:
-                break;
-            }
+            if (f.parent->U_BC[0] == Dirichlet)
+                gv[0]= alpha * (f.U.x() - c->U.x()) + beta * c->grad_U.col(0);
+            else if (f.parent->U_BC[0] == Neumann)
+                gv[0] = n * f.sn_grad_U.x() + gamma * c->grad_U.col(0);
+            else
+                throw unsupported_boundary_condition(f.parent->U_BC[0]);
 
             /// velocity-y
-            switch (f.parent->U_BC[1])
-            {
-            case Dirichlet:
-                interpGradientToFace(c->grad_U.col(1), c->U.y(), f.U.y(), e_CF, d, gv[1]);
-                break;
-            case Neumann:
-                interpGradientToFace(c->grad_U.col(1), f.sn_grad_U.y(), n, gv[1]);
-                break;
-            case Robin:
-                throw robin_bc_is_not_supported();
-            default:
-                break;
-            }
+            if (f.parent->U_BC[1] == Dirichlet)
+                gv[1] = alpha * (f.U.y() - c->U.y()) + beta * c->grad_U.col(1);
+            else if (f.parent->U_BC[1] == Neumann)
+                gv[1] = n * f.sn_grad_U.y() + beta * c->grad_U.col(1);
+            else
+                throw unsupported_boundary_condition(f.parent->U_BC[1]);
 
             /// velocity-z
-            switch (f.parent->U_BC[2])
-            {
-            case Dirichlet:
-                interpGradientToFace(c->grad_U.col(2), c->U.z(), f.U.z(), e_CF, d, gv[2]);
-                break;
-            case Neumann:
-                interpGradientToFace(c->grad_U.col(2), f.sn_grad_U.z(), n, gv[2]);
-                break;
-            case Robin:
-                throw robin_bc_is_not_supported();
-            default:
-                break;
-            }
+            if (f.parent->U_BC[2] == Dirichlet)
+                gv[2] = alpha * (f.U.z() - c->U.z()) + beta * c->grad_U.col(2);
+            else if (f.parent->U_BC[2] == Neumann)
+                gv[2] = n * f.sn_grad_U.z() + gamma * c->grad_U.col(2);
+            else
+                throw unsupported_boundary_condition(f.parent->U_BC[2]);
 
             f.grad_U.col(0) = gv[0];
             f.grad_U.col(1) = gv[1];
             f.grad_U.col(2) = gv[2];
 
             /// pressure
-            switch (f.parent->p_BC)
-            {
-            case Dirichlet:
-                interpGradientToFace(c->grad_p, c->p, f.p, e_CF, d, f.grad_p);
-                break;
-            case Neumann:
-                interpGradientToFace(c->grad_p, f.sn_grad_p, n, f.grad_p);
-                break;
-            case Robin:
-                throw robin_bc_is_not_supported();
-            default:
-                break;
-            }
+            if (f.parent->p_BC == Dirichlet)
+                f.grad_p = alpha * (f.p - c->p) + beta * c->grad_p;
+            else if (f.parent->p_BC == Neumann)
+                f.grad_p = n * f.sn_grad_p + gamma * c->grad_p;
+            else
+                throw unsupported_boundary_condition(f.parent->p_BC);
 
             /// temperature
-            switch (f.parent->T_BC)
-            {
-            case Dirichlet:
-                interpGradientToFace(c->grad_T, c->T, f.T, e_CF, d, f.grad_T);
-                break;
-            case Neumann:
-                interpGradientToFace(c->grad_T, f.sn_grad_T, n, f.grad_T);
-                break;
-            case Robin:
-                throw robin_bc_is_not_supported();
-            default:
-                break;
-            }
+            if (f.parent->T_BC == Dirichlet)
+                f.grad_T = alpha * (f.T - c->T) + beta * c->grad_T;
+            else if (f.parent->T_BC == Neumann)
+                f.grad_T = n * f.sn_grad_T + beta * c->grad_T;
+            else
+                throw unsupported_boundary_condition(f.parent->T_BC);
         }
         else
         {
-            const Vector &r_C = f.c0->centroid;
-            const Vector &r_F = f.c1->centroid;
-            Vector e_CF = r_F - r_C;
-            const Scalar d_CF = e_CF.norm(); /// Distance from local cell centroid to remote cell centroid.
-            e_CF /= d_CF; /// Unit vector from local cell "f.c0" to remote cell "f.c1".
+            const Vector d01 = f.c1->centroid - f.c0->centroid;
+            const Vector alpha = f.n01 / f.n01.dot(d01);
+            const Tensor beta = Tensor::Identity() - alpha * d01.transpose();
 
             /// density
-            const Vector predicted_grad_rho = f.ksi0 * f.c0->grad_rho + f.ksi1 * f.c1->grad_rho;
-            const Scalar rho_C = f.c0->rho;
-            const Scalar rho_F = f.c1->rho;
-            interpGradientToFace(predicted_grad_rho, rho_C, rho_F, e_CF, d_CF, f.grad_rho);
+            f.grad_rho = alpha * (f.c1->rho - f.c0->rho) + beta * (f.ksi0 * f.c0->grad_rho + f.ksi1 * f.c1->grad_rho);
 
             /// velocity-x
-            const Vector predicted_grad_u = f.ksi0 * f.c0->grad_U.col(0) + f.ksi1 * f.c1->grad_U.col(0);
-            const Scalar u_C = f.c0->U.x();
-            const Scalar u_F = f.c1->U.x();
-            interpGradientToFace(predicted_grad_u, u_C, u_F, e_CF, d_CF, gv[0]);
+            gv[0] = alpha * (f.c1->U.x() - f.c0->U.x()) + beta * (f.ksi0 * f.c0->grad_U.col(0) + f.ksi1 * f.c1->grad_U.col(0));
 
             /// velocity-y
-            const Vector predicted_grad_v = f.ksi0 * f.c0->grad_U.col(1) + f.ksi1 * f.c1->grad_U.col(1);
-            const Scalar v_C = f.c0->U.y();
-            const Scalar v_F = f.c1->U.y();
-            interpGradientToFace(predicted_grad_v, v_C, v_F, e_CF, d_CF, gv[1]);
+            gv[1] = alpha * (f.c1->U.y() - f.c0->U.y()) + beta * (f.ksi0 * f.c0->grad_U.col(1) + f.ksi1 * f.c1->grad_U.col(1));
 
             /// velocity-z
-            const Vector predicted_grad_w = f.ksi0 * f.c0->grad_U.col(2) + f.ksi1 * f.c1->grad_U.col(2);
-            const Scalar w_C = f.c0->U.z();
-            const Scalar w_F = f.c1->U.z();
-            interpGradientToFace(predicted_grad_w, w_C, w_F, e_CF, d_CF, gv[2]);
+            gv[2] = alpha * (f.c1->U.z() - f.c0->U.z())  + beta * (f.ksi0 * f.c0->grad_U.col(2) + f.ksi1 * f.c1->grad_U.col(2));
 
             f.grad_U.col(0) = gv[0];
             f.grad_U.col(1) = gv[1];
             f.grad_U.col(2) = gv[2];
 
             /// pressure
-            const Vector predicted_grad_p = f.ksi0 * f.c0->grad_p + f.ksi1 * f.c1->grad_p;
-            const Scalar p_C = f.c0->p;
-            const Scalar p_F = f.c1->p;
-            interpGradientToFace(predicted_grad_p, p_C, p_F, e_CF, d_CF, f.grad_p);
+            f.grad_p = alpha * (f.c1->p - f.c0->p) + beta * (f.ksi0 * f.c0->grad_p + f.ksi1 * f.c1->grad_p);
 
             /// temperature
-            const Vector predicted_grad_T = f.ksi0 * f.c0->grad_T + f.ksi1 * f.c1->grad_T;
-            const Scalar T_C = f.c0->T;
-            const Scalar T_F = f.c1->T;
-            interpGradientToFace(predicted_grad_T, T_C, T_F, e_CF, d_CF, f.grad_T);
+            f.grad_T = alpha * (f.c1->T - f.c0->T)  + beta * (f.ksi0 * f.c0->grad_T + f.ksi1 * f.c1->grad_T);
         }
     }
 }
@@ -684,14 +600,17 @@ void calc_face_pressure_correction_gradient()
     {
         if (f.at_boundary)
         {
-            if (f.parent->p_prime_BC == Dirichlet)
+            const Vector &n = f.c0 ? f.n01 : f.n10;
+            auto c = f.c0? f.c0 : f.c1;
+            if(f.parent->p_prime_BC == Dirichlet)
             {
-                Cell *c = f.c0 ? f.c0 : f.c1;
-                Vector d = f.centroid - c->centroid;
-                f.grad_p_prime = (-c->p_prime / d.dot(d)) * d; /// 0-value is assumed.
+                const Vector d = f.centroid - c->centroid;
+                f.grad_p_prime = (f.p_prime - c->p_prime) / d.dot(d) * d;
             }
-            else if (f.parent->p_prime_BC == Neumann)
-                f.grad_p_prime.setZero(); /// 0-gradient in normal direction is assumed.
+            else if(f.parent->p_prime_BC == Neumann)
+            {
+                f.grad_p_prime = f.sn_grad_p_prime * n + (Tensor::Identity() - n * n.transpose()) * c->grad_p_prime;
+            }
             else
                 throw unsupported_boundary_condition(f.parent->p_prime_BC);
         }
