@@ -5,6 +5,8 @@ void prepare_lsq();
 
 void prepare_gg();
 
+void prepare_gpc_rm();
+
 void calc_cell_primitive_gradient();
 
 Scalar calc_cell_pressure_correction_gradient();

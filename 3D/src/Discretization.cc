@@ -366,6 +366,18 @@ void ForwardEuler(Scalar TimeStep)
 
     for (auto& c : cell)
     {
+        /// Reconstruct gradient of $p'$ at cell centroid
+        Vector b;
+        b.setZero();
+        const size_t Nf = c.surface.size();
+        for(size_t j = 0; j < Nf; ++j)
+        {
+            auto f = c.surface.at(j);
+            const Vector &Sf = c.S.at(j);
+            b += f->grad_p_prime_sn.dot(Sf) * Sf / f->area;
+        }
+        c.grad_p_prime = c.grad_p_prime_rm * b;
+
         /// Velocity
         c.rhoU = c.rhoU_star - TimeStep * c.grad_p_prime;
         c.U = c.rhoU / c.rho;

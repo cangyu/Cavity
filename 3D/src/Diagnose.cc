@@ -80,15 +80,10 @@ void diagnose(bool &diverge_flag)
     LOG_OUT << std::endl;
 
     stat_min_max("CFL", stat_cfl);
-    LOG_OUT << std::endl;
 
     max_div = 0.0;
     stat_min_max("div", stat_div);
     diverge_flag = std::fabs(max_div) > 1e2;
-    LOG_OUT << SEP << "Max divergence @cell " << max_div_idx << ": (";
-    LOG_OUT << cell(max_div_idx).centroid.x() << ", ";
-    LOG_OUT << cell(max_div_idx).centroid.y() << ", ";
-    LOG_OUT << cell(max_div_idx).centroid.z() << ")" << std::endl;
 }
 
 /**

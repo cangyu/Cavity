@@ -16,9 +16,7 @@
 /***************************************************** Global Variables ***********************************************/
 
 /* Grid utilities */
-int NumOfPnt = 0;
-int NumOfFace = 0;
-int NumOfCell = 0;
+int NumOfPnt = 0, NumOfFace = 0, NumOfCell = 0;
 NaturalArray<Point> pnt; /// Node objects
 NaturalArray<Face> face; /// Face objects
 NaturalArray<Cell> cell; /// Cell objects
@@ -139,18 +137,12 @@ void init()
     BC_TABLE();
     LOG_OUT << "Done!" << std::endl;
 
-    LOG_OUT << "\nPreparing Least-Square coefficients ... ";
+    LOG_OUT << "\nPreparing coefficients ... ";
     {
         tick_begin = clock();
         prepare_lsq();
-        tick_end = clock();
-    }
-    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
-
-    LOG_OUT << "\nPreparing Green-Gauss coefficients ... ";
-    {
-        tick_begin = clock();
         prepare_gg();
+        prepare_gpc_rm();
         tick_end = clock();
     }
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;

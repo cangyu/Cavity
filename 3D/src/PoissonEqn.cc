@@ -1,4 +1,3 @@
-#include <iostream>
 #include <list>
 #include <functional>
 #include "../inc/PoissonEqn.h"
@@ -136,7 +135,7 @@ void calcPressureCorrectionEquationRHS
 /// Borrow from SciPy V1.4.1
 /// https://github.com/scipy/scipy/blob/v1.4.1/scipy/sparse/sparsetools/coo.h
 template <class I, class T>
-static void coo_tocsr(const I n_row, const I n_col, const I nnz, const I Ai[], const I Aj[], const T Ax[], I Bp[], I Bj[], T Bx[])
+static void coo2csr(const I n_row, const I n_col, const I nnz, const I *Ai, const I *Aj, const T *Ax, I *Bp, I *Bj, T *Bx)
 {
     //compute number of non-zero entries per row of A 
     std::fill(Bp, Bp + n_row, 0);
@@ -198,7 +197,7 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B)
     }
 
     /// COO to CSR
-    coo_tocsr<SX_INT, SX_FLT>(B.num_rows, B.num_cols, B.num_nnzs, Ai, Aj, Ax, B.Ap, B.Aj, B.Ax);
+    coo2csr<SX_INT, SX_FLT>(B.num_rows, B.num_cols, B.num_nnzs, Ai, Aj, Ax, B.Ap, B.Aj, B.Ax);
 
     /// Release
     delete[] Ai;
