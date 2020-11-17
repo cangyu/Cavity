@@ -233,7 +233,27 @@ void reconstruction()
     set_bc_of_pressure_correction();
 }
 
-static int ppe(Scalar TimeStep)
+static const Scalar Rg = 287.7; // J / (Kg * K)
+
+static std::vector<Vector> rhoU_star_C, rhoU_star_f;
+static std::vector<Scalar> delta_mdot;
+static std::vector<Scalar> rho_C, p_C;
+static std::vector<Scalar> C_rho, Cp;
+static std::vector<Scalar> poisson_diag;
+
+void prepare_compressible_loop_var()
+{
+    rhoU_star_C.resize(NumOfCell);
+    rhoU_star_f.resize(NumOfFace);
+    delta_mdot.resize(NumOfCell, 0.0);
+    rho_C.resize(NumOfCell, 0.0);
+    p_C.resize(NumOfCell, 0.0);
+    C_rho.resize(NumOfCell, 0.0);
+    Cp.resize(NumOfCell, 0.0);
+    poisson_diag.resize(NumOfCell, 0.0);
+}
+
+static int ppe_compressible(Scalar TimeStep)
 {
     for(auto &c : cell)
     {
@@ -248,7 +268,7 @@ static int ppe(Scalar TimeStep)
     while (l1 > 1e-10 || l2 > 1e-8)
     {
         /// Solve p' at cell centroid
-        calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
+        calcPressureCorrectionEquationRHS_compressible(Q_dp_2, TimeStep);
         sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
         l1 = 0.0;
         for (int i = 0; i < NumOfCell; ++i)
@@ -275,107 +295,146 @@ static int ppe(Scalar TimeStep)
     return cnt;
 }
 
-/**
- * 1st-order explicit time-marching.
- * Pressure-Velocity coupling is solved using Fractional-Step Method.
- * @param TimeStep
- */
-void ForwardEuler(Scalar TimeStep)
+Scalar double_dot(const Tensor &A, const Tensor &B)
 {
-    reconstruction();
+    Scalar ret = 0.0;
+    for(int i = 0; i < 3; ++i)
+        for(int j = 0; j < 3; ++j)
+            ret += A(i, j) * B(j, i);
+    return ret;
+}
 
-    /// Prediction of momentum
-    for (auto& c : cell)
+void ForwardEuler_Compressible(Scalar TimeStep)
+{
+    int m = 0;
+    while(++m < 3)
     {
-        Vector pressure_flux(0.0, 0.0, 0.0);
-        Vector convection_flux(0.0, 0.0, 0.0);
-        Vector viscous_flux(0.0, 0.0, 0.0);
+        /// Prerequisite
+        reconstruction();
 
-        const auto Nf = c.S.size();
-        for (int j = 0; j < Nf; ++j)
+        /// Prediction of momentum
+        for (auto& c : cell)
         {
-            auto f = c.surface.at(j);
-            const auto& Sf = c.S.at(j);
+            Vector pressure_flux(0.0, 0.0, 0.0);
+            Vector convection_flux(0.0, 0.0, 0.0);
+            Vector viscous_flux(0.0, 0.0, 0.0);
 
-            convection_flux += (f->rhoU.dot(Sf) * f->U);
-            pressure_flux += (f->p * Sf);
-            viscous_flux += (f->tau * Sf);
+            const auto Nf = c.S.size();
+            for (int j = 0; j < Nf; ++j)
+            {
+                auto f = c.surface.at(j);
+                const auto& Sf = c.S.at(j);
+
+                convection_flux += (f->rhoU.dot(Sf) * f->U);
+                pressure_flux += (f->p * Sf);
+                viscous_flux += (f->tau * Sf);
+            }
+            rhoU_star_C[c.index-1] = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
         }
 
-        c.rhoU_star = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
-    }
-
-    /// rhoU* on each face
-    for (auto& f : face)
-    {
-        if (f.at_boundary)
-            f.rhoU_star = f.rhoU;
-        else
+        /// rhoU* on each face
+        for (auto& f : face)
         {
-            f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
+            if (f.at_boundary)
+                rhoU_star_f[f.index-1] = f.rhoU;
+            else
+            {
+                rhoU_star_f[f.index-1] = f.ksi0 * rhoU_star_C[f.c0->index-1] + f.ksi1 * rhoU_star_C[f.c1->index-1];
 
-            /// Momentum interpolation
-            const Vector d01 = f.c1->centroid - f.c0->centroid;
-            const Vector compact_grad_p = (f.c1->p - f.c0->p) / (d01.dot(d01)) * d01;
-            const Vector mean_grad_p = 0.5 * (f.c1->grad_p + f.c0->grad_p);
-            f.rhoU_star -= TimeStep * (compact_grad_p - mean_grad_p);
+                /// Rhie-Chow interpolation
+                const Vector mean_grad_p = 0.5 * (f.c1->grad_p + f.c0->grad_p);
+                const Vector d = f.c1->centroid - f.c0->centroid;
+                const Vector compact_grad_p = (f.c1->p - f.c0->p) / (d.dot(d)) * d;
+                const Vector rhoU_rc = -TimeStep * (compact_grad_p - mean_grad_p);
+                rhoU_star_f[f.index-1] += rhoU_rc;
+            }
         }
-    }
 
-    /// Correction Step
-    LOG_OUT << "\n" << SEP << "Solving pressure-correction ..." << std::endl;
-    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
-    LOG_OUT << SEP << "||p'-p'_prev||    ||grad(p')-grad(p')_prev||" << std::endl;
-    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
-    const int poisson_noc_iter = ppe(TimeStep);
-    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
-    LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations" << std::endl;
-
-    /// Calculate $\frac{\partial p'}{\partial n}$ on face centroid
-    for (auto &f : face)
-    {
-        if (f.at_boundary)
+        /// Continuity imbalance
+        for (auto& c : cell)
         {
-            const Vector &n = f.c0 ? f.n01 : f.n10;
-            f.grad_p_prime_sn = (f.grad_p_prime.dot(n)) * n;
+            delta_mdot[c.index-1] = c.volume / TimeStep * (rho_C[c.index-1] - c.rho);
+            for (size_t j = 0; j < c.surface.size(); ++j)
+            {
+                auto f = c.surface.at(j);
+                delta_mdot[c.index-1] += f->rhoU_star.dot(c.S.at(j));
+            }
         }
-        else
+
+        /// Pressure-Density correlation coefficient
+        for(size_t j = 0; j < NumOfCell; ++j)
         {
-            const Vector d01 = f.c1->centroid - f.c0->centroid;
-            const Vector e01 = d01 / d01.norm();
-            const Scalar alpha = 1.0/f.n01.dot(e01);
-            const Scalar tmp1 = alpha * (f.c1->p_prime - f.c0->p_prime) / d01.norm();
-            const Scalar tmp2 = f.grad_p_prime.dot(f.n01 - alpha * e01);
-            f.grad_p_prime_sn = (tmp1 + tmp2) * f.n01;
+            C_rho[j] = 1.0 / (Rg * cell.at(j).T);
+            poisson_diag[j] = C_rho[j] / std::pow(TimeStep, 2);
         }
-    }
 
-    /// Update
-    for (auto& f : face)
-    {
-        if (!f.at_boundary)
-            f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
-    }
+        calcPressureCorrectionEquationCoef(A_dp_2, poisson_diag);
 
-    for (auto& c : cell)
-    {
-        /// Reconstruct gradient of $p'$ at cell centroid
-        Vector b;
-        b.setZero();
-        const size_t Nf = c.surface.size();
-        for(size_t j = 0; j < Nf; ++j)
+        /// Correction Step
+        LOG_OUT << "\n" << SEP << "Solving pressure-correction ..." << std::endl;
+        LOG_OUT << SEP << "--------------------------------------------" << std::endl;
+        LOG_OUT << SEP << "||p'-p'_prev||    ||grad(p')-grad(p')_prev||" << std::endl;
+        LOG_OUT << SEP << "--------------------------------------------" << std::endl;
+        const int poisson_noc_iter = ppe_compressible(TimeStep);
+        LOG_OUT << SEP << "--------------------------------------------" << std::endl;
+        LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations" << std::endl;
+
+        /// Calculate $\frac{\partial p'}{\partial n}$ on face centroid
+        for (auto &f : face)
         {
-            auto f = c.surface.at(j);
-            const Vector &Sf = c.S.at(j);
-            b += f->grad_p_prime_sn.dot(Sf) * Sf / f->area;
+            if (f.at_boundary)
+            {
+                const Vector &n = f.c0 ? f.n01 : f.n10;
+                f.grad_p_prime_sn = (f.grad_p_prime.dot(n)) * n;
+            }
+            else
+            {
+                const Vector d01 = f.c1->centroid - f.c0->centroid;
+                const Vector e01 = d01 / d01.norm();
+                const Scalar alpha = 1.0/f.n01.dot(e01);
+                const Scalar tmp1 = alpha * (f.c1->p_prime - f.c0->p_prime) / d01.norm();
+                const Scalar tmp2 = f.grad_p_prime.dot(f.n01 - alpha * e01);
+                f.grad_p_prime_sn = (tmp1 + tmp2) * f.n01;
+            }
         }
-        c.grad_p_prime = c.grad_p_prime_rm * b;
 
-        /// Velocity
-        c.rhoU = c.rhoU_star - TimeStep * c.grad_p_prime;
-        c.U = c.rhoU / c.rho;
+        /// Update
+        for (auto& f : face)
+        {
+            if (!f.at_boundary)
+            {
+                f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
+            }
+        }
+        for (auto& c : cell)
+        {
+            c.rhoU = c.rhoU_star - TimeStep * c.grad_p_prime;
+            c.U = c.rhoU / c.rho;
+            p_C[c.index-1] = c.p + c.p_prime;
+        }
 
-        /// Pressure
-        c.p += c.p_prime;
+        /// Prediction of enthalpy
+        for(auto &c : cell)
+        {
+            Scalar convection_flux = 0.0;
+            Scalar diffusion_flux = 0.0;
+
+            const auto Nf = c.S.size();
+            for (int j = 0; j < Nf; ++j)
+            {
+                auto f = c.surface.at(j);
+                const auto &Sf = c.S.at(j);
+
+                convection_flux += f->rhoU.dot(Sf) * f->h;
+                diffusion_flux += f->kappa * f->grad_T.dot(Sf);
+            }
+            const Scalar pressure_work = c.U.dot(c.grad_p) * c.volume;
+            const Scalar viscous_dissipation = double_dot(c.tau, c.grad_U) * c.volume;
+            const Scalar dpdt = (p_C[c.index-1] - c.p) / TimeStep * c.volume;
+
+            c.rhoh += TimeStep * (-convection_flux + diffusion_flux + viscous_dissipation + pressure_work + dpdt);
+            c.T = c.rhoh / c.rho / Cp[c.index-1];
+            c.rho = c.p / (Rg * c.T);
+        }
     }
 }

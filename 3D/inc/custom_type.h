@@ -127,14 +127,16 @@ struct Face
 
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
+    Scalar kappa = ZERO_SCALAR;
 
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
     Scalar T = ZERO_SCALAR;
-    Tensor tau = ZERO_TENSOR;
+    Scalar h = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
+    Tensor tau = ZERO_TENSOR;
 
     /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
@@ -190,13 +192,17 @@ struct Cell
 
     /// Physical properties
     Scalar mu = ZERO_SCALAR;
+    Scalar kappa = ZERO_SCALAR;
 
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
     Scalar T = ZERO_SCALAR;
+    Scalar h = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
+    Scalar rhoh = ZERO_SCALAR;
+    Tensor tau = ZERO_TENSOR;
 
     /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;

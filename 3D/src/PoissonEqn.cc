@@ -132,6 +132,50 @@ void calcPressureCorrectionEquationRHS
     rhs(ref_cell) = ref_val;
 }
 
+void calcPressureCorrectionEquationRHS_compressible
+(
+    Eigen::Matrix<Scalar, Eigen::Dynamic, 1> &rhs,
+    double dt
+)
+{
+    /// Initialize
+    rhs.setZero();
+
+    /// Calculate
+    for (const auto &C : cell)
+    {
+        const auto lci = C.index - 1; /// 0-based
+        auto &cur_rhs = rhs(lci);
+
+        const auto N_C = C.surface.size();
+        for (int f = 0; f < N_C; ++f)
+        {
+            auto curFace = C.surface.at(f);
+
+            const auto &S_f = C.S.at(f);
+            const auto &T_f = C.St.at(f);
+
+            /// Raw contribution
+            if(curFace->at_boundary)
+                cur_rhs -= curFace->rhoU.dot(S_f) / dt;
+            else
+                cur_rhs -= curFace->rhoU_star.dot(S_f) / dt;
+
+            /// Additional contribution due to cross-diffusion
+            if(curFace->at_boundary)
+            {
+                if(curFace->parent->p_prime_BC == Dirichlet)
+                    cur_rhs += curFace->grad_p_prime.dot(T_f);
+            }
+            else
+                cur_rhs += curFace->grad_p_prime.dot(T_f);
+        }
+    }
+
+    /// Set reference
+    rhs(ref_cell) = ref_val;
+}
+
 /// Borrow from SciPy V1.4.1
 /// https://github.com/scipy/scipy/blob/v1.4.1/scipy/sparse/sparsetools/coo.h
 template <class I, class T>
@@ -215,6 +259,119 @@ void calcPressureCorrectionEquationRHS(SX_VEC &rhs, double dt)
     for (SX_INT i = 0; i < NumOfCell; ++i)
         sx_vec_set_entry(&rhs, i, x(i));
 }
+
+void calcPressureCorrectionEquationRHS_compressible(SX_VEC &rhs, double dt)
+{
+    Eigen::Matrix<Scalar, Eigen::Dynamic, 1> x;
+    x.resize(NumOfCell, Eigen::NoChange);
+
+    calcPressureCorrectionEquationRHS_compressible(x, dt);
+
+    for (SX_INT i = 0; i < NumOfCell; ++i)
+        sx_vec_set_entry(&rhs, i, x(i));
+}
+
+static void gen_coef_triplets
+(
+    std::list<Eigen::Triplet<Scalar>> &coef,
+    const std::vector<Scalar> &ppe_diag
+)
+{
+    if(ppe_diag.size() != NumOfCell)
+        throw std::runtime_error("Size not match");
+
+    /// Calculate original coefficients for each cell.
+    for (const auto &C : cell)
+    {
+        /// Initialize coefficient baseline.
+        std::map<int, Scalar> cur_coef;
+        cur_coef[C.index] = ppe_diag.at(C.index-1);
+        for (auto F : C.adjCell)
+        {
+            if (F)
+                cur_coef[F->index] = 0.0;
+        }
+
+        /// Compute coefficient contributions.
+        const auto N_C = C.surface.size();
+        for (int f = 1; f <= N_C; ++f)
+        {
+            const auto &E_f = C.Se(f);
+            const auto E_f_mod = E_f.norm();
+            const auto &d_f = C.d(f);
+            const auto d_f_mod = d_f.norm();
+            const auto E_by_d = E_f_mod / d_f_mod;
+
+            auto curFace = C.surface(f);
+
+            if (curFace->at_boundary) /// Boundary Case.
+            {
+                switch (curFace->parent->p_prime_BC)
+                {
+                case Dirichlet:
+                    cur_coef[C.index] +=E_f.norm() / (curFace->centroid - C.centroid).norm() ; /// When p is given on boundary, p' is 0-value there.
+                    break;
+                case Neumann:
+                    break;/// When p is not determined on boundary, p' is 0-gradient there, thus contribution is 0 and no need to handle.
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                }
+            }
+            else /// Internal Case.
+            {
+                auto F = C.adjCell(f);
+                if (!F)
+                    throw inconsistent_connectivity("Cell shouldn't be empty!");
+
+                cur_coef[C.index] += E_f.norm() / (F->centroid - C.centroid).norm();
+                cur_coef[F->index] -= E_f.norm() / (F->centroid - C.centroid).norm();
+            }
+        }
+
+        /// Record current line.
+        /// Convert index to 0-based.
+        for (const auto &it : cur_coef)
+            coef.emplace_back(C.index - 1, it.first - 1, it.second);
+    }
+
+    /// Set reference.
+    coef.remove_if(is_ref_row);
+    coef.emplace_back(ref_cell, ref_cell, 1.0);
+}
+
+void calcPressureCorrectionEquationCoef(SX_MAT &B, const std::vector<Scalar> &ppe_diag)
+{
+    /// Calculate raw triplets
+    std::list<Eigen::Triplet<Scalar>> coef;
+
+    gen_coef_triplets(coef, ppe_diag);
+
+    /// Allocate storage
+    B = sx_mat_struct_create(NumOfCell, NumOfCell, coef.size());
+
+    /// Transform
+    auto Ai = new SX_INT[B.num_nnzs];
+    auto Aj = new SX_INT[B.num_nnzs];
+    auto Ax = new SX_FLT[B.num_nnzs];
+
+    int n = 0;
+    for (const auto &e : coef)
+    {
+        Ai[n] = e.row();
+        Aj[n] = e.col();
+        Ax[n] = e.value();
+        ++n;
+    }
+
+    /// COO to CSR
+    coo2csr<SX_INT, SX_FLT>(B.num_rows, B.num_cols, B.num_nnzs, Ai, Aj, Ax, B.Ap, B.Aj, B.Ax);
+
+    /// Release
+    delete[] Ai;
+    delete[] Aj;
+    delete[] Ax;
+}
+
 
 void prepare_dp_solver(SX_MAT &A, SX_AMG &mg)
 {

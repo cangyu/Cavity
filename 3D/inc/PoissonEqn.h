@@ -8,6 +8,11 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
 
 void calcPressureCorrectionEquationCoef(SX_MAT &B);
 void calcPressureCorrectionEquationRHS(SX_VEC &rhs, Scalar dt);
+
+void calcPressureCorrectionEquationCoef(SX_MAT &B, const std::vector<Scalar> &ppe_diag);
+
+void calcPressureCorrectionEquationRHS_compressible(SX_VEC &rhs, double dt);
+
 void prepare_dp_solver(SX_MAT &A, SX_AMG &mg);
 
 #endif
