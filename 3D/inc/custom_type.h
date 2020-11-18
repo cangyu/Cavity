@@ -125,10 +125,6 @@ struct Face
     /// Possible connection to high-level
     Patch *parent = nullptr;
 
-    /// Physical properties
-    Scalar mu = ZERO_SCALAR;
-    Scalar kappa = ZERO_SCALAR;
-
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
@@ -136,7 +132,7 @@ struct Face
     Scalar T = ZERO_SCALAR;
     Scalar h = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
-    Tensor tau = ZERO_TENSOR;
+    Scalar rhoh = ZERO_SCALAR;
 
     /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
@@ -151,15 +147,6 @@ struct Face
     Vector sn_grad_U = ZERO_VECTOR;
     Scalar sn_grad_p = ZERO_SCALAR;
     Scalar sn_grad_T = ZERO_SCALAR;
-
-    /// Fractional-Step Method
-    Vector rhoU_star = ZERO_VECTOR;
-
-    /// Pressure-Correction
-    Scalar p_prime = ZERO_SCALAR;
-    Scalar sn_grad_p_prime = ZERO_SCALAR;
-    Vector grad_p_prime_sn = ZERO_VECTOR;
-    Vector grad_p_prime = ZERO_VECTOR;
 };
 struct Cell
 {
@@ -190,10 +177,6 @@ struct Cell
     NaturalArray<Vector> Se;
     NaturalArray<Vector> St;
 
-    /// Physical properties
-    Scalar mu = ZERO_SCALAR;
-    Scalar kappa = ZERO_SCALAR;
-
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
@@ -202,21 +185,12 @@ struct Cell
     Scalar h = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
     Scalar rhoh = ZERO_SCALAR;
-    Tensor tau = ZERO_TENSOR;
 
     /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
-
-    /// Used by the Fractional-Step Method
-    Vector rhoU_star = ZERO_VECTOR;
-
-    /// Used by pressure-correction
-    Scalar p_prime = ZERO_SCALAR;
-    Vector grad_p_prime = ZERO_VECTOR;
-    Tensor grad_p_prime_rm = ZERO_TENSOR; /// Reconstruction matrix
 };
 struct Patch
 {
@@ -233,7 +207,7 @@ struct Patch
     /// B.C. specification for each variable
     BC_CATEGORY rho_BC;
     std::array<BC_CATEGORY, 3> U_BC;
-    BC_CATEGORY p_BC, p_prime_BC;
+    BC_CATEGORY p_BC;
     BC_CATEGORY T_BC;
 };
 

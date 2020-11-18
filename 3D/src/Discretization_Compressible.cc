@@ -19,93 +19,51 @@ extern SX_AMG dp_solver_2;
 extern std::string SEP;
 extern std::ostream& LOG_OUT;
 
+
+static const Scalar Rg = 287.7; // J / (Kg * K)
+
+static std::vector<Vector> rhoU_star_C, rhoU_star_f;
+static std::vector<Scalar> delta_mdot;
+static std::vector<Scalar> rho_C, p_C;
+static std::vector<Scalar> C_rho, Cp, Cv;
+static std::vector<Scalar> viscosity_C, viscosity_f;
+static std::vector<Tensor> tau_f;
+static std::vector<Scalar> conductivity_C;
+static std::vector<Scalar> poisson_diag;
+
+void prepare_compressible_loop_var()
+{
+    rhoU_star_C.resize(NumOfCell);
+    rhoU_star_f.resize(NumOfFace);
+    delta_mdot.resize(NumOfCell, 0.0);
+    rho_C.resize(NumOfCell, 0.0);
+    p_C.resize(NumOfCell, 0.0);
+    C_rho.resize(NumOfCell, 0.0);
+    Cp.resize(NumOfCell, 0.0);
+    poisson_diag.resize(NumOfCell, 0.0);
+}
+
 static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
 {
     auto p = f.parent;
 
-    /// density
-    switch (p->rho_BC)
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
+    if (p->rho_BC == Neumann)
         f.rho = c->rho + f.grad_rho.dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 
-    /// velocity-x
-    switch (p->U_BC[0])
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
+    if (p->U_BC[0] == Neumann)
         f.U.x() = c->U.x() + f.grad_U.col(0).dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 
-    /// velocity-y
-    switch (p->U_BC[1])
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
+    if (p->U_BC[1] == Neumann)
         f.U.y() = c->U.y() + f.grad_U.col(1).dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 
-    /// velocity-z
-    switch (p->U_BC[2])
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
+    if (p->U_BC[2] == Neumann)
         f.U.z() = c->U.z() + f.grad_U.col(2).dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 
-    /// pressure
-    switch (p->p_BC)
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
+    if (p->p_BC == Neumann)
         f.p = c->p + f.grad_p.dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 
-    /// temperature
-    switch (p->T_BC)
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
+    if (p->T_BC == Neumann)
         f.T = c->T + f.grad_T.dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 }
 
 static void calcInternalFacePrimitiveValue(Face& f)
@@ -176,22 +134,22 @@ void calc_face_viscous_shear_stress()
             {
                 Vector dU = c->U - f.U;
                 dU -= dU.dot(n) * n;
-                const Vector tw = -f.mu / r.dot(n) * dU;
-                f.tau = tw * n.transpose();
+                const Vector tw = -viscosity_f[f.index-1] / r.dot(n) * dU;
+                tau_f[f.index-1] = tw * n.transpose();
             }
             else if (p->BC == BC_PHY::Symmetry)
             {
                 Vector dU = c->U.dot(n) * n;
-                const Vector t_cz = -2.0 * f.mu * dU / r.norm();
-                f.tau = t_cz * n.transpose();
+                const Vector t_cz = -2.0 * viscosity_f[f.index-1] * dU / r.norm();
+                tau_f[f.index-1] = t_cz * n.transpose();
             }
             else if (p->BC == BC_PHY::Inlet || p->BC == BC_PHY::Outlet)
-                Stokes(f.mu, f.grad_U, f.tau);
+                Stokes(viscosity_f[f.index-1], f.grad_U, tau_f[f.index-1]);
             else
                 throw unsupported_boundary_condition(p->BC);
         }
         else
-            Stokes(f.mu, f.grad_U, f.tau);
+            Stokes(viscosity_f[f.index-1], f.grad_U, tau_f[f.index-1]);
     }
 }
 
@@ -202,7 +160,7 @@ void reconstruction()
     {
         /// Dynamic viscosity
         // c.mu = Sutherland(c.T);
-        c.mu = c.rho / Re;
+        viscosity_C[c.index-1] = c.rho / Re;
     }
 
     /// Enforce boundary conditions for primitive variables.
@@ -222,7 +180,7 @@ void reconstruction()
     {
         /// Dynamic viscosity
         // f.mu = Sutherland(f.T);
-        f.mu = f.rho / Re;
+        viscosity_f[f.index-1] = f.rho / Re;
     }
 
     /// Viscous shear stress on each face.
@@ -231,26 +189,6 @@ void reconstruction()
     set_bc_of_conservative_var();
 
     set_bc_of_pressure_correction();
-}
-
-static const Scalar Rg = 287.7; // J / (Kg * K)
-
-static std::vector<Vector> rhoU_star_C, rhoU_star_f;
-static std::vector<Scalar> delta_mdot;
-static std::vector<Scalar> rho_C, p_C;
-static std::vector<Scalar> C_rho, Cp;
-static std::vector<Scalar> poisson_diag;
-
-void prepare_compressible_loop_var()
-{
-    rhoU_star_C.resize(NumOfCell);
-    rhoU_star_f.resize(NumOfFace);
-    delta_mdot.resize(NumOfCell, 0.0);
-    rho_C.resize(NumOfCell, 0.0);
-    p_C.resize(NumOfCell, 0.0);
-    C_rho.resize(NumOfCell, 0.0);
-    Cp.resize(NumOfCell, 0.0);
-    poisson_diag.resize(NumOfCell, 0.0);
 }
 
 static int ppe_compressible(Scalar TimeStep)
@@ -306,12 +244,12 @@ Scalar double_dot(const Tensor &A, const Tensor &B)
 
 void ForwardEuler_Compressible(Scalar TimeStep)
 {
+    /// Prerequisite
+    reconstruction();
+
     int m = 0;
     while(++m < 3)
     {
-        /// Prerequisite
-        reconstruction();
-
         /// Prediction of momentum
         for (auto& c : cell)
         {
@@ -327,7 +265,7 @@ void ForwardEuler_Compressible(Scalar TimeStep)
 
                 convection_flux += (f->rhoU.dot(Sf) * f->U);
                 pressure_flux += (f->p * Sf);
-                viscous_flux += (f->tau * Sf);
+                viscous_flux += (tau_f[f->index] * Sf);
             }
             rhoU_star_C[c.index-1] = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
         }
@@ -357,7 +295,7 @@ void ForwardEuler_Compressible(Scalar TimeStep)
             for (size_t j = 0; j < c.surface.size(); ++j)
             {
                 auto f = c.surface.at(j);
-                delta_mdot[c.index-1] += f->rhoU_star.dot(c.S.at(j));
+                delta_mdot[c.index-1] += rhoU_star_f[f->index-1].dot(c.S.at(j));
             }
         }
 

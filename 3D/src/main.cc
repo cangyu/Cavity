@@ -79,7 +79,7 @@ int solve()
         LOG_OUT << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
         {
             tick_begin = clock();
-            ForwardEuler(dt);
+            ForwardEuler_Compressible(dt);
             tick_end = clock();
         }
         single_cpu_time = duration(tick_begin, tick_end);
