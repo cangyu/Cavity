@@ -15,4 +15,6 @@ void calcPressureCorrectionEquationRHS_compressible(SX_VEC &rhs, double dt);
 
 void prepare_dp_solver(SX_MAT &A, SX_AMG &mg);
 
+void calcPressureCorrectionEquationCoef(SX_MAT &B, const std::vector<Scalar> &ppe_diag);
+
 #endif

@@ -64,3 +64,14 @@ void calc_noc_vec(const Vector &d, const Vector &S, Vector &E, Vector &T)
     E = (S.dot(S) / d.dot(S)) * d; // OverRelaxed
     T = S - E;
 }
+
+Scalar double_dot(const Tensor &A, const Tensor &B)
+{
+    Scalar ret = 0.0;
+
+    for(int i = 0; i < 3; ++i)
+        for(int j = 0; j < 3; ++j)
+            ret += A(i, j) * B(j, i);
+
+    return ret;
+}

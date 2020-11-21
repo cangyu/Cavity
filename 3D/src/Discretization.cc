@@ -5,6 +5,7 @@
 #include "../inc/CHEM.h"
 #include "../inc/Gradient.h"
 #include "../inc/Discretization.h"
+#include "../inc/Miscellaneous.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
@@ -374,5 +375,32 @@ void ForwardEuler_Compressible(Scalar TimeStep)
             c.T = c.rhoh / c.rho / Cp[c.index-1];
             c.rho = c.p / (Rg * c.T);
         }
+    }
+
+    static const Scalar Cp = 1005.0; // J / (Kg K)
+
+    /// Prediction of enthalpy
+    for(auto &c : cell)
+    {
+        Scalar convection_flux = 0.0;
+        Scalar diffusion_flux = 0.0;
+
+        const auto Nf = c.S.size();
+        for (int j = 0; j < Nf; ++j)
+        {
+            auto f = c.surface.at(j);
+            const auto &Sf = c.S.at(j);
+
+            convection_flux += f->rhoU.dot(Sf) * f->h;
+
+            diffusion_flux += f->kappa * f->grad_T.dot(Sf);
+        }
+        const Scalar pressure_work = c.U.dot(c.grad_p) * c.volume;
+        const Scalar viscous_dissipation = double_dot(c.tau, c.grad_U) * c.volume;
+        const Scalar dpdt = (c.p - c.p_prev) / TimeStep * c.volume;
+
+        c.rhoh += TimeStep * (-convection_flux + diffusion_flux + viscous_dissipation + pressure_work + dpdt);
+        c.T = c.rhoh / c.rho / Cp;
+        c.rho = c.p / (Rg * c.T);
     }
 }

@@ -125,6 +125,10 @@ struct Face
     /// Possible connection to high-level
     Patch *parent = nullptr;
 
+    /// Physical properties
+    Scalar mu = ZERO_SCALAR;
+    Scalar kappa = ZERO_SCALAR;
+
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
@@ -133,6 +137,7 @@ struct Face
     Scalar h = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
     Scalar rhoh = ZERO_SCALAR;
+    Tensor tau = ZERO_TENSOR;
 
     /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
@@ -177,6 +182,10 @@ struct Cell
     NaturalArray<Vector> Se;
     NaturalArray<Vector> St;
 
+    /// Physical properties
+    Scalar mu = ZERO_SCALAR;
+    Scalar kappa = ZERO_SCALAR;
+
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
@@ -185,6 +194,7 @@ struct Cell
     Scalar h = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
     Scalar rhoh = ZERO_SCALAR;
+    Tensor tau = ZERO_TENSOR;
 
     /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
