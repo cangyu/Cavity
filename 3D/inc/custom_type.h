@@ -126,8 +126,10 @@ struct Face
     Patch *parent = nullptr;
 
     /// Physical properties
-    Scalar mu = ZERO_SCALAR;
-    Scalar kappa = ZERO_SCALAR;
+    Scalar viscosity = ZERO_SCALAR;
+    Scalar conductivity = ZERO_SCALAR;
+    Scalar specific_heat_p = ZERO_SCALAR;
+    Scalar specific_heat_v = ZERO_SCALAR;
 
     /// Physical variables
     Scalar rho = ZERO_SCALAR;
@@ -173,18 +175,20 @@ struct Cell
     /// Follow the order in "surface"
     NaturalArray<Vector> S;
 
-    /// Displacement vector between adjacent cell centroids
-    /// Follow the order in "surface"
-    NaturalArray<Vector> d;
-
     /// Surface vectors related to non-orthogonality
     /// Follow the order in "S"
     NaturalArray<Vector> Se;
     NaturalArray<Vector> St;
 
+    /// Displacement vector between adjacent cell centroids
+    /// Follow the order in "surface"
+    NaturalArray<Vector> d;
+
     /// Physical properties
-    Scalar mu = ZERO_SCALAR;
-    Scalar kappa = ZERO_SCALAR;
+    Scalar viscosity = ZERO_SCALAR;
+    Scalar conductivity = ZERO_SCALAR;
+    Scalar specific_heat_p = ZERO_SCALAR;
+    Scalar specific_heat_v = ZERO_SCALAR;
 
     /// Physical variables
     Scalar rho = ZERO_SCALAR;

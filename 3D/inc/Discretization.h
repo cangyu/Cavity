@@ -4,6 +4,5 @@
 #include "custom_type.h"
 
 void ForwardEuler(Scalar TimeStep);
-void ForwardEuler_Compressible(Scalar TimeStep);
 
 #endif
