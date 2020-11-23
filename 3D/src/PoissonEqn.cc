@@ -16,70 +16,6 @@ static bool is_ref_row(const Eigen::Triplet<Scalar> &x)
     return x.row() == ref_cell;
 }
 
-static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef, const std::vector<Scalar> &ppe_diag)
-{
-    if(ppe_diag.size() != NumOfCell)
-        throw std::runtime_error("Size not match");
-
-    /// Calculate original coefficients for each cell.
-    for (const auto &C : cell)
-    {
-        /// Initialize coefficient baseline.
-        std::map<int, Scalar> cur_coef;
-        cur_coef[C.index] = ppe_diag.at(C.index-1);
-        for (auto F : C.adjCell)
-        {
-            if (F)
-                cur_coef[F->index] = 0.0;
-        }
-
-        /// Compute coefficient contributions.
-        const auto N_C = C.surface.size();
-        for (int f = 1; f <= N_C; ++f)
-        {
-            const auto &E_f = C.Se(f);
-            const auto E_f_mod = E_f.norm();
-            const auto &d_f = C.d(f);
-            const auto d_f_mod = d_f.norm();
-            const auto E_by_d = E_f_mod / d_f_mod;
-
-            auto curFace = C.surface(f);
-
-            if (curFace->at_boundary) /// Boundary Case.
-            {
-                switch (curFace->parent->p_prime_BC)
-                {
-                case Dirichlet:
-                    cur_coef[C.index] +=E_f.norm() / (curFace->centroid - C.centroid).norm() ; /// When p is given on boundary, p' is 0-value there.
-                    break;
-                case Neumann:
-                    break;/// When p is not determined on boundary, p' is 0-gradient there, thus contribution is 0 and no need to handle.
-                case Robin:
-                    throw robin_bc_is_not_supported();
-                }
-            }
-            else /// Internal Case.
-            {
-                auto F = C.adjCell(f);
-                if (!F)
-                    throw inconsistent_connectivity("Cell shouldn't be empty!");
-
-                cur_coef[C.index] += E_f.norm() / (F->centroid - C.centroid).norm();
-                cur_coef[F->index] -= E_f.norm() / (F->centroid - C.centroid).norm();
-            }
-        }
-
-        /// Record current line.
-        /// Convert index to 0-based.
-        for (const auto &it : cur_coef)
-            coef.emplace_back(C.index - 1, it.first - 1, it.second);
-    }
-
-    /// Set reference.
-    coef.remove_if(is_ref_row);
-    coef.emplace_back(ref_cell, ref_cell, 1.0);
-}
-
 static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
 {
     /// Calculate original coefficients for each cell.
@@ -176,12 +112,10 @@ void calcPressureCorrectionEquationRHS
             const auto &T_f = C.St.at(f);
 
             /// Raw contribution
-            cur_rhs -= C.delta_m_dot / dt;
-
-//            if(curFace->at_boundary)
-//                cur_rhs -= curFace->rhoU.dot(S_f) / dt;
-//            else
-//                cur_rhs -= curFace->rhoU_star.dot(S_f) / dt;
+            if(curFace->at_boundary)
+                cur_rhs -= curFace->rhoU.dot(S_f) / dt;
+            else
+                cur_rhs -= curFace->rhoU_star.dot(S_f) / dt;
 
             /// Additional contribution due to cross-diffusion
             if(curFace->at_boundary)
@@ -315,39 +249,6 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B)
     delete[] Ax;
 }
 
-void calcPressureCorrectionEquationCoef(SX_MAT &B, const std::vector<Scalar> &ppe_diag)
-{
-    /// Calculate raw triplets
-    std::list<Eigen::Triplet<Scalar>> coef;
-
-    gen_coef_triplets(coef, ppe_diag);
-
-    /// Allocate storage
-    B = sx_mat_struct_create(NumOfCell, NumOfCell, coef.size());
-
-    /// Transform
-    auto Ai = new SX_INT[B.num_nnzs];
-    auto Aj = new SX_INT[B.num_nnzs];
-    auto Ax = new SX_FLT[B.num_nnzs];
-
-    int n = 0;
-    for (const auto &e : coef)
-    {
-        Ai[n] = e.row();
-        Aj[n] = e.col();
-        Ax[n] = e.value();
-        ++n;
-    }
-
-    /// COO to CSR
-    coo_tocsr<SX_INT, SX_FLT>(B.num_rows, B.num_cols, B.num_nnzs, Ai, Aj, Ax, B.Ap, B.Aj, B.Ax);
-
-    /// Release
-    delete[] Ai;
-    delete[] Aj;
-    delete[] Ax;
-}
-
 void calcPressureCorrectionEquationRHS(SX_VEC &rhs, double dt)
 {
     Eigen::Matrix<Scalar, Eigen::Dynamic, 1> x;
@@ -405,7 +306,7 @@ static void gen_coef_triplets
 
             if (curFace->at_boundary) /// Boundary Case.
             {
-                switch (curFace->parent->p_prime_BC)
+                switch (curFace->parent->p_BC)
                 {
                 case Dirichlet:
                     cur_coef[C.index] +=E_f.norm() / (curFace->centroid - C.centroid).norm() ; /// When p is given on boundary, p' is 0-value there.

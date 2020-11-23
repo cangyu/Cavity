@@ -5,7 +5,6 @@
 #include "../inc/CHEM.h"
 #include "../inc/Gradient.h"
 #include "../inc/Discretization.h"
-#include "../inc/Miscellaneous.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
@@ -20,15 +19,18 @@ extern SX_AMG dp_solver_2;
 extern std::string SEP;
 extern std::ostream& LOG_OUT;
 
-
 static const Scalar Rg = 287.7; // J / (Kg * K)
+
+static std::vector<Scalar> rho_C, rho_prev_C;
+static std::vector<Scalar> p_C, p_prev_C, p_f, p_prev_f;
+static std::vector<Scalar> p_prime_C;
+static std::vector<Vector> grad_p_prime_f, sn_grad_p_prime_f;
 
 static std::vector<Vector> rhoU_star_C, rhoU_star_f;
 static std::vector<Scalar> delta_mdot;
-static std::vector<Scalar> rho_C, p_C;
 static std::vector<Scalar> C_rho, Cp, Cv;
 static std::vector<Scalar> viscosity_C, viscosity_f;
-static std::vector<Tensor> tau_f;
+static std::vector<Tensor> tau_f, tau_C;
 static std::vector<Scalar> conductivity_C;
 static std::vector<Scalar> poisson_diag;
 
@@ -156,13 +158,7 @@ void calc_face_viscous_shear_stress()
 
 void reconstruction()
 {
-    /// Update physical properties at centroid of each cell.
-    for (auto& c : cell)
-    {
-        /// Dynamic viscosity
-        // c.mu = Sutherland(c.T);
-        viscosity_C[c.index-1] = c.rho / Re;
-    }
+
 
     /// Enforce boundary conditions for primitive variables.
     set_bc_of_primitive_var();
@@ -245,8 +241,26 @@ Scalar double_dot(const Tensor &A, const Tensor &B)
 
 void ForwardEuler_Compressible(Scalar TimeStep)
 {
+    /// Update physical properties at centroid of each cell.
+    for (auto& c : cell)
+    {
+        viscosity_C[c.index-1] = c.rho / Re;
+    }
+
     /// Prerequisite
     reconstruction();
+
+    for(size_t i = 0; i < NumOfCell; ++i)
+    {
+        const auto &c = cell.at(i);
+        rho_prev_C[i] = c.rho;
+        p_prev_C[i] = c.p;
+    }
+    for(size_t i = 0; i < NumOfFace; ++i)
+    {
+        const auto &f = face.at(i);
+        p_prev_f[i] = f.p;
+    }
 
     int m = 0;
     while(++m < 3)
@@ -265,7 +279,7 @@ void ForwardEuler_Compressible(Scalar TimeStep)
                 const auto& Sf = c.S.at(j);
 
                 convection_flux += (f->rhoU.dot(Sf) * f->U);
-                pressure_flux += (f->p * Sf);
+                pressure_flux += (p_prev_f[f->index-1] * Sf);
                 viscous_flux += (tau_f[f->index] * Sf);
             }
             rhoU_star_C[c.index-1] = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
@@ -292,7 +306,7 @@ void ForwardEuler_Compressible(Scalar TimeStep)
         /// Continuity imbalance
         for (auto& c : cell)
         {
-            delta_mdot[c.index-1] = c.volume / TimeStep * (rho_C[c.index-1] - c.rho);
+            delta_mdot[c.index-1] = c.volume / TimeStep * (rho_prev_C[c.index-1] - c.rho);
             for (size_t j = 0; j < c.surface.size(); ++j)
             {
                 auto f = c.surface.at(j);
@@ -324,16 +338,16 @@ void ForwardEuler_Compressible(Scalar TimeStep)
             if (f.at_boundary)
             {
                 const Vector &n = f.c0 ? f.n01 : f.n10;
-                f.grad_p_prime_sn = (f.grad_p_prime.dot(n)) * n;
+                sn_grad_p_prime_f[f.index-1] = (grad_p_prime_f[f.index-1].dot(n)) * n;
             }
             else
             {
                 const Vector d01 = f.c1->centroid - f.c0->centroid;
                 const Vector e01 = d01 / d01.norm();
                 const Scalar alpha = 1.0/f.n01.dot(e01);
-                const Scalar tmp1 = alpha * (f.c1->p_prime - f.c0->p_prime) / d01.norm();
-                const Scalar tmp2 = f.grad_p_prime.dot(f.n01 - alpha * e01);
-                f.grad_p_prime_sn = (tmp1 + tmp2) * f.n01;
+                const Scalar tmp1 = alpha * (p_prime_C[f.c1->index-1] - p_prime_C[f.c0->index-1]) / d01.norm();
+                const Scalar tmp2 = grad_p_prime_f[f.index-1].dot(f.n01 - alpha * e01);
+                sn_grad_p_prime_f[f.index-1] = (tmp1 + tmp2) * f.n01;
             }
         }
 
@@ -342,7 +356,7 @@ void ForwardEuler_Compressible(Scalar TimeStep)
         {
             if (!f.at_boundary)
             {
-                f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
+                f.rhoU = rhoU_star_f[f.index-1] - TimeStep * f.grad_p_prime_sn;
             }
         }
         for (auto& c : cell)
@@ -375,32 +389,5 @@ void ForwardEuler_Compressible(Scalar TimeStep)
             c.T = c.rhoh / c.rho / Cp[c.index-1];
             c.rho = c.p / (Rg * c.T);
         }
-    }
-
-    static const Scalar Cp = 1005.0; // J / (Kg K)
-
-    /// Prediction of enthalpy
-    for(auto &c : cell)
-    {
-        Scalar convection_flux = 0.0;
-        Scalar diffusion_flux = 0.0;
-
-        const auto Nf = c.S.size();
-        for (int j = 0; j < Nf; ++j)
-        {
-            auto f = c.surface.at(j);
-            const auto &Sf = c.S.at(j);
-
-            convection_flux += f->rhoU.dot(Sf) * f->h;
-
-            diffusion_flux += f->kappa * f->grad_T.dot(Sf);
-        }
-        const Scalar pressure_work = c.U.dot(c.grad_p) * c.volume;
-        const Scalar viscous_dissipation = double_dot(c.tau, c.grad_U) * c.volume;
-        const Scalar dpdt = (c.p - c.p_prev) / TimeStep * c.volume;
-
-        c.rhoh += TimeStep * (-convection_flux + diffusion_flux + viscous_dissipation + pressure_work + dpdt);
-        c.T = c.rhoh / c.rho / Cp;
-        c.rho = c.p / (Rg * c.T);
     }
 }
