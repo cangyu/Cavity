@@ -271,74 +271,6 @@ void calcPressureCorrectionEquationRHS_compressible(SX_VEC &rhs, double dt)
         sx_vec_set_entry(&rhs, i, x(i));
 }
 
-static void gen_coef_triplets
-(
-    std::list<Eigen::Triplet<Scalar>> &coef,
-    const std::vector<Scalar> &ppe_diag
-)
-{
-    if(ppe_diag.size() != NumOfCell)
-        throw std::runtime_error("Size not match");
-
-    /// Calculate original coefficients for each cell.
-    for (const auto &C : cell)
-    {
-        /// Initialize coefficient baseline.
-        std::map<int, Scalar> cur_coef;
-        cur_coef[C.index] = ppe_diag.at(C.index-1);
-        for (auto F : C.adjCell)
-        {
-            if (F)
-                cur_coef[F->index] = 0.0;
-        }
-
-        /// Compute coefficient contributions.
-        const auto N_C = C.surface.size();
-        for (int f = 1; f <= N_C; ++f)
-        {
-            const auto &E_f = C.Se(f);
-            const auto E_f_mod = E_f.norm();
-            const auto &d_f = C.d(f);
-            const auto d_f_mod = d_f.norm();
-            const auto E_by_d = E_f_mod / d_f_mod;
-
-            auto curFace = C.surface(f);
-
-            if (curFace->at_boundary) /// Boundary Case.
-            {
-                switch (curFace->parent->p_BC)
-                {
-                case Dirichlet:
-                    cur_coef[C.index] +=E_f.norm() / (curFace->centroid - C.centroid).norm() ; /// When p is given on boundary, p' is 0-value there.
-                    break;
-                case Neumann:
-                    break;/// When p is not determined on boundary, p' is 0-gradient there, thus contribution is 0 and no need to handle.
-                case Robin:
-                    throw robin_bc_is_not_supported();
-                }
-            }
-            else /// Internal Case.
-            {
-                auto F = C.adjCell(f);
-                if (!F)
-                    throw inconsistent_connectivity("Cell shouldn't be empty!");
-
-                cur_coef[C.index] += E_f.norm() / (F->centroid - C.centroid).norm();
-                cur_coef[F->index] -= E_f.norm() / (F->centroid - C.centroid).norm();
-            }
-        }
-
-        /// Record current line.
-        /// Convert index to 0-based.
-        for (const auto &it : cur_coef)
-            coef.emplace_back(C.index - 1, it.first - 1, it.second);
-    }
-
-    /// Set reference.
-    coef.remove_if(is_ref_row);
-    coef.emplace_back(ref_cell, ref_cell, 1.0);
-}
-
 void calcPressureCorrectionEquationCoef(SX_MAT &B, const std::vector<Scalar> &ppe_diag)
 {
     /// Calculate raw triplets
@@ -370,6 +302,31 @@ void calcPressureCorrectionEquationCoef(SX_MAT &B, const std::vector<Scalar> &pp
     delete[] Ai;
     delete[] Aj;
     delete[] Ax;
+}
+
+void update_diag(SX_MAT *A, SX_VEC *base, SX_VEC *variation)
+{
+    for (size_t i = 0; i < NumOfCell; ++i)
+    {
+        auto &c = cell.at(i);
+        const size_t ibegin = A->Ap[i];
+        const size_t iend = A->Ap[i + 1];
+
+        for (size_t k = ibegin; k < iend; ++k)
+        {
+            const size_t j = A->Aj[k];
+            if ((j - i) == 0)
+            {
+                A->Ax[k] = sx_vec_get_entry(base, i) + sx_vec_get_entry(variation, i);
+                break;
+            }
+        }
+    }
+}
+
+void update_rhs(SX_VEC *b, Scalar dt)
+{
+
 }
 
 

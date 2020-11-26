@@ -9,6 +9,8 @@ void prepare_gpc_rm();
 
 void calc_cell_primitive_gradient();
 
+void calc_cell_primitive_gradient_next();
+
 Scalar calc_cell_pressure_correction_gradient();
 
 void calc_face_primitive_gradient();

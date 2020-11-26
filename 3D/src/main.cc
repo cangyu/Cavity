@@ -37,6 +37,7 @@ std::ostream &LOG_OUT = std::cout;
 SX_MAT A_dp_2; /// The coefficient matrix
 SX_VEC Q_dp_2; /// The RHS
 SX_VEC x_dp_2; /// The solution
+SX_VEC A_dp_2_diag, A_dp_2_diag_unsteady;
 SX_AMG dp_solver_2; /// The solver object
 
 /***************************************************** Solution Control ***********************************************/
@@ -151,10 +152,13 @@ void init()
     {
         Q_dp_2 = sx_vec_create(NumOfCell);
         x_dp_2 = sx_vec_create(NumOfCell);
+        A_dp_2_diag_unsteady = sx_vec_create(NumOfCell);
 
         tick_begin = clock();
         calcPressureCorrectionEquationCoef(A_dp_2);
         tick_end = clock();
+
+        A_dp_2_diag = sx_mat_get_diag(&A_dp_2, NumOfCell);
     }
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
@@ -277,6 +281,8 @@ int main(int argc, char *argv[])
     /* Finalize */
     sx_vec_destroy(&x_dp_2);
     sx_vec_destroy(&Q_dp_2);
+    sx_vec_destroy(&A_dp_2_diag);
+    sx_vec_destroy(&A_dp_2_diag_unsteady);
     sx_mat_destroy(&A_dp_2);
     sx_amg_data_destroy(&dp_solver_2);
 

@@ -15,6 +15,9 @@
 typedef double Scalar;
 typedef Eigen::Matrix<Scalar, 3, 1> Vector;
 typedef Eigen::Matrix<Scalar, 3, 3> Tensor;
+typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 3> MatX3;
+typedef Eigen::Matrix<Scalar, 3, Eigen::Dynamic> Mat3X;
+typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> MatXX;
 
 /******************************************************* Marcos *******************************************************/
 
@@ -125,13 +128,11 @@ struct Face
     /// Possible connection to high-level
     Patch *parent = nullptr;
 
-    /// Physical properties
+    /// (n)
     Scalar viscosity = ZERO_SCALAR;
     Scalar conductivity = ZERO_SCALAR;
     Scalar specific_heat_p = ZERO_SCALAR;
     Scalar specific_heat_v = ZERO_SCALAR;
-
-    /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
@@ -140,16 +141,41 @@ struct Face
     Vector rhoU = ZERO_VECTOR;
     Scalar rhoh = ZERO_SCALAR;
     Tensor tau = ZERO_TENSOR;
-
-    /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
 
-    /// Gradient of physical variables
-    /// in surface outward normal direction
-    /// Only used on boundary faces
+    /// (*)
+    Scalar rho_star, rho_prime;
+    Vector U_star, U_prime;
+    Vector rhoU_star;
+    Scalar p_prime;
+    Vector grad_p_prime, sn_grad_p_prime;
+
+    /// (m-1)
+    Scalar rho_prev;
+    Scalar p_prev;
+    Scalar T_prev;
+    Scalar drhodp_prev;
+
+    /// (m)
+    Scalar viscosity_next;
+    Scalar conductivity_next;
+    Scalar specific_heat_p_next;
+    Scalar specific_heat_v_next;
+    Scalar rho_next;
+    Vector U_next;
+    Scalar p_next;
+    Scalar T_next;
+    Scalar h_next;
+    Tensor grad_U_next, tau_next;
+    Vector grad_p_next;
+    Vector grad_T_next;
+    Vector rhoU_next;
+    Scalar rhoh_next;
+
+    /// B.C. only
     Scalar sn_grad_rho = ZERO_SCALAR;
     Vector sn_grad_U = ZERO_VECTOR;
     Scalar sn_grad_p = ZERO_SCALAR;
@@ -184,13 +210,14 @@ struct Cell
     /// Follow the order in "surface"
     NaturalArray<Vector> d;
 
-    /// Physical properties
+    /// Gradient reconstruction
+    Tensor TeC_INV;
+
+    /// (n)
     Scalar viscosity = ZERO_SCALAR;
     Scalar conductivity = ZERO_SCALAR;
     Scalar specific_heat_p = ZERO_SCALAR;
     Scalar specific_heat_v = ZERO_SCALAR;
-
-    /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
@@ -199,12 +226,40 @@ struct Cell
     Vector rhoU = ZERO_VECTOR;
     Scalar rhoh = ZERO_SCALAR;
     Tensor tau = ZERO_TENSOR;
-
-    /// Gradient of physical variables
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
+
+    /// (*)
+    Scalar rho_star, rho_prime;
+    Vector U_star, U_prime;
+    Vector rhoU_star;
+    Scalar dmdt;
+    Scalar p_prime;
+    Vector grad_p_prime;
+
+    /// (m-1)
+    Scalar rho_prev;
+    Scalar p_prev;
+    Scalar T_prev;
+    Scalar drhodp_prev;
+
+    /// (m)
+    Scalar viscosity_next;
+    Scalar conductivity_next;
+    Scalar specific_heat_p_next;
+    Scalar specific_heat_v_next;
+    Scalar rho_next;
+    Vector U_next;
+    Scalar p_next;
+    Scalar T_next;
+    Scalar h_next;
+    Tensor grad_U_next, tau_next;
+    Vector grad_p_next;
+    Vector grad_T_next;
+    Vector rhoU_next;
+    Scalar rhoh_next;
 };
 struct Patch
 {
@@ -220,8 +275,8 @@ struct Patch
 
     /// B.C. specification for each variable
     BC_CATEGORY rho_BC;
-    std::array<BC_CATEGORY, 3> U_BC;
-    BC_CATEGORY p_BC;
+    BC_CATEGORY U_BC[3];
+    BC_CATEGORY p_BC, p_prime_BC;
     BC_CATEGORY T_BC;
 };
 

@@ -7,18 +7,14 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
-typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 3> MatX3;
-typedef Eigen::Matrix<Scalar, 3, Eigen::Dynamic> Mat3X;
-typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> MatXX;
-
 /// Coefficient matrix used by the least-square method
-static std::vector<Mat3X> J_INV_rho;
-static std::vector<Mat3X> J_INV_u;
-static std::vector<Mat3X> J_INV_v;
-static std::vector<Mat3X> J_INV_w;
-static std::vector<Mat3X> J_INV_p;
-static std::vector<Mat3X> J_INV_T;
-static std::vector<Mat3X> J_INV_p_prime;
+std::vector<Mat3X> J_INV_rho;
+std::vector<Mat3X> J_INV_u;
+std::vector<Mat3X> J_INV_v;
+std::vector<Mat3X> J_INV_w;
+std::vector<Mat3X> J_INV_p;
+std::vector<Mat3X> J_INV_T;
+std::vector<Mat3X> J_INV_p_prime;
 
 /**
  * Convert Eigen's intrinsic QR decomposition matrix into R^-1 * Q^T
@@ -260,7 +256,6 @@ void prepare_gg()
     }
 }
 
-
 void prepare_gpc_rm()
 {
     for (auto &c : cell)
@@ -274,7 +269,7 @@ void prepare_gpc_rm()
             const Vector &Sf = c.S.at(j);
             A += Sf * Sf.transpose() / f->area;
         }
-        c.grad_p_prime_rm = A.inverse();
+        c.TeC_INV = A.inverse();
     }
 }
 
@@ -452,6 +447,127 @@ void calc_cell_primitive_gradient()
             }
         }
         c.grad_T = J_INV_T.at(c.index - 1) * delta_phi;
+    }
+}
+
+void calc_cell_primitive_gradient_next()
+{
+    for (auto &c : cell)
+    {
+        const auto nF = c.surface.size();
+        Eigen::VectorXd delta_phi(nF);
+
+        /// velocity-x
+        for (int i = 0; i < nF; ++i)
+        {
+            auto curFace = c.surface.at(i);
+            if (curFace->at_boundary)
+            {
+                switch (curFace->parent->U_BC[0])
+                {
+                case Dirichlet:
+                    delta_phi(i) = (curFace->U_next.x() - c.U_next.x()) / (curFace->centroid - c.centroid).norm();
+                    break;
+                case Neumann:
+                    delta_phi(i) = curFace->sn_grad_U.x();
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+            }
+            else
+            {
+                auto curAdjCell = c.adjCell.at(i);
+                delta_phi(i) = (curAdjCell->U_next.x() - c.U_next.x()) / (curAdjCell->centroid - c.centroid).norm();
+            }
+        }
+        c.grad_U_next.col(0) = J_INV_u.at(c.index - 1) * delta_phi;
+
+        /// velocity-y
+        for (int i = 0; i < nF; ++i)
+        {
+            auto curFace = c.surface.at(i);
+            if (curFace->at_boundary)
+            {
+                switch (curFace->parent->U_BC[1])
+                {
+                case Dirichlet:
+                    delta_phi(i) = (curFace->U_next.y() - c.U_next.y()) / (curFace->centroid - c.centroid).norm();
+                    break;
+                case Neumann:
+                    delta_phi(i) = curFace->sn_grad_U.y();
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+            }
+            else
+            {
+                auto curAdjCell = c.adjCell.at(i);
+                delta_phi(i) = (curAdjCell->U_next.y() - c.U_next.y()) / (curAdjCell->centroid - c.centroid).norm();
+            }
+        }
+        c.grad_U_next.col(1) = J_INV_v.at(c.index - 1) * delta_phi;
+
+        /// velocity-z
+        for (int i = 0; i < nF; ++i)
+        {
+            auto curFace = c.surface.at(i);
+            if (curFace->at_boundary)
+            {
+                switch (curFace->parent->U_BC[2])
+                {
+                case Dirichlet:
+                    delta_phi(i) = (curFace->U_next.z() - c.U_next.z()) / (curFace->centroid - c.centroid).norm();
+                    break;
+                case Neumann:
+                    delta_phi(i) = curFace->sn_grad_U.z();
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+            }
+            else
+            {
+                auto curAdjCell = c.adjCell.at(i);
+                delta_phi(i) = (curAdjCell->U_next.z() - c.U_next.z()) / (curAdjCell->centroid - c.centroid).norm();
+            }
+        }
+        c.grad_U_next.col(2) = J_INV_w.at(c.index - 1) * delta_phi;
+
+        /// pressure
+        for (int i = 0; i < nF; ++i)
+        {
+            auto curFace = c.surface.at(i);
+            if (curFace->at_boundary)
+            {
+                switch (curFace->parent->p_BC)
+                {
+                case Dirichlet:
+                    delta_phi(i) = (curFace->p_next - c.p_next) / (curFace->centroid - c.centroid).norm();
+                    break;
+                case Neumann:
+                    delta_phi(i) = curFace->sn_grad_p;
+                    break;
+                case Robin:
+                    throw robin_bc_is_not_supported();
+                default:
+                    break;
+                }
+            }
+            else
+            {
+                auto curAdjCell = c.adjCell.at(i);
+                delta_phi(i) = (curAdjCell->p_next - c.p_next) / (curAdjCell->centroid - c.centroid).norm();
+            }
+        }
+        c.grad_p_next = J_INV_p.at(c.index - 1) * delta_phi;
     }
 }
 
