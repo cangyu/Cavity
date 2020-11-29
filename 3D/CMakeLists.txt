@@ -28,7 +28,8 @@ add_executable(CAVITY
 	src/IC.cc
 	src/BC.cc
 	src/CHEM.cc
-	src/Discretization.cc
+	src/Spatial.cc
+	src/Temporal.cc
 	src/Gradient.cc
 	src/PoissonEqn.cc
 	src/Diagnose.cc

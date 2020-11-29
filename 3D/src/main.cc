@@ -9,7 +9,7 @@
 #include "../inc/BC.h"
 #include "../inc/Gradient.h"
 #include "../inc/PoissonEqn.h"
-#include "../inc/Discretization.h"
+#include "../inc/Temporal.h"
 #include "../inc/Diagnose.h"
 #include "../inc/Miscellaneous.h"
 
@@ -155,14 +155,14 @@ void init()
         A_dp_2_diag_unsteady = sx_vec_create(NumOfCell);
 
         tick_begin = clock();
-        calcPressureCorrectionEquationCoef(A_dp_2);
+        PC_calcSteadyPart(A_dp_2);
         tick_end = clock();
 
         A_dp_2_diag = sx_mat_get_diag(&A_dp_2, NumOfCell);
     }
     LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    prepare_dp_solver(A_dp_2, dp_solver_2);
+    PC_prepareSolver(A_dp_2, dp_solver_2);
 
     if(DATA_PATH.empty())
     {

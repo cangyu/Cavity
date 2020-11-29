@@ -1,5 +1,5 @@
-#ifndef DISCRETIZATION_H
-#define DISCRETIZATION_H
+#ifndef TEMPORAL_H
+#define TEMPORAL_H
 
 #include "custom_type.h"
 
