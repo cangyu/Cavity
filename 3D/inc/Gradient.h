@@ -1,6 +1,8 @@
 #ifndef GRADIENT_H
 #define GRADIENT_H
 
+#include "custom_type.h"
+
 void prepare_lsq();
 
 void prepare_gg();

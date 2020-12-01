@@ -1,4 +1,3 @@
-#include "../inc/custom_type.h"
 #include "../inc/Gradient.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -703,7 +702,7 @@ void calc_face_primitive_gradient()
             f.grad_U.col(2) = gv[2];
 
             /// pressure
-            f.grad_p = alpha * (f.c1->p - f.c0->p) + beta * (f.ksi0 * f.c0->grad_p + f.ksi1 * f.c1->grad_p);
+            f.grad_p = alpha * (f.c1->p - f.c0->p) + beta * (0.5 * f.c0->grad_p + 0.5 * f.c1->grad_p);
 
             /// temperature
             f.grad_T = alpha * (f.c1->T - f.c0->T)  + beta * (f.ksi0 * f.c0->grad_T + f.ksi1 * f.c1->grad_T);

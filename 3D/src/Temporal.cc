@@ -1,5 +1,6 @@
 #include <iostream>
 #include <iomanip>
+#include "../inc/Miscellaneous.h"
 #include "../inc/BC.h"
 #include "../inc/PoissonEqn.h"
 #include "../inc/Gradient.h"
@@ -21,6 +22,8 @@ extern SX_AMG dp_solver_2;
 extern std::string SEP;
 extern std::ostream& LOG_OUT;
 
+static const Scalar GAMMA = 1.4;
+static const Scalar Pr = 0.72;
 static const Scalar Rg = 287.7; // J / (Kg * K)
 
 static int solve_pressure_correction(Scalar TimeStep)
@@ -65,38 +68,46 @@ static int solve_pressure_correction(Scalar TimeStep)
     return cnt;
 }
 
-Scalar double_dot(const Tensor &A, const Tensor &B)
-{
-    Scalar ret = 0.0;
-    for(int i = 0; i < 3; ++i)
-        for(int j = 0; j < 3; ++j)
-            ret += A(i, j) * B(j, i);
-    return ret;
-}
-
 void ForwardEuler(Scalar TimeStep)
 {
-    /// Auxiliary vars @(n)
+    /// mu, Cp, Cv, lambda @(n)
     for (auto& c : cell)
     {
         c.viscosity = c.rho / Re;
         c.specific_heat_p = 3.5 * Rg;
-        c.specific_heat_v = c.specific_heat_p / 1.4;
-        c.conductivity = c.specific_heat_p * c.viscosity / 0.72;
+        c.specific_heat_v = c.specific_heat_p / GAMMA;
+        c.conductivity = c.specific_heat_p * c.viscosity / Pr;
     }
+    /// B.C. for rho, U, p, T @(n)
     set_bc_of_primitive_var();
+    /// grad_rho, grad_U, grad_p, grad_T @(n)
     calc_cell_primitive_gradient();
+    /// grad_rho, grad_U, grad_p, grad_T @(n), boundary + internal
     calc_face_primitive_gradient();
+    /// rho, U, p, T @(n), boundary + internal
     calc_face_primitive_var();
+    /// rhoU @(n), boundary
+    for (const auto &e : patch)
+    {
+        for (auto f : e.surface)
+            f->rhoU = f->rho * f->U;
+    }
+    /// h @(n), boundary + internal
+    for(auto &f : face)
+    {
+        f.h = f.specific_heat_p * f.T;
+    }
+    /// mu, Cp, Cv, lambda @(n), boundary + internal
     for (auto& f : face)
     {
         f.viscosity = f.rho / Re;
         f.specific_heat_p = 3.5 * Rg;
-        f.specific_heat_v = f.specific_heat_v / 1.4;
-        f.conductivity = f.specific_heat_p * f.viscosity / 0.72;
+        f.specific_heat_v = f.specific_heat_v / GAMMA;
+        f.conductivity = f.specific_heat_p * f.viscosity / Pr;
     }
+    /// tau @(n), boundary + internal
     calc_face_viscous_shear_stress();
-    set_bc_of_conservative_var();
+    /// B.C. for p'
     set_bc_of_pressure_correction();
 
     /// Init @(m-1)
@@ -108,6 +119,7 @@ void ForwardEuler(Scalar TimeStep)
     }
     for (auto& f : face)
     {
+        f.rho_prev = f.rho;
         f.p_prev = f.p;
     }
 

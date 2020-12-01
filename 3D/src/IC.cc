@@ -1,5 +1,5 @@
 #include "../inc/custom_type.h"
-#include "../inc/Miscellaneous.h"
+#include "../inc/Spatial.h"
 #include "../inc/IC.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;

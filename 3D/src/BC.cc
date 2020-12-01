@@ -163,14 +163,7 @@ void set_bc_of_pressure_correction()
 {
     for (const auto &e : patch)
         for (auto f : e.surface)
-            f->sn_grad_p_prime = ZERO_SCALAR;
-}
-
-void set_bc_of_conservative_var()
-{
-    for (const auto &e : patch)
-        for (auto f : e.surface)
-            f->rhoU = f->rho * f->U;
+            f->sn_grad_p_prime.setZero();
 }
 
 void set_bc_nodal()
