@@ -9,6 +9,7 @@
 #include "../inc/BC.h"
 #include "../inc/Gradient.h"
 #include "../inc/PoissonEqn.h"
+#include "../inc/Spatial.h"
 #include "../inc/Temporal.h"
 #include "../inc/Diagnose.h"
 #include "../inc/Miscellaneous.h"

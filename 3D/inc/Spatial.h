@@ -13,4 +13,6 @@ void calc_cell_viscous_shear_stress_next();
 
 void calc_face_viscous_shear_stress_next();
 
+void calc_face_pressure_correction();
+
 #endif

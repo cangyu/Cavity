@@ -189,3 +189,28 @@ void calc_face_viscous_shear_stress_next()
             Stokes(f.viscosity, f.grad_U_next, f.tau_next);
     }
 }
+
+void calc_face_pressure_correction()
+{
+    for(auto &f : face)
+    {
+        if(f.at_boundary)
+        {
+            auto p = f.parent;
+            if(p->p_prime_BC == Neumann)
+            {
+                auto c = f.c0 ? f.c0 : f.c1;
+                const auto &d = f.c0 ? f.r0 : f.r1;
+                f.p_prime = c->p_prime + f.grad_p_prime.dot(d);
+            }
+        }
+        else
+        {
+            /// Upwind
+            if (f.rhoU_star.dot(f.n01) > 0)
+                f.p_prime = f.c0->p_prime;
+            else
+                f.p_prime = f.c1->p_prime;
+        }
+    }
+}

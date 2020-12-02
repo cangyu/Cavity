@@ -30,39 +30,45 @@ static int solve_pressure_correction(Scalar TimeStep)
 {
     for(auto &c : cell)
     {
-        c.p_prime = ZERO_SCALAR;
+        c.p_prime = 0.0;
         c.grad_p_prime.setZero();
     }
     for(auto &f : face)
+    {
+        f.p_prime = 0.0;
         f.grad_p_prime.setZero();
+    }
 
     int cnt = 0; /// Iteration counter
-    Scalar l1 = 1.0, l2 = 1.0; /// Convergence monitor
-    while (l1 > 1e-10 || l2 > 1e-8)
+    Scalar err1 = 1.0, err2 = 1.0; /// Convergence monitor
+    while (err1 > 1e-10 || err2 > 1e-8)
     {
         /// Solve p' at cell centroid
         PC_updateRHS(&Q_dp_2, TimeStep);
         sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
-        l1 = 0.0;
+        err1 = 0.0;
         for (int i = 0; i < NumOfCell; ++i)
         {
             auto& c = cell.at(i);
             const Scalar new_val = sx_vec_get_entry(&x_dp_2, i);
-            l1 += std::fabs(new_val - c.p_prime);
+            err1 += std::fabs(new_val - c.p_prime);
             c.p_prime = new_val;
         }
-        l1 /= NumOfCell;
+        err1 /= NumOfCell;
 
         /// Calculate gradient of $p'$ at cell centroid
-        l2 = calc_cell_pressure_correction_gradient();
+        err2 = calc_cell_pressure_correction_gradient();
 
         /// Interpolate gradient of $p'$ from cell centroid to face centroid
         calc_face_pressure_correction_gradient();
 
-        /// Report
-        LOG_OUT << SEP << std::left << std::setw(14) << l1 << "    " << std::setw(26) << l2 << std::endl;
+        /// Interpolate $p'$ at face centroid
+        calc_face_pressure_correction();
 
-        /// Next loop if needed
+        /// Report
+        LOG_OUT << SEP << std::left << std::setw(14) << err1 << "    " << std::setw(26) << err2 << std::endl;
+
+        /// Next loop
         ++cnt;
     }
     return cnt;

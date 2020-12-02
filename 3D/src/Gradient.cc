@@ -590,7 +590,7 @@ Scalar calc_cell_pressure_correction_gradient()
                     delta_phi(i) = (curFace->p_prime - c.p_prime) / (curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    delta_phi(i) = curFace->sn_grad_p_prime;
+                    delta_phi(i) = curFace->sn_grad_p_prime.dot(curFace->c0 ? curFace->n01 : curFace->n10);
                     break;
                 case Robin:
                     throw robin_bc_is_not_supported();
@@ -725,7 +725,7 @@ void calc_face_pressure_correction_gradient()
             }
             else if(f.parent->p_prime_BC == Neumann)
             {
-                f.grad_p_prime = f.sn_grad_p_prime * n + (Tensor::Identity() - n * n.transpose()) * c->grad_p_prime;
+                f.grad_p_prime = f.sn_grad_p_prime.dot(n) * n + (Tensor::Identity() - n * n.transpose()) * c->grad_p_prime;
             }
             else
                 throw unsupported_boundary_condition(f.parent->p_prime_BC);

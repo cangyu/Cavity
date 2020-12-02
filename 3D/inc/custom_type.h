@@ -156,12 +156,9 @@ struct Face
     /// (m-1)
     Scalar rho_prev;
     Scalar p_prev;
-    Scalar T_prev;
     Scalar drhodp_prev;
 
     /// (m)
-    Scalar viscosity_next;
-    Scalar conductivity_next;
     Scalar specific_heat_p_next;
     Scalar specific_heat_v_next;
     Scalar rho_next;
@@ -246,8 +243,7 @@ struct Cell
     Scalar drhodp_prev;
 
     /// (m)
-    Scalar viscosity_next;
-    Scalar conductivity_next;
+
     Scalar specific_heat_p_next;
     Scalar specific_heat_v_next;
     Scalar rho_next;
@@ -257,7 +253,6 @@ struct Cell
     Scalar h_next;
     Tensor grad_U_next, tau_next;
     Vector grad_p_next;
-    Vector grad_T_next;
     Vector rhoU_next;
     Scalar rhoh_next;
 };

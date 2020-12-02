@@ -90,7 +90,7 @@ void PC_calcSteadyPart(SX_MAT &B)
             }
             else /// Internal Case.
             {
-                auto F = C.adjCell(f);
+                auto F = C.adjCell.at(f);
                 if (!F)
                     throw empty_connectivity(C.index);
 
