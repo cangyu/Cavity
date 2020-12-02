@@ -465,7 +465,7 @@ void calc_cell_primitive_gradient_next()
                 switch (curFace->parent->U_BC[0])
                 {
                 case Dirichlet:
-                    delta_phi(i) = (curFace->U_next.x() - c.U_next.x()) / (curFace->centroid - c.centroid).norm();
+                    delta_phi(i) = (curFace->U.x() - c.U_next.x()) / (curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
                     delta_phi(i) = curFace->sn_grad_U.x();
@@ -493,7 +493,7 @@ void calc_cell_primitive_gradient_next()
                 switch (curFace->parent->U_BC[1])
                 {
                 case Dirichlet:
-                    delta_phi(i) = (curFace->U_next.y() - c.U_next.y()) / (curFace->centroid - c.centroid).norm();
+                    delta_phi(i) = (curFace->U.y() - c.U_next.y()) / (curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
                     delta_phi(i) = curFace->sn_grad_U.y();
@@ -521,7 +521,7 @@ void calc_cell_primitive_gradient_next()
                 switch (curFace->parent->U_BC[2])
                 {
                 case Dirichlet:
-                    delta_phi(i) = (curFace->U_next.z() - c.U_next.z()) / (curFace->centroid - c.centroid).norm();
+                    delta_phi(i) = (curFace->U.z() - c.U_next.z()) / (curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
                     delta_phi(i) = curFace->sn_grad_U.z();
@@ -549,7 +549,7 @@ void calc_cell_primitive_gradient_next()
                 switch (curFace->parent->p_BC)
                 {
                 case Dirichlet:
-                    delta_phi(i) = (curFace->p_next - c.p_next) / (curFace->centroid - c.centroid).norm();
+                    delta_phi(i) = (curFace->p - c.p_next) / (curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
                     delta_phi(i) = curFace->sn_grad_p;

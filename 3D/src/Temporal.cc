@@ -127,6 +127,21 @@ void ForwardEuler(Scalar TimeStep)
     int m = 0;
     while(++m < 3)
     {
+        if(m >= 2)
+        {
+            for (auto& c : cell)
+            {
+                c.rho_prev = c.rho_next;
+                c.p_prev = c.p_next;
+                c.T_prev = c.T_next;
+            }
+            for (auto& f : face)
+            {
+                f.rho_prev = f.rho_next;
+                f.p_prev = f.p_next;
+            }
+        }
+
         /// Prediction of momentum
         for (auto& c : cell)
         {
@@ -241,27 +256,28 @@ void ForwardEuler(Scalar TimeStep)
         {
             if (!f.at_boundary)
             {
-                f.rho_prime = f.drhodp_prev * f.p_prime;
-                f.rho_star = f.rho_prev + f.rho_prime;
-                f.U_prime = - TimeStep * f.sn_grad_p_prime / f.rho_prev;
-                f.U_next = f.U_star + f.U_prime;
-                f.rhoU_next = f.rhoU_star + f.rho_prev * f.U_prime + f.rho_prime * f.U_star;
+                const Scalar rho_prime = f.drhodp_prev * f.p_prime;
+                f.rho_star = f.rho_prev + rho_prime;
+                const Vector U_prime = - TimeStep * f.sn_grad_p_prime / f.rho_prev;
+                f.U_next = f.U_star + U_prime;
+                f.rhoU_next = f.rhoU_star + f.rho_prev * U_prime + rho_prime * f.U_star;
                 f.p_next = f.p_prev + f.p_prime;
             }
         }
         for (auto& c : cell)
         {
-            c.rho_prime = c.drhodp_prev * c.p_prime;
-            c.rho_star = c.rho_prev + c.rho_prime;
-            c.U_prime = - TimeStep * c.grad_p_prime / c.rho_prev;
-            c.U_next = c.U_star + c.U_prime;
-            c.rhoU_next = c.rhoU_star + c.rho_prev * c.U_prime + c.rho_prime * c.U_star;
+            const Scalar rho_prime = c.drhodp_prev * c.p_prime;
+            c.rho_star = c.rho_prev + rho_prime;
+            const Vector U_prime = - TimeStep * c.grad_p_prime / c.rho_prev;
+            c.U_next = c.U_star + U_prime;
+            c.rhoU_next = c.rhoU_star + c.rho_prev * U_prime + rho_prime * c.U_star;
             c.p_next = c.p_prev + c.p_prime;
         }
 
-        /// Gradient of these updated quantities
+        /// grad_U, grad_p @(m)
         calc_cell_primitive_gradient_next();
-        calc_face_viscous_shear_stress_next();
+        /// tau @(m)
+        calc_cell_viscous_shear_stress_next();
 
         /// Prediction of enthalpy
         for(auto &c : cell)
@@ -273,7 +289,6 @@ void ForwardEuler(Scalar TimeStep)
             {
                 auto f = c.surface.at(j);
                 const auto &Sf = c.S.at(j);
-
                 convection_flux += f->rhoU_next.dot(Sf) * f->h;
                 diffusion_flux += f->conductivity * f->grad_T.dot(Sf);
             }

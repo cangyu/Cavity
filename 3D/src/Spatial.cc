@@ -148,6 +148,14 @@ void calc_face_viscous_shear_stress()
     }
 }
 
+void calc_cell_viscous_shear_stress_next()
+{
+    for(auto &c : cell)
+    {
+        Stokes(c.viscosity, c.grad_U_next, c.tau_next);
+    }
+}
+
 void calc_face_viscous_shear_stress_next()
 {
     for (auto& f : face)
@@ -161,7 +169,7 @@ void calc_face_viscous_shear_stress_next()
             auto p = f.parent;
             if (p->BC == BC_PHY::Wall)
             {
-                Vector dU = c->U_next - f.U_next;
+                Vector dU = c->U_next - f.U;
                 dU -= dU.dot(n) * n;
                 const Vector tw = -f.viscosity / r.dot(n) * dU;
                 f.tau_next = tw * n.transpose();
