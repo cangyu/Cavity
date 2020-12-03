@@ -449,7 +449,7 @@ void calc_cell_primitive_gradient()
     }
 }
 
-void calc_cell_primitive_gradient_next()
+void calc_cell_velocity_gradient_next()
 {
     for (auto &c : cell)
     {
@@ -539,8 +539,16 @@ void calc_cell_primitive_gradient_next()
             }
         }
         c.grad_U_next.col(2) = J_INV_w.at(c.index - 1) * delta_phi;
+    }
+}
 
-        /// pressure
+void calc_cell_pressure_gradient_next()
+{
+    for (auto &c : cell)
+    {
+        const auto nF = c.surface.size();
+        Eigen::VectorXd delta_phi(nF);
+
         for (int i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
@@ -548,16 +556,16 @@ void calc_cell_primitive_gradient_next()
             {
                 switch (curFace->parent->p_BC)
                 {
-                case Dirichlet:
-                    delta_phi(i) = (curFace->p - c.p_next) / (curFace->centroid - c.centroid).norm();
-                    break;
-                case Neumann:
-                    delta_phi(i) = curFace->sn_grad_p;
-                    break;
-                case Robin:
-                    throw robin_bc_is_not_supported();
-                default:
-                    break;
+                    case Dirichlet:
+                        delta_phi(i) = (curFace->p - c.p_next) / (curFace->centroid - c.centroid).norm();
+                        break;
+                    case Neumann:
+                        delta_phi(i) = curFace->sn_grad_p;
+                        break;
+                    case Robin:
+                        throw robin_bc_is_not_supported();
+                    default:
+                        break;
                 }
             }
             else
@@ -567,6 +575,78 @@ void calc_cell_primitive_gradient_next()
             }
         }
         c.grad_p_next = J_INV_p.at(c.index - 1) * delta_phi;
+    }
+}
+
+void calc_cell_temperature_gradient_next()
+{
+    for (auto &c : cell)
+    {
+        const auto nF = c.surface.size();
+        Eigen::VectorXd delta_phi(nF);
+
+        for (int i = 0; i < nF; ++i)
+        {
+            auto curFace = c.surface.at(i);
+            if (curFace->at_boundary)
+            {
+                switch (curFace->parent->T_BC)
+                {
+                    case Dirichlet:
+                        delta_phi(i) = (curFace->T - c.T_next) / (curFace->centroid - c.centroid).norm();
+                        break;
+                    case Neumann:
+                        delta_phi(i) = curFace->sn_grad_T;
+                        break;
+                    case Robin:
+                        throw robin_bc_is_not_supported();
+                    default:
+                        break;
+                }
+            }
+            else
+            {
+                auto curAdjCell = c.adjCell.at(i);
+                delta_phi(i) = (curAdjCell->T_next - c.T_next) / (curAdjCell->centroid - c.centroid).norm();
+            }
+        }
+        c.grad_T_next = J_INV_T.at(c.index - 1) * delta_phi;
+    }
+}
+
+void calc_cell_density_gradient_next()
+{
+    for (auto &c : cell)
+    {
+        const auto nF = c.surface.size();
+        Eigen::VectorXd delta_phi(nF);
+
+        for (int i = 0; i < nF; ++i)
+        {
+            auto curFace = c.surface.at(i);
+            if (curFace->at_boundary)
+            {
+                switch (curFace->parent->rho_BC)
+                {
+                    case Dirichlet:
+                        delta_phi(i) = (curFace->rho - c.rho_next) / (curFace->centroid - c.centroid).norm();
+                        break;
+                    case Neumann:
+                        delta_phi(i) = curFace->sn_grad_rho;
+                        break;
+                    case Robin:
+                        throw robin_bc_is_not_supported();
+                    default:
+                        break;
+                }
+            }
+            else
+            {
+                auto curAdjCell = c.adjCell.at(i);
+                delta_phi(i) = (curAdjCell->rho_next - c.rho_next) / (curAdjCell->centroid - c.centroid).norm();
+            }
+        }
+        c.grad_rho_next = J_INV_rho.at(c.index - 1) * delta_phi;
     }
 }
 
@@ -733,6 +813,37 @@ void calc_face_pressure_correction_gradient()
         else
         {
             f.grad_p_prime = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
+        }
+    }
+}
+
+void calc_face_temperature_gradient_next()
+{
+    for (auto &f : face)
+    {
+        if (f.at_boundary)
+        {
+            auto c = f.c0? f.c0 : f.c1;
+            const Vector &n = f.c0 ? f.n01 : f.n10;
+            const Vector &d = f.c0 ? f.r0 : f.r1;
+            const Vector alpha = n / n.dot(d);
+            const Tensor beta = Tensor::Identity() - alpha * d.transpose();
+            const Tensor gamma = Tensor::Identity() - n * n.transpose();
+
+            auto p = f.parent;
+            if (p->T_BC == Dirichlet)
+                f.grad_T_next = alpha * (f.T - c->T_next) + beta * c->grad_T_next;
+            else if (p->T_BC == Neumann)
+                f.grad_T_next = n * f.sn_grad_T + beta * c->grad_T_next;
+            else
+                throw unsupported_boundary_condition(p->T_BC);
+        }
+        else
+        {
+            const Vector d01 = f.c1->centroid - f.c0->centroid;
+            const Vector alpha = f.n01 / f.n01.dot(d01);
+            const Tensor beta = Tensor::Identity() - alpha * d01.transpose();
+            f.grad_T_next = alpha * (f.c1->T_next - f.c0->T_next)  + beta * (f.ksi0 * f.c0->grad_T_next + f.ksi1 * f.c1->grad_T_next);
         }
     }
 }

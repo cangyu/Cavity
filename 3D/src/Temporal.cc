@@ -26,6 +26,27 @@ static const Scalar GAMMA = 1.4;
 static const Scalar Pr = 0.72;
 static const Scalar Rg = 287.7; // J / (Kg * K)
 
+template<typename T>
+static void check_bound
+(
+    const std::string& nm,
+    const NaturalArray<T>& grp,
+    const std::function<Scalar(const T&)> &extractor
+)
+{
+    Scalar var_min = extractor(grp.at(0));
+    Scalar var_max = var_min;
+    for (size_t i = 1; i < grp.size(); ++i)
+    {
+        const auto cur_var = extractor(grp.at(i));
+        if (cur_var < var_min)
+            var_min = cur_var;
+        if (cur_var > var_max)
+            var_max = cur_var;
+    }
+    LOG_OUT << nm << " : " << var_min << " ~ " << var_max << std::endl;
+}
+
 static int solve_pressure_correction(Scalar TimeStep)
 {
     for(auto &c : cell)
@@ -41,7 +62,7 @@ static int solve_pressure_correction(Scalar TimeStep)
 
     int cnt = 0; /// Iteration counter
     Scalar err1 = 1.0, err2 = 1.0; /// Convergence monitor
-    while (err1 > 1e-10 || err2 > 1e-8)
+    while (err1 > 1e-10 && err2 > 1e-8)
     {
         /// Solve p' at cell centroid
         PC_updateRHS(&Q_dp_2, TimeStep);
@@ -117,6 +138,7 @@ void ForwardEuler(Scalar TimeStep)
     set_bc_of_pressure_correction();
 
     /// Init @(m-1)
+    LOG_OUT << "m=0" << std::endl;
     for (auto& c : cell)
     {
         c.rho_prev = c.rho;
@@ -133,6 +155,7 @@ void ForwardEuler(Scalar TimeStep)
     int m = 0;
     while(++m < 3)
     {
+        LOG_OUT << "m=" << m << std::endl;
         if(m >= 2)
         {
             for (auto& c : cell)
@@ -203,6 +226,7 @@ void ForwardEuler(Scalar TimeStep)
         {
             c.drhodp_prev = 1.0 / (Rg * c.T_prev);
         }
+        check_bound<Cell>("drhodp_C@(m-1)", cell, [](const Cell &c) { return c.drhodp_prev; });
 
         /// Contribution to the diagonal of Poisson equation
         for(auto &c : cell)
@@ -223,6 +247,7 @@ void ForwardEuler(Scalar TimeStep)
         const int poisson_noc_iter = solve_pressure_correction(TimeStep);
         LOG_OUT << SEP << "--------------------------------------------" << std::endl;
         LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations" << std::endl;
+        check_bound<Cell>("p'_C", cell, [](const Cell &c) { return c.p_prime; });
 
         /// Calculate $\frac{\partial p'}{\partial n}$ on face centroid
         for (auto &f : face)
@@ -244,6 +269,7 @@ void ForwardEuler(Scalar TimeStep)
         }
 
         /// Reconstruct gradient of $p'$ at cell centroid
+        /*
         for (auto& c : cell)
         {
             Vector b(0.0, 0.0, 0.0);
@@ -256,6 +282,7 @@ void ForwardEuler(Scalar TimeStep)
             }
             c.grad_p_prime = c.TeC_INV * b;
         }
+         */
 
         /// Update
         for (auto& f : face)
@@ -270,6 +297,9 @@ void ForwardEuler(Scalar TimeStep)
                 f.p_next = f.p_prev + f.p_prime;
             }
         }
+        check_bound<Face>("rho*_f", face, [](const Face &f) { return f.rho_star; });
+        check_bound<Face>("p_f@(m)", face, [](const Face &f) { return f.p_next; });
+
         for (auto& c : cell)
         {
             const Scalar rho_prime = c.drhodp_prev * c.p_prime;
@@ -279,9 +309,13 @@ void ForwardEuler(Scalar TimeStep)
             c.rhoU_next = c.rhoU_star + c.rho_prev * U_prime + rho_prime * c.U_star;
             c.p_next = c.p_prev + c.p_prime;
         }
+        check_bound<Cell>("rho*_C", cell, [](const Cell &c) { return c.rho_star; });
+        check_bound<Cell>("p_C@(m)", cell, [](const Cell &c) { return c.p_next; });
 
-        /// grad_U, grad_p @(m)
-        calc_cell_primitive_gradient_next();
+        /// grad_U @(m)
+        calc_cell_velocity_gradient_next();
+        /// grad_p @(m)
+        calc_cell_pressure_gradient_next();
         /// tau @(m)
         calc_cell_viscous_shear_stress_next();
 
@@ -306,6 +340,25 @@ void ForwardEuler(Scalar TimeStep)
             c.T_next = c.h_next / c.specific_heat_p;
             c.rho_next = c.p_next / (Rg * c.T_next);
         }
+        check_bound<Cell>("rho_C@(m)", cell, [](const Cell &c) { return c.rho_next; });
+        check_bound<Cell>("T_C@(m)", cell, [](const Cell &c) { return c.T_next; });
+
+        /// grad_T @(m)
+        calc_cell_temperature_gradient_next();
+        calc_face_temperature_gradient_next();
+
+        /// T @(m)
+        calc_face_temperature_next();
+
+        /// rho @(m)
+        for(auto &f : face)
+        {
+            if(f.at_boundary)
+                f.rho_next = f.p_next / (Rg * f.T);
+            else
+                f.rho_next = f.p_next / (Rg * f.T_next);
+        }
+        check_bound<Face>("rho_f@(m)", face, [](const Face &f) { return f.rho_next; });
     }
 
     for(auto &c : cell)

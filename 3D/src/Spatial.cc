@@ -214,3 +214,24 @@ void calc_face_pressure_correction()
         }
     }
 }
+
+void calc_face_temperature_next()
+{
+    for(auto &f : face)
+    {
+        if(f.at_boundary)
+        {
+            auto c = f.c0 ? f.c0 : f.c1;
+            const Vector &d = f.c0 ? f.r0 : f.r1;
+            auto p = f.parent;
+            if(p->T_BC == Neumann)
+                f.T_next = c->T_next + f.grad_T_next.dot(d);
+        }
+        else
+        {
+            const Scalar T_0 = f.c0->T_next + f.c0->grad_T_next.dot(f.r0);
+            const Scalar T_1 = f.c1->T_next + f.c1->grad_T_next.dot(f.r1);
+            f.T_next = f.ksi0 * T_0 + f.ksi1 * T_1;
+        }
+    }
+}

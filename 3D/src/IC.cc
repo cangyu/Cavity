@@ -8,8 +8,11 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
+static const Scalar Rg = 287.7; // J / (Kg * K)
+static const Scalar Cp = 3.5 * Rg;
+
 static const Scalar rho0 = 1.225; /// kg/m^3
-static const Scalar P0 = 0.0; /// Pa
+static const Scalar P0 = 101325.0; /// Pa
 static const Scalar T0 = 300.0; /// K
 
 /**
@@ -27,6 +30,7 @@ void IC()
         c_dst.T = T0;
 
         /// Conservative variables
+        c_dst.rhoh = rho0 * Cp * T0;
         c_dst.rhoU = ZERO_VECTOR;
     }
 
@@ -42,6 +46,7 @@ void IC()
             f.T = T0;
 
             /// Conservative variables
+            f.rhoh = rho0 * Cp * T0;
             f.rhoU = ZERO_VECTOR;
         }
     }

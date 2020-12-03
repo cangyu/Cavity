@@ -243,16 +243,15 @@ struct Cell
     Scalar drhodp_prev;
 
     /// (m)
-
-    Scalar specific_heat_p_next;
-    Scalar specific_heat_v_next;
     Scalar rho_next;
     Vector U_next;
     Scalar p_next;
     Scalar T_next;
     Scalar h_next;
+    Vector grad_rho_next;
     Tensor grad_U_next, tau_next;
     Vector grad_p_next;
+    Vector grad_T_next;
     Vector rhoU_next;
     Scalar rhoh_next;
 };
