@@ -97,6 +97,10 @@ static int solve_pressure_correction(Scalar TimeStep)
 
 void ForwardEuler(Scalar TimeStep)
 {
+    check_bound<Cell>("rho_C@(n)", cell, [](const Cell &c) { return c.rho; });
+    check_bound<Cell>("p_C@(n)", cell, [](const Cell &c) { return c.p; });
+    check_bound<Cell>("T_C@(n)", cell, [](const Cell &c) { return c.T; });
+
     /// mu, Cp, Cv, lambda @(n)
     for (auto& c : cell)
     {
@@ -113,6 +117,9 @@ void ForwardEuler(Scalar TimeStep)
     calc_face_primitive_gradient();
     /// rho, U, p, T @(n), boundary + internal
     calc_face_primitive_var();
+    check_bound<Face>("rho_f@(n)", face, [](const Face &f) { return f.rho; });
+    check_bound<Face>("p_f@(n)", face, [](const Face &f) { return f.p; });
+    check_bound<Face>("T_f@(n)", face, [](const Face &f) { return f.T; });
     /// rhoU @(n), boundary
     for (const auto &e : patch)
     {
@@ -149,6 +156,7 @@ void ForwardEuler(Scalar TimeStep)
     {
         f.rho_prev = f.rho;
         f.p_prev = f.p;
+        f.T_prev = f.T;
     }
 
     /// Loop @(m)
@@ -168,6 +176,7 @@ void ForwardEuler(Scalar TimeStep)
             {
                 f.rho_prev = f.rho_next;
                 f.p_prev = f.p_next;
+                f.T_prev = f.T_next;
             }
         }
 
@@ -226,7 +235,12 @@ void ForwardEuler(Scalar TimeStep)
         {
             c.drhodp_prev = 1.0 / (Rg * c.T_prev);
         }
+        for(auto &f : face)
+        {
+            f.drhodp_prev = 1.0 / (Rg * f.T_prev);
+        }
         check_bound<Cell>("drhodp_C@(m-1)", cell, [](const Cell &c) { return c.drhodp_prev; });
+        check_bound<Face>("drhodp_f@(m-1)", face, [](const Face &f) { return f.drhodp_prev; });
 
         /// Contribution to the diagonal of Poisson equation
         for(auto &c : cell)
@@ -248,6 +262,7 @@ void ForwardEuler(Scalar TimeStep)
         LOG_OUT << SEP << "--------------------------------------------" << std::endl;
         LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations" << std::endl;
         check_bound<Cell>("p'_C", cell, [](const Cell &c) { return c.p_prime; });
+        check_bound<Face>("p'_f", face, [](const Face &f) { return f.p_prime; });
 
         /// Calculate $\frac{\partial p'}{\partial n}$ on face centroid
         for (auto &f : face)
@@ -287,15 +302,21 @@ void ForwardEuler(Scalar TimeStep)
         /// Update
         for (auto& f : face)
         {
-            if (!f.at_boundary)
+            const Scalar rho_prime = f.drhodp_prev * f.p_prime;
+            f.rho_star = f.rho_prev + rho_prime;
+
+            if (f.at_boundary)
             {
-                const Scalar rho_prime = f.drhodp_prev * f.p_prime;
-                f.rho_star = f.rho_prev + rho_prime;
+                f.U_next = f.U;
+
+            }
+            else
+            {
                 const Vector U_prime = - TimeStep * f.sn_grad_p_prime / f.rho_prev;
                 f.U_next = f.U_star + U_prime;
                 f.rhoU_next = f.rhoU_star + f.rho_prev * U_prime + rho_prime * f.U_star;
-                f.p_next = f.p_prev + f.p_prime;
             }
+            f.p_next = f.p_prev + f.p_prime;
         }
         check_bound<Face>("rho*_f", face, [](const Face &f) { return f.rho_star; });
         check_bound<Face>("p_f@(m)", face, [](const Face &f) { return f.p_next; });
@@ -349,6 +370,7 @@ void ForwardEuler(Scalar TimeStep)
 
         /// T @(m)
         calc_face_temperature_next();
+        check_bound<Face>("T_f@(m)", face, [](const Face &f) { return f.T_next; });
 
         /// rho @(m)
         for(auto &f : face)

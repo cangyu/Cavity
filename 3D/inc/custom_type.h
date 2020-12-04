@@ -156,6 +156,7 @@ struct Face
     /// (m-1)
     Scalar rho_prev;
     Scalar p_prev;
+    Scalar T_prev;
     Scalar drhodp_prev;
 
     /// (m)

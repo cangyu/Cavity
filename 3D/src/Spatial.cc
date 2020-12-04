@@ -2,6 +2,8 @@
 #include "../inc/BC.h"
 #include "../inc/Spatial.h"
 
+#include <iostream>
+
 extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
@@ -69,8 +71,8 @@ static void calcInternalFacePrimitiveValue(Face& f)
     f.p = 0.5 * (p_0 + p_1);
 
     /// temperature
-    const Scalar T_0 = f.c0->T + f.c0->grad_T.dot(f.r0);
-    const Scalar T_1 = f.c1->T + f.c1->grad_T.dot(f.r1);
+    const Scalar T_0 = f.c0->T;// + f.c0->grad_T.dot(f.r0);
+    const Scalar T_1 = f.c1->T;// + f.c1->grad_T.dot(f.r1);
     f.T = f.ksi0 * T_0 + f.ksi1 * T_1;
 
     /// velocity
@@ -111,6 +113,18 @@ void calc_face_primitive_var()
         }
         else
             calcInternalFacePrimitiveValue(f);
+
+        if(f.T < 1.0)
+        {
+            std::cout << "Bad face temperature:";
+            std::cout << " " << f.T << "K @" << f.index;
+            std::cout << " " << (f.at_boundary ? "b" : "i");
+            if(f.c0)
+                std::cout << " (" << f.c0->T << " " << f.c0->grad_T.norm() << ")";
+            if(f.c1)
+                std::cout << " (" << f.c1->T << " " << f.c1->grad_T.norm() << ")";
+            std::cout << std::endl;
+        }
     }
 }
 
@@ -224,13 +238,22 @@ void calc_face_temperature_next()
             auto c = f.c0 ? f.c0 : f.c1;
             const Vector &d = f.c0 ? f.r0 : f.r1;
             auto p = f.parent;
-            if(p->T_BC == Neumann)
+            switch (p->T_BC)
+            {
+            case Dirichlet:
+                f.T_next = f.T;
+                break;
+            case Neumann:
                 f.T_next = c->T_next + f.grad_T_next.dot(d);
+                break;
+            default:
+                throw unsupported_boundary_condition(p->T_BC);
+            }
         }
         else
         {
-            const Scalar T_0 = f.c0->T_next + f.c0->grad_T_next.dot(f.r0);
-            const Scalar T_1 = f.c1->T_next + f.c1->grad_T_next.dot(f.r1);
+            const Scalar T_0 = f.c0->T_next;// + f.c0->grad_T_next.dot(f.r0);
+            const Scalar T_1 = f.c1->T_next;// + f.c1->grad_T_next.dot(f.r1);
             f.T_next = f.ksi0 * T_0 + f.ksi1 * T_1;
         }
     }
