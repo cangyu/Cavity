@@ -3,6 +3,8 @@
 
 #include "custom_type.h"
 
+void prepare_first_run();
+
 void ForwardEuler(Scalar TimeStep);
 
 #endif

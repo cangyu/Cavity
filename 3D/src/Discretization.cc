@@ -4,6 +4,7 @@
 #include "../inc/PoissonEqn.h"
 #include "../inc/CHEM.h"
 #include "../inc/Gradient.h"
+#include "../inc/Miscellaneous.h"
 #include "../inc/Discretization.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -176,61 +177,28 @@ void calc_face_viscous_shear_stress()
             {
                 Vector dU = c->U - f.U;
                 dU -= dU.dot(n) * n;
-                const Vector tw = -f.mu / r.dot(n) * dU;
+                const Vector tw = -f.viscosity / r.dot(n) * dU;
                 f.tau = tw * n.transpose();
             }
             else if (p->BC == BC_PHY::Symmetry)
             {
                 Vector dU = c->U.dot(n) * n;
-                const Vector t_cz = -2.0 * f.mu * dU / r.norm();
+                const Vector t_cz = -2.0 * f.viscosity * dU / r.norm();
                 f.tau = t_cz * n.transpose();
             }
             else if (p->BC == BC_PHY::Inlet || p->BC == BC_PHY::Outlet)
-                Stokes(f.mu, f.grad_U, f.tau);
+                Stokes(f.viscosity, f.grad_U, f.tau);
             else
                 throw unsupported_boundary_condition(p->BC);
         }
         else
-            Stokes(f.mu, f.grad_U, f.tau);
+            Stokes(f.viscosity, f.grad_U, f.tau);
     }
 }
 
-void reconstruction()
+void prepare_first_run()
 {
-    /// Update physical properties at centroid of each cell.
-    for (auto& c : cell)
-    {
-        /// Dynamic viscosity
-        // c.mu = Sutherland(c.T);
-        c.mu = c.rho / Re;
-    }
-
-    /// Enforce boundary conditions for primitive variables.
-    set_bc_of_primitive_var();
-
-    /// Gradients of primitive variables at centroid of each cell.
-    calc_cell_primitive_gradient();
-
-    /// Gradients of primitive variables at centroid of each face.
-    calc_face_primitive_gradient();
-
-    /// Interpolate values of primitive variables on each face.
-    calc_face_primitive_var();
-
-    /// Update physical properties at centroid of each face.
-    for (auto& f : face)
-    {
-        /// Dynamic viscosity
-        // f.mu = Sutherland(f.T);
-        f.mu = f.rho / Re;
-    }
-
-    /// Viscous shear stress on each face.
-    calc_face_viscous_shear_stress();
-
-    set_bc_of_conservative_var();
-
-    set_bc_of_pressure_correction();
+    /// TODO
 }
 
 static int ppe(Scalar TimeStep)
@@ -275,15 +243,83 @@ static int ppe(Scalar TimeStep)
     return cnt;
 }
 
-/**
- * 1st-order explicit time-marching.
- * Pressure-Velocity coupling is solved using Fractional-Step Method.
- * @param TimeStep
- */
-void ForwardEuler(Scalar TimeStep)
+static void step1(Scalar TimeStep)
 {
-    reconstruction();
+    for (auto &c : cell)
+    {
+        Scalar convection_flux = 0.0;
+        const auto Nf = c.S.size();
+        for (int j = 0; j < Nf; ++j)
+        {
+            auto f = c.surface.at(j);
+            const auto& Sf = c.S.at(j);
+            convection_flux += f->rhoU.dot(Sf);
+        }
+        c.rho_prev = c.rho + TimeStep / c.volume * (-convection_flux);
+        c.U_prev = c.U;
+        c.p_prev = c.p;
+        c.T_prev = c.T;
+    }
+    for (auto &f : face)
+    {
+        f.rho_prev = f.rho;
+        f.U_prev = f.U;
+        f.p_prev = f.p;
+        f.T_prev = f.T;
+    }
+}
 
+static void step2(Scalar TimeStep)
+{
+    /// Prediction of energy
+    for(auto &c : cell)
+    {
+        Scalar convection_flux = 0.0;
+        Scalar diffusion_flux = 0.0;
+        const auto Nf = c.S.size();
+        for (int j = 0; j < Nf; ++j)
+        {
+            auto f = c.surface.at(j);
+            const auto &Sf = c.S.at(j);
+            convection_flux += f->rhoU_prev.dot(Sf) * f->h_prev;
+            diffusion_flux += f->conductivity * f->grad_T_prev.dot(Sf);
+        }
+        const Scalar viscous_dissipation = double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
+        const Scalar pressure_work = c.U_prev.dot(c.grad_p_prev) * c.volume;
+        const Scalar dpdt = (c.p_prev - c.p) / TimeStep * c.volume;
+        c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convection_flux + diffusion_flux + viscous_dissipation + pressure_work + dpdt);
+        c.h_star = c.rhoh_next / c.rho_prev;
+        c.T_star = c.h_star / c.specific_heat_p;
+    }
+
+    /// Apply B.C. for T_star
+    /// TODO
+}
+
+static void step3()
+{
+    /// Prediction of density
+    for (auto &c : cell)
+    {
+        c.rho_next = EOS(c.p_prev, c.T_star);
+    }
+}
+
+static void step4()
+{
+    /// Prediction of temperature
+    for (auto &c : cell)
+    {
+        c.h_next = c.rhoh_next / c.rho_next;
+        c.T_next = c.h_next / c.specific_heat_p;
+    }
+
+    /// Apply B.C. for T_next
+    /// TODO
+}
+
+static void step5(Scalar TimeStep)
+{
     /// Prediction of momentum
     for (auto& c : cell)
     {
@@ -296,19 +332,10 @@ void ForwardEuler(Scalar TimeStep)
             auto f = c.surface.at(j);
             const auto& Sf = c.S.at(j);
 
-            /// convection term
-            const Vector cur_convection_flux = f->rhoU.dot(Sf) * f->U;
-            convection_flux += cur_convection_flux;
-
-            /// pressure term
-            const Vector cur_pressure_flux = f->p * Sf;
-            pressure_flux += cur_pressure_flux;
-
-            /// viscous term
-            const Vector cur_viscous_flux = f->tau * Sf;
-            viscous_flux += cur_viscous_flux;
+            convection_flux += f->rhoU_prev.dot(Sf) * f->U_prev;
+            pressure_flux += f->p_prev * Sf;
+            viscous_flux += f->tau_prev * Sf;
         }
-
         c.rhoU_star = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
     }
 
@@ -321,16 +348,20 @@ void ForwardEuler(Scalar TimeStep)
         {
             f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
 
-            /// Momentum interpolation
+            /// Momentum interpolation (Rhie-Chow)
             const Vector d01 = f.c1->centroid - f.c0->centroid;
-            const Vector compact_grad_p = (f.c1->p - f.c0->p) / (d01.dot(d01)) * d01;
-            const Vector mean_grad_p = 0.5 * (f.c1->grad_p + f.c0->grad_p);
+            const Vector compact_grad_p = (f.c1->p_prev - f.c0->p_prev) / (d01.dot(d01)) * d01;
+            const Vector mean_grad_p = 0.5 * (f.c1->grad_p_prev + f.c0->grad_p_prev);
             f.rhoU_star -= TimeStep * (compact_grad_p - mean_grad_p);
         }
     }
+}
 
+static void step6(Scalar TimeStep)
+{
     /// Correction Step
-    LOG_OUT << "\n" << SEP << "Solving pressure-correction ..." << std::endl;
+    LOG_OUT << std::endl;
+    LOG_OUT << SEP << "Solving pressure-correction ..." << std::endl;
     LOG_OUT << SEP << "--------------------------------------------" << std::endl;
     LOG_OUT << SEP << "||p'-p'_prev||    ||grad(p')-grad(p')_prev||" << std::endl;
     LOG_OUT << SEP << "--------------------------------------------" << std::endl;
@@ -356,14 +387,18 @@ void ForwardEuler(Scalar TimeStep)
             f.grad_p_prime_sn = (tmp1 + tmp2) * f.n01;
         }
     }
+}
 
-    /// Update
+static void step7(Scalar TimeStep)
+{
+    /// Update variables on face centroid
     for (auto& f : face)
     {
         if (!f.at_boundary)
             f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
     }
 
+    /// Update variables on cell centroid
     for (auto& c : cell)
     {
         /// Reconstruct gradient of $p'$ at cell centroid
@@ -379,10 +414,76 @@ void ForwardEuler(Scalar TimeStep)
         c.grad_p_prime = c.grad_p_prime_rm * b;
 
         /// Velocity
-        c.rhoU = c.rhoU_star - TimeStep * c.grad_p_prime;
-        c.U = c.rhoU / c.rho;
+        c.rhoU_next = c.rhoU_star - TimeStep * c.grad_p_prime;
+        c.U_next = c.rhoU_next / c.rho_next;
 
         /// Pressure
-        c.p += c.p_prime;
+        c.p_next = c.p_prev + c.p_prime;
     }
+}
+
+static void helper4()
+{
+    /// Update physical properties at centroid of each cell.
+    for (auto& c : cell)
+    {
+        /// Dynamic viscosity
+        // c.mu = Sutherland(c.T);
+        c.viscosity = c.rho / Re;
+    }
+
+    /// Enforce boundary conditions for primitive variables.
+    set_bc_of_primitive_var();
+
+    /// Gradients of primitive variables at centroid of each cell.
+    calc_cell_primitive_gradient();
+
+    /// Gradients of primitive variables at centroid of each face.
+    calc_face_primitive_gradient();
+
+    /// Interpolate values of primitive variables on each face.
+    calc_face_primitive_var();
+
+    /// Update physical properties at centroid of each face.
+    for (auto& f : face)
+    {
+        /// Dynamic viscosity
+        // f.mu = Sutherland(f.T);
+        f.viscosity = f.rho / Re;
+    }
+
+    /// Viscous shear stress on each face.
+    calc_face_viscous_shear_stress();
+
+    /// rhoU on boundary
+    for (const auto &e : patch)
+        for (auto f : e.surface)
+            f->rhoU = f->rho * f->U;
+
+    set_bc_of_pressure_correction();
+}
+
+/**
+ * 1st-order explicit time-marching.
+ * Pressure-Velocity coupling is solved using Fractional-Step Method.
+ * @param TimeStep
+ */
+void ForwardEuler(Scalar TimeStep)
+{
+    /// Prepare m=0
+    step1(TimeStep);
+
+    /// Semi-Implicit iteration
+    for(int m = 0; m < 3; ++m)
+    {
+        step2(TimeStep);
+        step3();
+        step4();
+        step5(TimeStep);
+        step6(TimeStep);
+        step7(TimeStep);
+    }
+
+    /// Store all variables for next time-step
+    helper4();
 }

@@ -73,6 +73,9 @@ int solve()
     LOG_OUT << "\nStarting calculation ... " << std::endl;
     while (!done)
     {
+        if(iter == 0)
+            prepare_first_run();
+
         LOG_OUT << "\nIter" << ++iter << ":" << std::endl;
         if (!use_fixed_dt)
             dt = calcTimeStep();

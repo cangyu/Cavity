@@ -29,3 +29,27 @@ void Stokes(Scalar mu, const Tensor &grad_U, Tensor &tau)
     tau(1, 2) = tau(2, 1) = mu * (grad_U(1, 2) + grad_U(2, 1));
     tau(2, 0) = tau(0, 2) = mu * (grad_U(2, 0) + grad_U(0, 2));
 }
+
+static const Scalar GAMMA = 1.4;
+static const Scalar Pr = 0.72;
+static const Scalar Rg = 287.7; // J / (Kg * K)
+
+Scalar EOS(Scalar p, Scalar T)
+{
+    return p / (Rg * T);
+}
+
+Scalar Cp()
+{
+    return 3.5 * Rg;
+}
+
+Scalar Cv()
+{
+    return Cp() / GAMMA;
+}
+
+Scalar Conductivity(Scalar specific_heat_p, Scalar viscosity)
+{
+    return specific_heat_p * viscosity / Pr;
+}

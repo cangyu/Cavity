@@ -125,39 +125,58 @@ struct Face
     /// Possible connection to high-level
     Patch *parent = nullptr;
 
-    /// Physical properties
-    Scalar mu = ZERO_SCALAR;
-
-    /// Physical variables
+    /// (n)
+    Scalar viscosity = ZERO_SCALAR;
+    Scalar conductivity = ZERO_SCALAR;
+    Scalar specific_heat_p = ZERO_SCALAR;
+    Scalar specific_heat_v = ZERO_SCALAR;
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
     Scalar T = ZERO_SCALAR;
-    Tensor tau = ZERO_TENSOR;
+    Scalar h = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
-
-    /// Gradient of physical variables
+    Scalar rhoh = ZERO_SCALAR;
+    Tensor tau = ZERO_TENSOR;
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
 
-    /// Gradient of physical variables
-    /// in surface outward normal direction
-    /// Only used on boundary faces
+    /// (*)
+    Scalar rho_star;
+    Vector U_star;
+    Vector rhoU_star;
+    Scalar p_prime;
+    Vector grad_p_prime, sn_grad_p_prime, grad_p_prime_sn;
+
+    /// (m-1)
+    Scalar rho_prev;
+    Vector U_prev;
+    Vector rhoU_prev;
+    Scalar p_prev;
+    Scalar T_prev;
+    Scalar h_prev;
+    Vector grad_T_prev;
+    Tensor tau_prev;
+
+    /// (m)
+    Scalar rho_next;
+    Vector U_next;
+    Scalar p_next;
+    Scalar T_next;
+    Scalar h_next;
+    Tensor grad_U_next, tau_next;
+    Vector grad_p_next;
+    Vector grad_T_next;
+    Vector rhoU_next;
+    Scalar rhoh_next;
+
+    /// B.C. only
     Scalar sn_grad_rho = ZERO_SCALAR;
     Vector sn_grad_U = ZERO_VECTOR;
     Scalar sn_grad_p = ZERO_SCALAR;
     Scalar sn_grad_T = ZERO_SCALAR;
-
-    /// Fractional-Step Method
-    Vector rhoU_star = ZERO_VECTOR;
-
-    /// Pressure-Correction
-    Scalar p_prime = ZERO_SCALAR;
-    Scalar sn_grad_p_prime = ZERO_SCALAR;
-    Vector grad_p_prime_sn = ZERO_VECTOR;
-    Vector grad_p_prime = ZERO_VECTOR;
 };
 struct Cell
 {
@@ -188,29 +207,53 @@ struct Cell
     NaturalArray<Vector> Se;
     NaturalArray<Vector> St;
 
-    /// Physical properties
-    Scalar mu = ZERO_SCALAR;
-
-    /// Physical variables
+    /// (n)
+    Scalar viscosity = ZERO_SCALAR;
+    Scalar conductivity = ZERO_SCALAR;
+    Scalar specific_heat_p = ZERO_SCALAR;
+    Scalar specific_heat_v = ZERO_SCALAR;
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
     Scalar T = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
-
-    /// Gradient of physical variables
+    Scalar rhoh = ZERO_SCALAR;
+    Tensor tau = ZERO_TENSOR;
     Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
     Vector grad_T = ZERO_VECTOR;
 
-    /// Used by the Fractional-Step Method
+    /// (*)
+    Scalar rho_star, drhodt;
     Vector rhoU_star = ZERO_VECTOR;
-
-    /// Used by pressure-correction
     Scalar p_prime = ZERO_SCALAR;
     Vector grad_p_prime = ZERO_VECTOR;
     Tensor grad_p_prime_rm = ZERO_TENSOR; /// Reconstruction matrix
+    Scalar h_star;
+    Scalar T_star;
+
+    /// (m-1)
+    Scalar rho_prev;
+    Vector U_prev;
+    Scalar p_prev;
+    Scalar T_prev;
+    Vector grad_p_prev;
+    Tensor grad_U_prev;
+    Tensor tau_prev;
+
+    /// (m)
+    Scalar rho_next;
+    Vector U_next;
+    Scalar p_next;
+    Scalar T_next;
+    Scalar h_next;
+    Vector grad_rho_next;
+    Tensor grad_U_next, tau_next;
+    Vector grad_p_next;
+    Vector grad_T_next;
+    Vector rhoU_next;
+    Scalar rhoh_next;
 };
 struct Patch
 {
@@ -225,8 +268,7 @@ struct Patch
     BC_PHY BC;
 
     /// B.C. specification for each variable
-    BC_CATEGORY rho_BC;
-    std::array<BC_CATEGORY, 3> U_BC;
+    BC_CATEGORY U_BC[3];
     BC_CATEGORY p_BC, p_prime_BC;
     BC_CATEGORY T_BC;
 };
