@@ -155,7 +155,7 @@ void prepare_lsq()
                 }
 
                 /// Pressure-Correction
-                switch (curFace->parent->p_prime_BC)
+                switch (curFace->parent->p_BC)
                 {
                 case Dirichlet:
                     J_p_prime.row(j) << w * d.x(), w * d.y(), w * d.z();
@@ -259,7 +259,6 @@ void prepare_gg()
             n_dst.cell_weights(j) /= s;
     }
 }
-
 
 void prepare_gpc_rm()
 {
@@ -455,44 +454,6 @@ void calc_cell_primitive_gradient()
     }
 }
 
-Scalar calc_cell_pressure_correction_gradient()
-{
-    Scalar error = 0.0;
-    for (auto &c : cell)
-    {
-        const auto nF = c.surface.size();
-        Eigen::VectorXd delta_phi(nF);
-        for (int i = 0; i < nF; ++i)
-        {
-            auto curFace = c.surface.at(i);
-            if (curFace->at_boundary)
-            {
-                switch (curFace->parent->p_BC)
-                {
-                case Dirichlet:
-                    delta_phi(i) = (0.0 - c.p_prime) / (curFace->centroid - c.centroid).norm();
-                    break;
-                case Neumann:
-                    delta_phi(i) = 0.0;
-                    break;
-                default:
-                    throw unsupported_boundary_condition(curFace->parent->p_BC);
-                }
-            }
-            else
-            {
-                auto curAdjCell = c.adjCell.at(i);
-                delta_phi(i) = (curAdjCell->p_prime - c.p_prime) / (curAdjCell->centroid - c.centroid).norm();
-            }
-        }
-        const Vector old_gpp = c.grad_p_prime;
-        c.grad_p_prime = J_INV_p_prime.at(c.index - 1) * delta_phi;
-        error += (c.grad_p_prime - old_gpp).norm();
-    }
-    error /= NumOfCell;
-    return error;
-}
-
 void calc_face_primitive_gradient()
 {
     std::array<Vector, 3> gv;
@@ -591,7 +552,45 @@ void calc_face_primitive_gradient()
     }
 }
 
-void calc_face_pressure_correction_gradient()
+Scalar GRAD_Cell_PressureCorrection()
+{
+    Scalar error = 0.0;
+    for (auto &c : cell)
+    {
+        const auto nF = c.surface.size();
+        Eigen::VectorXd delta_phi(nF);
+        for (int i = 0; i < nF; ++i)
+        {
+            auto curFace = c.surface.at(i);
+            if (curFace->at_boundary)
+            {
+                switch (curFace->parent->p_BC)
+                {
+                case Dirichlet:
+                    delta_phi(i) = (0.0 - c.p_prime) / (curFace->centroid - c.centroid).norm();
+                    break;
+                case Neumann:
+                    delta_phi(i) = 0.0;
+                    break;
+                default:
+                    throw unsupported_boundary_condition(curFace->parent->p_BC);
+                }
+            }
+            else
+            {
+                auto curAdjCell = c.adjCell.at(i);
+                delta_phi(i) = (curAdjCell->p_prime - c.p_prime) / (curAdjCell->centroid - c.centroid).norm();
+            }
+        }
+        const Vector old_gpp = c.grad_p_prime;
+        c.grad_p_prime = J_INV_p_prime.at(c.index - 1) * delta_phi;
+        error += (c.grad_p_prime - old_gpp).norm();
+    }
+    error /= NumOfCell;
+    return error;
+}
+
+void GRAD_Face_PressureCorrection()
 {
     for (auto &f : face)
     {
@@ -617,5 +616,81 @@ void calc_face_pressure_correction_gradient()
         {
             f.grad_p_prime = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime; /// CDS
         }
+    }
+}
+
+void GRAD_Cell_Velocity_next()
+{
+    for (auto &C : cell)
+    {
+        const size_t nF = C.surface.size();
+        Eigen::VectorXd du(nF), dv(nF), dw(nF);
+        for (size_t i = 0; i < nF; ++i)
+        {
+            auto f = C.surface.at(i);
+            if (f->at_boundary)
+            {
+                const auto U_BC = f->parent->U_BC;
+                if (U_BC == Dirichlet)
+                {
+                    const Scalar d = (f->centroid - C.centroid).norm();
+                    du(i) = (f->U.x() - C.U_next.x()) / d;
+                    dv(i) = (f->U.y() - C.U_next.y()) / d;
+                    dw(i) = (f->U.z() - C.U_next.z()) / d;
+                }
+                else if(U_BC == Neumann)
+                {
+                    du(i) = f->sn_grad_U.x();
+                    dv(i) = f->sn_grad_U.y();
+                    dw(i) = f->sn_grad_U.z();
+                }
+                else
+                    throw unsupported_boundary_condition(U_BC);
+            }
+            else
+            {
+                auto F = C.adjCell.at(i);
+                const Scalar d = (F->centroid - C.centroid).norm();
+                du(i) = (F->U_next.x() - C.U_next.x()) / d;
+                dv(i) = (F->U_next.y() - C.U_next.y()) / d;
+                dw(i) = (F->U_next.z() - C.U_next.z()) / d;
+            }
+        }
+        C.grad_U_next.col(0) = J_INV_u.at(C.index - 1) * du;
+        C.grad_U_next.col(1) = J_INV_v.at(C.index - 1) * dv;
+        C.grad_U_next.col(2) = J_INV_w.at(C.index - 1) * dw;
+    }
+}
+
+void GRAD_Cell_Pressure_next()
+{
+    for (auto &C : cell)
+    {
+        const size_t nF = C.surface.size();
+        Eigen::VectorXd dP(nF);
+        for (size_t i = 0; i < nF; ++i)
+        {
+            auto f = C.surface.at(i);
+            if (f->at_boundary)
+            {
+                const auto p_BC = f->parent->p_BC;
+                if (p_BC == Dirichlet)
+                {
+                    const Scalar d = (f->centroid - C.centroid).norm();
+                    dP(i) = (f->p - C.p_next) / d;
+                }
+                else if (p_BC == Neumann)
+                    dP(i) = f->sn_grad_p;
+                else
+                    throw unsupported_boundary_condition(p_BC);
+            }
+            else
+            {
+                auto F = C.adjCell.at(i);
+                const Scalar d = (F->centroid - C.centroid).norm();
+                dP(i) = (F->p_next - C.p_next) / d;
+            }
+        }
+        C.grad_p_next = J_INV_p.at(C.index - 1) * dP;
     }
 }

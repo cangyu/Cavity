@@ -153,7 +153,7 @@ struct Face
     /// (m-1)
     Scalar rho_prev;
     Vector U_prev;
-    Vector rhoUn_prev;
+    Vector rhoU_prev;
     Scalar p_prev;
     Scalar T_prev;
     Scalar h_prev;
