@@ -31,7 +31,6 @@ bool use_fixed_dt = false;
 
 /* Global I/O style and redirection */
 std::string SEP;
-std::ostream &LOG_OUT = std::cout;
 
 /* Pressure-Correction equation coefficients */
 SX_MAT A_dp_2; /// The coefficient matrix
@@ -70,16 +69,16 @@ int solve()
     bool done = false, diverged = false;
     Scalar single_cpu_time, total_cpu_time = 0.0;
 
-    LOG_OUT << "\nStarting calculation ... " << std::endl;
+    std::cout << "\nStarting calculation ... " << std::endl;
     while (!done)
     {
         if(iter == 0)
             prepare_first_run();
 
-        LOG_OUT << "\nIter" << ++iter << ":" << std::endl;
+        std::cout << "\nIter" << ++iter << ":" << std::endl;
         if (!use_fixed_dt)
             dt = calcTimeStep();
-        LOG_OUT << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
+        std::cout << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
         {
             tick_begin = clock();
             ForwardEuler(dt);
@@ -94,7 +93,7 @@ int solve()
             std::cerr << "Diverged!" << std::endl;
             return -1;
         }
-        LOG_OUT << "\n" << SEP << "CPU time: current=" << single_cpu_time << "s, total=" << total_cpu_time << "s" << std::endl;
+        std::cout << "\n" << SEP << "CPU time: current=" << single_cpu_time << "s, total=" << total_cpu_time << "s" << std::endl;
 
         t += dt;
         done = iter > MAX_ITER || t > MAX_TIME;
@@ -110,7 +109,7 @@ int solve()
             dts.close();
         }
     }
-    LOG_OUT << "\nFinished in " << total_cpu_time << "s!" << std::endl;
+    std::cout << "\nFinished in " << total_cpu_time << "s!" << std::endl;
 
     return 0;
 }
@@ -122,7 +121,7 @@ void init()
 {
     clock_t tick_begin, tick_end;
 
-    LOG_OUT << "\nLoading mesh \"" << MESH_PATH << "\" ... ";
+    std::cout << "\nLoading mesh \"" << MESH_PATH << "\" ... ";
     {
         std::ifstream ml(MESH_PATH);
         if(ml.fail())
@@ -134,13 +133,13 @@ void init()
 
         ml.close();
     }
-    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+    std::cout << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << "\nSetting B.C. type of each variable ... ";
+    std::cout << "\nSetting B.C. type of each variable ... ";
     BC_TABLE();
-    LOG_OUT << "Done!" << std::endl;
+    std::cout << "Done!" << std::endl;
 
-    LOG_OUT << "\nPreparing coefficients ... ";
+    std::cout << "\nPreparing coefficients ... ";
     {
         tick_begin = clock();
         prepare_lsq();
@@ -148,9 +147,9 @@ void init()
         prepare_gpc_rm();
         tick_end = clock();
     }
-    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+    std::cout << duration(tick_begin, tick_end) << "s" << std::endl;
 
-    LOG_OUT << "\nPreparing Pressure-Correction equation coefficients ... ";
+    std::cout << "\nPreparing Pressure-Correction equation coefficients ... ";
     {
         Q_dp_2 = sx_vec_create(NumOfCell);
         x_dp_2 = sx_vec_create(NumOfCell);
@@ -159,19 +158,19 @@ void init()
         calcPressureCorrectionEquationCoef(A_dp_2);
         tick_end = clock();
     }
-    LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+    std::cout << duration(tick_begin, tick_end) << "s" << std::endl;
 
     prepare_dp_solver(A_dp_2, dp_solver_2);
 
     if(DATA_PATH.empty())
     {
-        LOG_OUT << "\nSetting I.C. ... ";
+        std::cout << "\nSetting I.C. ... ";
         tick_begin = clock();
         IC();
         tick_end = clock();
-        LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+        std::cout << duration(tick_begin, tick_end) << "s" << std::endl;
 
-        LOG_OUT << "\nWriting initial output ... ";
+        std::cout << "\nWriting initial output ... ";
         std::string fn;
         data_file_path(0, fn);
         std::ofstream dts(fn);
@@ -182,17 +181,17 @@ void init()
     }
     else
     {
-        LOG_OUT << "\nSetting I.C. from \"" + DATA_PATH + "\" ... ";
+        std::cout << "\nSetting I.C. from \"" + DATA_PATH + "\" ... ";
         std::ifstream dts(DATA_PATH);
         if(dts.fail())
             throw failed_to_open_file(DATA_PATH);
         tick_begin = clock();
         read_data(dts, iter, t);
         tick_end = clock();
-        LOG_OUT << duration(tick_begin, tick_end) << "s" << std::endl;
+        std::cout << duration(tick_begin, tick_end) << "s" << std::endl;
         dts.close();
     }
-    LOG_OUT << "Done!" << std::endl;
+    std::cout << "Done!" << std::endl;
 }
 
 /**
@@ -263,13 +262,13 @@ int main(int argc, char *argv[])
     }
 
     /* Report */
-    LOG_OUT << "Output directory set to: \"" << RUN_TAG << "\"" << std::endl;
-    LOG_OUT << "\nRe=" << Re << std::endl;
+    std::cout << "Output directory set to: \"" << RUN_TAG << "\"" << std::endl;
+    std::cout << "\nRe=" << Re << std::endl;
     if (use_fixed_dt)
-        LOG_OUT << "\nUsing fixed time-step: " << dt << std::endl;
-    LOG_OUT << "\nMax iterations: " << MAX_ITER << std::endl;
-    LOG_OUT << "\nMax run time: " << MAX_TIME << "s" << std::endl;
-    LOG_OUT << "\nRecord solution every " << OUTPUT_GAP << " iteration" << std::endl;
+        std::cout << "\nUsing fixed time-step: " << dt << std::endl;
+    std::cout << "\nMax iterations: " << MAX_ITER << std::endl;
+    std::cout << "\nMax run time: " << MAX_TIME << "s" << std::endl;
+    std::cout << "\nRecord solution every " << OUTPUT_GAP << " iteration" << std::endl;
 
     /* Initialize environment */
     init();

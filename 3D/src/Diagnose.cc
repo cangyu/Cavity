@@ -9,7 +9,6 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 extern std::string SEP;
-extern std::ostream &LOG_OUT;
 extern Scalar dt;
 extern Scalar Re;
 
@@ -29,12 +28,12 @@ static void stat_min_max(const std::string& var_name, const std::function<Scalar
 
     if (var_name == "p" || var_name == "p'")
     {
-        auto w = LOG_OUT.precision(10);
-        LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
-        LOG_OUT.precision(w);
+        auto w = std::cout.precision(10);
+        std::cout << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
+        std::cout.precision(w);
     }
     else
-        LOG_OUT << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
+        std::cout << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
 }
 
 static Scalar max_div;
@@ -69,7 +68,7 @@ static Scalar stat_cfl(const Cell &c)
 
 void diagnose(bool &diverge_flag)
 {
-    LOG_OUT << std::endl;
+    std::cout << std::endl;
     stat_min_max("rho", [](const Cell &c) { return c.rho; });
     stat_min_max("U_X", [](const Cell &c) { return c.U.x(); });
     stat_min_max("U_Y", [](const Cell &c) { return c.U.y(); });
@@ -77,7 +76,7 @@ void diagnose(bool &diverge_flag)
     stat_min_max("p", [](const Cell &c) { return c.p; });
     stat_min_max("p'", [](const Cell &c) { return c.p_prime; });
     stat_min_max("T", [](const Cell &c) { return c.T; });
-    LOG_OUT << std::endl;
+    std::cout << std::endl;
 
     stat_min_max("CFL", stat_cfl);
 

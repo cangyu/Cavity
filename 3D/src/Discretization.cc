@@ -18,7 +18,6 @@ extern SX_VEC Q_dp_2;
 extern SX_VEC x_dp_2;
 extern SX_AMG dp_solver_2;
 extern std::string SEP;
-extern std::ostream& LOG_OUT;
 
 static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
 {
@@ -163,7 +162,7 @@ static int ppe(Scalar TimeStep)
         calc_face_pressure_correction_gradient();
 
         /// Report
-        LOG_OUT << SEP << std::left << std::setw(14) << l1 << "    " << std::setw(26) << l2 << std::endl;
+        std::cout << SEP << std::left << std::setw(14) << l1 << "    " << std::setw(26) << l2 << std::endl;
 
         /// Next loop if needed
         ++cnt;
@@ -356,14 +355,13 @@ static void step5(Scalar TimeStep)
 
 static void step6(Scalar TimeStep)
 {
-    LOG_OUT << std::endl;
-    LOG_OUT << SEP << "Solving pressure-correction ..." << std::endl;
-    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
-    LOG_OUT << SEP << "||p'-p'_prev||    ||grad(p')-grad(p')_prev||" << std::endl;
-    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
+    std::cout << SEP << "\nSolving pressure-correction ...";
+    std::cout << SEP << "\n--------------------------------------------";
+    std::cout << SEP << "\n||p'-p'_prev||    ||grad(p')-grad(p')_prev||";
+    std::cout << SEP << "\n--------------------------------------------";
     const int poisson_noc_iter = ppe(TimeStep);
-    LOG_OUT << SEP << "--------------------------------------------" << std::endl;
-    LOG_OUT << SEP << "Converged after " << poisson_noc_iter << " iterations" << std::endl;
+    std::cout << SEP << "\n--------------------------------------------";
+    std::cout << SEP << "\nConverged after " << poisson_noc_iter << " iterations" << std::endl;
 
     /// Calculate $\frac{\partial p'}{\partial n}$ on face centroid
     for (auto &f : face)
