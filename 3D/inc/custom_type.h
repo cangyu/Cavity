@@ -144,8 +144,9 @@ struct Face
     Vector grad_T = ZERO_VECTOR;
 
     /// (*)
+    Scalar T_star;
+    Scalar h_star;
     Scalar rho_star;
-    Vector U_star;
     Vector rhoU_star;
     Scalar p_prime;
     Vector grad_p_prime, sn_grad_p_prime, grad_p_prime_sn;
@@ -153,7 +154,7 @@ struct Face
     /// (m-1)
     Scalar rho_prev;
     Vector U_prev;
-    Vector rhoU_prev;
+    Vector rhoUn_prev;
     Scalar p_prev;
     Scalar T_prev;
     Scalar h_prev;
@@ -227,11 +228,12 @@ struct Cell
     /// (*)
     Scalar rho_star, drhodt;
     Vector rhoU_star = ZERO_VECTOR;
+    Vector U_star;
     Scalar p_prime = ZERO_SCALAR;
     Vector grad_p_prime = ZERO_VECTOR;
-    Tensor grad_p_prime_rm = ZERO_TENSOR; /// Reconstruction matrix
     Scalar h_star;
     Scalar T_star;
+    Tensor TeC_INV = ZERO_TENSOR; /// Reconstruction matrix
 
     /// (m-1)
     Scalar rho_prev;
@@ -268,7 +270,7 @@ struct Patch
     BC_PHY BC;
 
     /// B.C. specification for each variable
-    BC_CATEGORY U_BC[3];
+    BC_CATEGORY U_BC;
     BC_CATEGORY p_BC, p_prime_BC;
     BC_CATEGORY T_BC;
 };

@@ -14,9 +14,7 @@ void BC_TABLE()
     {
         if (e.name == "UP")
         {
-            e.U_BC[0] = Dirichlet;
-            e.U_BC[1] = Dirichlet;
-            e.U_BC[2] = Dirichlet;
+            e.U_BC = Dirichlet;
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Dirichlet;
@@ -24,9 +22,7 @@ void BC_TABLE()
         }
         else if (e.name == "DOWN")
         {
-            e.U_BC[0] = Dirichlet;
-            e.U_BC[1] = Dirichlet;
-            e.U_BC[2] = Dirichlet;
+            e.U_BC = Dirichlet;
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Dirichlet;
@@ -34,9 +30,7 @@ void BC_TABLE()
         }
         else if (e.name == "LEFT")
         {
-            e.U_BC[0] = Dirichlet;
-            e.U_BC[1] = Dirichlet;
-            e.U_BC[2] = Dirichlet;
+            e.U_BC = Dirichlet;
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
@@ -44,9 +38,7 @@ void BC_TABLE()
         }
         else if (e.name == "RIGHT")
         {
-            e.U_BC[0] = Dirichlet;
-            e.U_BC[1] = Dirichlet;
-            e.U_BC[2] = Dirichlet;
+            e.U_BC = Dirichlet;
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
@@ -54,9 +46,7 @@ void BC_TABLE()
         }
         else if (e.name == "FRONT")
         {
-            e.U_BC[0] = Dirichlet;
-            e.U_BC[1] = Dirichlet;
-            e.U_BC[2] = Dirichlet;
+            e.U_BC = Dirichlet;
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
@@ -64,9 +54,7 @@ void BC_TABLE()
         }
         else if (e.name == "BACK")
         {
-            e.U_BC[0] = Dirichlet;
-            e.U_BC[1] = Dirichlet;
-            e.U_BC[2] = Dirichlet;
+            e.U_BC = Dirichlet;
             e.p_BC = Neumann;
             e.p_prime_BC = Neumann;
             e.T_BC = Neumann;

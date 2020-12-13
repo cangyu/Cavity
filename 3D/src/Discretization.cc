@@ -24,89 +24,17 @@ static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
 {
     auto p = f.parent;
 
-    /// density
-    switch (p->rho_BC)
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
-        f.rho = c->rho + f.grad_rho.dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
-
-    /// velocity-x
-    switch (p->U_BC[0])
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
-        f.U.x() = c->U.x() + f.grad_U.col(0).dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
-
-    /// velocity-y
-    switch (p->U_BC[1])
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
-        f.U.y() = c->U.y() + f.grad_U.col(1).dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
-
-    /// velocity-z
-    switch (p->U_BC[2])
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
-        f.U.z() = c->U.z() + f.grad_U.col(2).dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
+    /// velocity
+    if(p->U_BC == Neumann)
+        f.U = c->U + d.transpose() * f.grad_U;
 
     /// pressure
-    switch (p->p_BC)
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
+    if (p->p_BC == Neumann)
         f.p = c->p + f.grad_p.dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 
     /// temperature
-    switch (p->T_BC)
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
+    if (p->T_BC == Neumann)
         f.T = c->T + f.grad_T.dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 }
 
 static void calcInternalFacePrimitiveValue(Face& f)
@@ -259,6 +187,9 @@ static void step1(Scalar TimeStep)
         c.U_prev = c.U;
         c.p_prev = c.p;
         c.T_prev = c.T;
+        c.tau_prev = c.tau;
+        c.grad_U_prev = c.grad_U;
+        c.grad_p_prev = c.grad_p;
     }
     for (auto &f : face)
     {
@@ -266,6 +197,10 @@ static void step1(Scalar TimeStep)
         f.U_prev = f.U;
         f.p_prev = f.p;
         f.T_prev = f.T;
+        f.h_prev = f.h;
+        f.rhoUn_prev = f.rhoU;
+        f.grad_T_prev = f.grad_T;
+        f.tau_prev = f.tau;
     }
 }
 
@@ -281,7 +216,7 @@ static void step2(Scalar TimeStep)
         {
             auto f = c.surface.at(j);
             const auto &Sf = c.S.at(j);
-            convection_flux += f->rhoU_prev.dot(Sf) * f->h_prev;
+            convection_flux += f->rhoUn_prev.dot(Sf) * f->h_prev;
             diffusion_flux += f->conductivity * f->grad_T_prev.dot(Sf);
         }
         const Scalar viscous_dissipation = double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
@@ -292,8 +227,31 @@ static void step2(Scalar TimeStep)
         c.T_star = c.h_star / c.specific_heat_p;
     }
 
-    /// Apply B.C. for T_star
-    /// TODO
+    /// Interpolation from cell to face & Apply B.C. for T_star
+    for (auto& f : face)
+    {
+        if (f.at_boundary)
+        {
+            if (f.parent->T_BC == Dirichlet)
+                f.T_star = f.T;
+            else if (f.parent->T_BC == Neumann)
+            {
+                auto c = f.c0 ? f.c0 : f.c1;
+                const Vector &r = f.c0 ? f.r0 : f.r1;
+                f.T_star = c->T_star + f.grad_T.dot(r);
+            }
+            else
+                throw unsupported_boundary_condition(f.parent->T_BC);
+        }
+        else
+            f.T_star = f.ksi0 * f.c0->T_star + f.ksi1 * f.c1->T_star; /// Less accurate, but bounded
+    }
+
+    /// Consistency for h_star
+    for(auto &f : face)
+    {
+        f.h_star = f.specific_heat_p * f.T_star;
+    }
 }
 
 static void step3()
@@ -303,19 +261,46 @@ static void step3()
     {
         c.rho_next = EOS(c.p_prev, c.T_star);
     }
+    for(auto &f : face)
+    {
+        f.rho_next = EOS(f.p_prev, f.T_star);
+    }
 }
 
 static void step4()
 {
-    /// Prediction of temperature
+    /// Update of temperature
     for (auto &c : cell)
     {
         c.h_next = c.rhoh_next / c.rho_next;
         c.T_next = c.h_next / c.specific_heat_p;
     }
 
-    /// Apply B.C. for T_next
-    /// TODO
+    /// Interpolation from cell to face & Apply B.C. for T_next
+    for (auto& f : face)
+    {
+        if (f.at_boundary)
+        {
+            if (f.parent->T_BC == Dirichlet)
+                f.T_next = f.T;
+            else if (f.parent->T_BC == Neumann)
+            {
+                auto c = f.c0 ? f.c0 : f.c1;
+                const Vector &r = f.c0 ? f.r0 : f.r1;
+                f.T_next = c->T_next + f.grad_T.dot(r);
+            }
+            else
+                throw unsupported_boundary_condition(f.parent->T_BC);
+        }
+        else
+            f.T_next = f.ksi0 * f.c0->T_next + f.ksi1 * f.c1->T_next; /// Less accurate, but bounded
+    }
+
+    /// Consistency for h_next
+    for(auto &f : face)
+    {
+        f.h_next = f.specific_heat_p * f.T_next;
+    }
 }
 
 static void step5(Scalar TimeStep)
@@ -331,23 +316,35 @@ static void step5(Scalar TimeStep)
         {
             auto f = c.surface.at(j);
             const auto& Sf = c.S.at(j);
-
-            convection_flux += f->rhoU_prev.dot(Sf) * f->U_prev;
+            convection_flux += f->rhoUn_prev.dot(Sf) * f->U_prev;
             pressure_flux += f->p_prev * Sf;
             viscous_flux += f->tau_prev * Sf;
         }
         c.rhoU_star = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
     }
 
-    /// rhoU* on each face
+    /// Interpolation from cell to face & Apply B.C. for rhoU*
     for (auto& f : face)
     {
         if (f.at_boundary)
-            f.rhoU_star = f.rhoU;
+        {
+            Vector U_star(0.0, 0.0, 0.0);
+            if (f.parent->U_BC == Dirichlet)
+                U_star = f.U;
+            else if(f.parent->U_BC == Neumann)
+            {
+                auto c = f.c0 ? f.c0 : f.c1;
+                const Vector &r = f.c0 ? f.r0 : f.r1;
+                U_star = c->U_star + r.transpose() * f.grad_U;
+            }
+            else
+                throw unsupported_boundary_condition(f.parent->U_BC);
+
+            f.rhoU_star = f.rho_next * U_star;
+        }
         else
         {
             f.rhoU_star = f.ksi0 * f.c0->rhoU_star + f.ksi1 * f.c1->rhoU_star;
-
             /// Momentum interpolation (Rhie-Chow)
             const Vector d01 = f.c1->centroid - f.c0->centroid;
             const Vector compact_grad_p = (f.c1->p_prev - f.c0->p_prev) / (d01.dot(d01)) * d01;
@@ -359,7 +356,6 @@ static void step5(Scalar TimeStep)
 
 static void step6(Scalar TimeStep)
 {
-    /// Correction Step
     LOG_OUT << std::endl;
     LOG_OUT << SEP << "Solving pressure-correction ..." << std::endl;
     LOG_OUT << SEP << "--------------------------------------------" << std::endl;
@@ -387,42 +383,69 @@ static void step6(Scalar TimeStep)
             f.grad_p_prime_sn = (tmp1 + tmp2) * f.n01;
         }
     }
-}
 
-static void step7(Scalar TimeStep)
-{
-    /// Update variables on face centroid
-    for (auto& f : face)
-    {
-        if (!f.at_boundary)
-            f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
-    }
-
-    /// Update variables on cell centroid
+    /// Reconstruct gradient of $p'$ at cell centroid
     for (auto& c : cell)
     {
-        /// Reconstruct gradient of $p'$ at cell centroid
-        Vector b;
-        b.setZero();
+        Vector b(0.0, 0.0, 0.0);
         const size_t Nf = c.surface.size();
-        for(size_t j = 0; j < Nf; ++j)
+        for (size_t j = 0; j < Nf; ++j)
         {
             auto f = c.surface.at(j);
             const Vector &Sf = c.S.at(j);
             b += f->grad_p_prime_sn.dot(Sf) * Sf / f->area;
         }
-        c.grad_p_prime = c.grad_p_prime_rm * b;
-
-        /// Velocity
-        c.rhoU_next = c.rhoU_star - TimeStep * c.grad_p_prime;
-        c.U_next = c.rhoU_next / c.rho_next;
-
-        /// Pressure
-        c.p_next = c.p_prev + c.p_prime;
+        c.grad_p_prime = c.TeC_INV * b;
     }
 }
 
-static void helper4()
+static void step7(Scalar TimeStep)
+{
+    /// rhoU_next on interior face
+    for (auto& f : face)
+    {
+        if (!f.at_boundary)
+            f.rhoU_next = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
+    }
+
+    /// Update pressure-velocity coupling on cell
+    for (auto& c : cell)
+    {
+        c.rhoU_next = c.rhoU_star - TimeStep * c.grad_p_prime;
+        c.U_next = c.rhoU_next / c.rho_next;
+        c.p_next = c.p_prev + c.p_prime;
+    }
+
+    /// Gradient of U_next on cell
+    /// TODO
+
+    /// Interpolation from cell to face for U_next
+    for (auto &f : face)
+    {
+        if(f.at_boundary)
+        {
+
+        }
+        else
+        {
+            if (f.rhoU_next.dot(f.n01) > 0)
+                f.U_next = f.c0->U_next + f.r0.transpose() * f.c0->grad_U_next;
+            else
+                f.U_next = f.c1->U_next + f.r1.transpose() * f.c1->grad_U_next;
+        }
+    }
+
+    /// rhoU_next on boundary face
+    /// TODO
+
+    /// gradient of p_next
+    /// TODO
+
+    /// p_next on face
+    /// TODO
+}
+
+static void aux()
 {
     /// Update physical properties at centroid of each cell.
     for (auto& c : cell)
@@ -480,10 +503,10 @@ void ForwardEuler(Scalar TimeStep)
         step3();
         step4();
         step5(TimeStep);
-        step6(TimeStep);
+        step6(TimeStep); /// Correction Step
         step7(TimeStep);
     }
 
-    /// Store all variables for next time-step
-    helper4();
+    /// Store all variables for new time-step
+    aux();
 }

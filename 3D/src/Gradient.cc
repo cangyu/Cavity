@@ -274,7 +274,7 @@ void prepare_gpc_rm()
             const Vector &Sf = c.S.at(j);
             A += Sf * Sf.transpose() / f->area;
         }
-        c.grad_p_prime_rm = A.inverse();
+        c.TeC_INV = A.inverse();
     }
 }
 
