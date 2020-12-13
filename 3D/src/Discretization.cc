@@ -19,6 +19,36 @@ extern SX_VEC x_dp_2;
 extern SX_AMG dp_solver_2;
 extern std::string SEP;
 
+void interp_nodal_primitive_var()
+{
+    for (int i = 1; i <= NumOfPnt; ++i)
+    {
+        auto &n_dst = pnt(i);
+
+        const auto &dc = n_dst.dependent_cell;
+        const auto &wf = n_dst.cell_weights;
+
+        const auto N = dc.size();
+        if (N != wf.size())
+            throw std::runtime_error("Inconsistency detected!");
+
+        n_dst.rho = ZERO_SCALAR;
+        n_dst.U = ZERO_VECTOR;
+        n_dst.p = ZERO_SCALAR;
+        n_dst.T = ZERO_SCALAR;
+        for (int j = 0; j < N; ++j)
+        {
+            const auto cwf = wf.at(j);
+            n_dst.rho += cwf * dc.at(j)->rho;
+            n_dst.U += cwf * dc.at(j)->U;
+            n_dst.p += cwf * dc.at(j)->p;
+            n_dst.T += cwf * dc.at(j)->T;
+        }
+    }
+
+    BC_Nodal();
+}
+
 static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
 {
     auto p = f.parent;
@@ -126,48 +156,6 @@ void calc_face_viscous_shear_stress()
 void prepare_first_run()
 {
     /// TODO
-}
-
-static int ppe(Scalar TimeStep)
-{
-    for(auto &c : cell)
-    {
-        c.p_prime = ZERO_SCALAR;
-        c.grad_p_prime.setZero();
-    }
-    for(auto &f : face)
-        f.grad_p_prime.setZero();
-
-    int cnt = 0; /// Iteration counter
-    Scalar l1 = 1.0, l2 = 1.0; /// Convergence monitor
-    while (l1 > 1e-10 || l2 > 1e-8)
-    {
-        /// Solve p' at cell centroid
-        calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
-        sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
-        l1 = 0.0;
-        for (int i = 0; i < NumOfCell; ++i)
-        {
-            auto& c = cell.at(i);
-            const Scalar new_val = sx_vec_get_entry(&x_dp_2, i);
-            l1 += std::fabs(new_val - c.p_prime);
-            c.p_prime = new_val;
-        }
-        l1 /= NumOfCell;
-
-        /// Calculate gradient of $p'$ at cell centroid
-        l2 = calc_cell_pressure_correction_gradient();
-
-        /// Interpolate gradient of $p'$ from cell centroid to face centroid
-        calc_face_pressure_correction_gradient();
-
-        /// Report
-        std::cout << SEP << std::left << std::setw(14) << l1 << "    " << std::setw(26) << l2 << std::endl;
-
-        /// Next loop if needed
-        ++cnt;
-    }
-    return cnt;
 }
 
 static void step1(Scalar TimeStep)
@@ -353,6 +341,50 @@ static void step5(Scalar TimeStep)
     }
 }
 
+static int ppe(Scalar TimeStep)
+{
+    for(auto &c : cell)
+    {
+        c.p_prime = ZERO_SCALAR;
+        c.grad_p_prime.setZero();
+    }
+    for(auto &f : face)
+        f.grad_p_prime.setZero();
+
+    int cnt = 0; /// Iteration counter
+    Scalar l1 = 1.0, l2 = 1.0; /// Convergence monitor
+    while (l1 > 1e-10 || l2 > 1e-8)
+    {
+        /// Solve p' at cell centroid
+        calcPressureCorrectionEquationRHS(Q_dp_2, TimeStep);
+        sx_solver_amg_solve(&dp_solver_2, &x_dp_2, &Q_dp_2);
+        l1 = 0.0;
+        for (int i = 0; i < NumOfCell; ++i)
+        {
+            auto& c = cell.at(i);
+            const Scalar new_val = sx_vec_get_entry(&x_dp_2, i);
+            l1 += std::fabs(new_val - c.p_prime);
+            c.p_prime = new_val;
+        }
+        l1 /= NumOfCell;
+
+        /// Calculate gradient of $p'$ at cell centroid
+        l2 = calc_cell_pressure_correction_gradient();
+
+        /// Interpolate gradient of $p'$ from cell to face
+        /// Boundary + Internal
+        calc_face_pressure_correction_gradient();
+
+        /// Report
+        std::cout << "\n" << SEP;
+        std::cout << std::left << std::setw(14) << l1 << "    " << std::setw(26) << l2;
+
+        /// Next loop if needed
+        ++cnt;
+    }
+    return cnt;
+}
+
 static void step6(Scalar TimeStep)
 {
     std::cout << SEP << "\nSolving pressure-correction ...";
@@ -454,7 +486,7 @@ static void aux()
     }
 
     /// Enforce boundary conditions for primitive variables.
-    set_bc_of_primitive_var();
+    BC_Primitive();
 
     /// Gradients of primitive variables at centroid of each cell.
     calc_cell_primitive_gradient();

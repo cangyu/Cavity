@@ -1,9 +1,10 @@
 #ifndef BC_H
 #define BC_H
 
+#include "custom_type.h"
+
 void BC_TABLE();
-void set_bc_of_primitive_var();
-void set_bc_of_pressure_correction();
-void set_bc_nodal();
+void BC_Primitive();
+void BC_Nodal();
 
 #endif

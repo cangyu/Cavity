@@ -44,15 +44,15 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
 
             if (curFace->at_boundary) /// Boundary Case.
             {
-                switch (curFace->parent->p_prime_BC)
+                switch (curFace->parent->p_BC)
                 {
                 case Dirichlet:
                     cur_coef[C.index] +=E_f.norm() / (curFace->centroid - C.centroid).norm() ; /// When p is given on boundary, p' is 0-value there.
                     break;
                 case Neumann:
                     break;/// When p is not determined on boundary, p' is 0-gradient there, thus contribution is 0 and no need to handle.
-                case Robin:
-                    throw robin_bc_is_not_supported();
+                default:
+                    throw unsupported_boundary_condition(curFace->parent->p_BC);
                 }
             }
             else /// Internal Case.
@@ -107,20 +107,16 @@ void calcPressureCorrectionEquationRHS
         for (int f = 0; f < N_C; ++f)
         {
             auto curFace = C.surface.at(f);
-
             const auto &S_f = C.S.at(f);
             const auto &T_f = C.St.at(f);
 
             /// Raw contribution
-            if(curFace->at_boundary)
-                cur_rhs -= curFace->rhoU.dot(S_f) / dt;
-            else
-                cur_rhs -= curFace->rhoU_star.dot(S_f) / dt;
+            cur_rhs -= (curFace->rhoU_star.dot(S_f) + C.volume * (C.rho_next - C.rho) / dt) / dt;
 
             /// Additional contribution due to cross-diffusion
             if(curFace->at_boundary)
             {
-                if(curFace->parent->p_prime_BC == Dirichlet)
+                if(curFace->parent->p_BC == Dirichlet)
                     cur_rhs += curFace->grad_p_prime.dot(T_f);
             }
             else

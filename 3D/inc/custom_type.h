@@ -148,8 +148,7 @@ struct Face
     Scalar h_star;
     Scalar rho_star;
     Vector rhoU_star;
-    Scalar p_prime;
-    Vector grad_p_prime, sn_grad_p_prime, grad_p_prime_sn;
+    Vector grad_p_prime, grad_p_prime_sn;
 
     /// (m-1)
     Scalar rho_prev;
@@ -271,7 +270,7 @@ struct Patch
 
     /// B.C. specification for each variable
     BC_CATEGORY U_BC;
-    BC_CATEGORY p_BC, p_prime_BC;
+    BC_CATEGORY p_BC;
     BC_CATEGORY T_BC;
 };
 

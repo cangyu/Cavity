@@ -462,25 +462,21 @@ Scalar calc_cell_pressure_correction_gradient()
     {
         const auto nF = c.surface.size();
         Eigen::VectorXd delta_phi(nF);
-
-        /// p_prime
         for (int i = 0; i < nF; ++i)
         {
             auto curFace = c.surface.at(i);
             if (curFace->at_boundary)
             {
-                switch (curFace->parent->p_prime_BC)
+                switch (curFace->parent->p_BC)
                 {
                 case Dirichlet:
-                    delta_phi(i) = (curFace->p_prime - c.p_prime) / (curFace->centroid - c.centroid).norm();
+                    delta_phi(i) = (0.0 - c.p_prime) / (curFace->centroid - c.centroid).norm();
                     break;
                 case Neumann:
-                    delta_phi(i) = curFace->sn_grad_p_prime;
+                    delta_phi(i) = 0.0;
                     break;
-                case Robin:
-                    throw robin_bc_is_not_supported();
                 default:
-                    break;
+                    throw unsupported_boundary_condition(curFace->parent->p_BC);
                 }
             }
             else
@@ -601,23 +597,25 @@ void calc_face_pressure_correction_gradient()
     {
         if (f.at_boundary)
         {
-            const Vector &n = f.c0 ? f.n01 : f.n10;
             auto c = f.c0? f.c0 : f.c1;
-            if(f.parent->p_prime_BC == Dirichlet)
+            if(f.parent->p_BC == Dirichlet)
             {
                 const Vector d = f.centroid - c->centroid;
-                f.grad_p_prime = (f.p_prime - c->p_prime) / d.dot(d) * d;
+                /// Zero-Value is assumed.
+                f.grad_p_prime = (0.0 - c->p_prime) / d.dot(d) * d;
             }
-            else if(f.parent->p_prime_BC == Neumann)
+            else if(f.parent->p_BC == Neumann)
             {
-                f.grad_p_prime = f.sn_grad_p_prime * n + (Tensor::Identity() - n * n.transpose()) * c->grad_p_prime;
+                const Vector &n = f.c0 ? f.n01 : f.n10;
+                /// Zero-Gradient is assumed.
+                f.grad_p_prime =  (Tensor::Identity() - n * n.transpose()) * c->grad_p_prime;
             }
             else
-                throw unsupported_boundary_condition(f.parent->p_prime_BC);
+                throw unsupported_boundary_condition(f.parent->p_BC);
         }
         else
         {
-            f.grad_p_prime = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime;
+            f.grad_p_prime = f.ksi0 * f.c0->grad_p_prime + f.ksi1 * f.c1->grad_p_prime; /// CDS
         }
     }
 }

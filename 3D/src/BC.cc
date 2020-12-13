@@ -1,5 +1,4 @@
 #include <string>
-#include "../inc/custom_type.h"
 #include "../inc/BC.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -16,7 +15,6 @@ void BC_TABLE()
         {
             e.U_BC = Dirichlet;
             e.p_BC = Neumann;
-            e.p_prime_BC = Neumann;
             e.T_BC = Dirichlet;
             e.BC = BC_PHY::Wall;
         }
@@ -24,7 +22,6 @@ void BC_TABLE()
         {
             e.U_BC = Dirichlet;
             e.p_BC = Neumann;
-            e.p_prime_BC = Neumann;
             e.T_BC = Dirichlet;
             e.BC = BC_PHY::Wall;
         }
@@ -32,7 +29,6 @@ void BC_TABLE()
         {
             e.U_BC = Dirichlet;
             e.p_BC = Neumann;
-            e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
             e.BC = BC_PHY::Wall;
         }
@@ -40,7 +36,6 @@ void BC_TABLE()
         {
             e.U_BC = Dirichlet;
             e.p_BC = Neumann;
-            e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
             e.BC = BC_PHY::Wall;
         }
@@ -48,7 +43,6 @@ void BC_TABLE()
         {
             e.U_BC = Dirichlet;
             e.p_BC = Neumann;
-            e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
             e.BC = BC_PHY::Wall;
         }
@@ -56,7 +50,6 @@ void BC_TABLE()
         {
             e.U_BC = Dirichlet;
             e.p_BC = Neumann;
-            e.p_prime_BC = Neumann;
             e.T_BC = Neumann;
             e.BC = BC_PHY::Wall;
         }
@@ -71,7 +64,7 @@ static const Scalar T_DOWN = 300.0, T_UP = 1500.0; // K
 /**
  * Boundary conditions on all related faces for all variables.
  */
-void set_bc_of_primitive_var()
+void BC_Primitive()
 {
     for (const auto &e : patch)
     {
@@ -134,59 +127,52 @@ void set_bc_of_primitive_var()
     }
 }
 
-void set_bc_of_pressure_correction()
-{
-    for (const auto &e : patch)
-        for (auto f : e.surface)
-            f->sn_grad_p_prime = ZERO_SCALAR;
-}
-
-void set_bc_nodal()
+void BC_Nodal()
 {
     for(const auto &e : patch)
     {
         if (e.name == "UP")
         {
-            for (auto f : e.vertex)
+            for (auto v : e.vertex)
             {
-                f->U = U_UP;
-                f->T = T_UP;
+                v->U = U_UP;
+                v->T = T_UP;
             }
         }
         else if (e.name == "DOWN")
         {
-            for (auto f : e.vertex)
+            for (auto v : e.vertex)
             {
-                f->U = ZERO_VECTOR;
-                f->T = T_DOWN;
+                v->U = ZERO_VECTOR;
+                v->T = T_DOWN;
             }
         }
         else if (e.name == "LEFT")
         {
-            for (auto f : e.vertex)
+            for (auto v : e.vertex)
             {
-                f->U = ZERO_VECTOR;
+                v->U = ZERO_VECTOR;
             }
         }
         else if (e.name == "RIGHT")
         {
-            for (auto f : e.vertex)
+            for (auto v : e.vertex)
             {
-                f->U = ZERO_VECTOR;
+                v->U = ZERO_VECTOR;
             }
         }
         else if (e.name == "FRONT")
         {
-            for (auto f : e.vertex)
+            for (auto v : e.vertex)
             {
-                f->U = ZERO_VECTOR;
+                v->U = ZERO_VECTOR;
             }
         }
         else if (e.name == "BACK")
         {
-            for (auto f : e.vertex)
+            for (auto v : e.vertex)
             {
-                f->U = ZERO_VECTOR;
+                v->U = ZERO_VECTOR;
             }
         }
         else
