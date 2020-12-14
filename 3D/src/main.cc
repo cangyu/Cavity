@@ -100,7 +100,7 @@ int solve()
         done = iter > MAX_ITER || t > MAX_TIME;
         if (done || !(iter % OUTPUT_GAP))
         {
-            interp_nodal_primitive_var();
+            INTERP_Node_Primitive();
             std::string fn;
             data_file_path(iter, fn);
             std::ofstream dts(fn);

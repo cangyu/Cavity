@@ -47,5 +47,5 @@ void IC()
     }
 
     /// Node
-    interp_nodal_primitive_var();
+    INTERP_Node_Primitive();
 }
