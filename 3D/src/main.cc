@@ -12,7 +12,7 @@
 #include "../inc/Spatial.h"
 #include "../inc/Temporal.h"
 #include "../inc/Diagnose.h"
-#include "../inc/Miscellaneous.h"
+#include "../inc/MISC.h"
 
 /***************************************************** Global Variables ***********************************************/
 
@@ -244,7 +244,7 @@ int main(int argc, char *argv[])
 
     /* Establish output destination */
     if (RUN_TAG.empty())
-        RUN_TAG = time_stamp_str();
+        RUN_TAG = time_stamp();
     
     if(need_to_create_folder)
     {

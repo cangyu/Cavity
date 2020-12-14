@@ -4,7 +4,7 @@
 #include "../inc/PoissonEqn.h"
 #include "../inc/CHEM.h"
 #include "../inc/Gradient.h"
-#include "../inc/Miscellaneous.h"
+#include "../inc/MISC.h"
 #include "../inc/Temporal.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;

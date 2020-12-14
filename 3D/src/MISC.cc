@@ -1,19 +1,19 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
-#include "../inc/Miscellaneous.h"
+#include "../inc/MISC.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 
-double duration(const clock_t &startTime, const clock_t &endTime)
+Scalar duration(const clock_t &startTime, const clock_t &endTime)
 {
     return static_cast<double>(endTime - startTime) / CLOCKS_PER_SEC;
 }
 
-std::string time_stamp_str()
+std::string time_stamp()
 {
     auto tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::ostringstream ss;

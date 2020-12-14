@@ -33,7 +33,7 @@ add_executable(CAVITY
 	src/Gradient.cc
 	src/PoissonEqn.cc
 	src/Diagnose.cc
-	src/Miscellaneous.cc
+	src/MISC.cc
 	src/main.cc)
 
 target_link_libraries(CAVITY PRIVATE SXAMG Eigen3::Eigen)

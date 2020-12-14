@@ -1,7 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <map>
-#include "../inc/Miscellaneous.h"
+#include "../inc/MISC.h"
 #include "../inc/IO.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
