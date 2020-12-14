@@ -232,6 +232,7 @@ struct Cell
     Vector grad_p_prime = ZERO_VECTOR;
     Scalar h_star;
     Scalar T_star;
+    Vector grad_T_star;
     Tensor TeC_INV = ZERO_TENSOR; /// Reconstruction matrix
 
     /// (m-1)

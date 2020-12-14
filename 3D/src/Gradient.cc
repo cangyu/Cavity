@@ -76,7 +76,6 @@ void prepare_lsq()
             {
                 d = curFace->centroid - c.centroid;
                 n = c.S.at(j) / curFace->area;
-
                 const Scalar w = 1.0 / d.norm();
 
                 /// Density
@@ -260,7 +259,7 @@ void prepare_gg()
     }
 }
 
-void prepare_gpc_rm()
+void prepare_TeC_operator()
 {
     for (auto &c : cell)
     {
@@ -552,6 +551,72 @@ void calc_face_primitive_gradient()
     }
 }
 
+void GRAD_Cell_Temperature_star()
+{
+    for (auto &C : cell)
+    {
+        const size_t nF = C.surface.size();
+        Eigen::VectorXd dT(nF);
+        for (size_t i = 0; i < nF; ++i)
+        {
+            auto f = C.surface.at(i);
+            if (f->at_boundary)
+            {
+                const auto T_BC = f->parent->T_BC;
+                if (T_BC == Dirichlet)
+                {
+                    const Scalar w = 1.0 / (f->centroid - C.centroid).norm();
+                    dT(i) = w * (f->T - C.T_star);
+                }
+                else if (T_BC == Neumann)
+                    dT(i) = f->sn_grad_T;
+                else
+                    throw unsupported_boundary_condition(T_BC);
+            }
+            else
+            {
+                auto F = C.adjCell.at(i);
+                const Scalar w = 1.0 / (F->centroid - C.centroid).norm();
+                dT(i) = w * (F->T_star - C.T_star);
+            }
+        }
+        C.grad_T_star = J_INV_T.at(C.index - 1) * dT;
+    }
+}
+
+void GRAD_Cell_Temperature_next()
+{
+    for (auto &C : cell)
+    {
+        const size_t nF = C.surface.size();
+        Eigen::VectorXd dT(nF);
+        for (size_t i = 0; i < nF; ++i)
+        {
+            auto f = C.surface.at(i);
+            if (f->at_boundary)
+            {
+                const auto T_BC = f->parent->T_BC;
+                if (T_BC == Dirichlet)
+                {
+                    const Scalar w = 1.0 / (f->centroid - C.centroid).norm();
+                    dT(i) = w * (f->T - C.T_next);
+                }
+                else if (T_BC == Neumann)
+                    dT(i) = f->sn_grad_T;
+                else
+                    throw unsupported_boundary_condition(T_BC);
+            }
+            else
+            {
+                auto F = C.adjCell.at(i);
+                const Scalar w = 1.0 / (F->centroid - C.centroid).norm();
+                dT(i) = w * (F->T_next - C.T_next);
+            }
+        }
+        C.grad_T_next = J_INV_T.at(C.index - 1) * dT;
+    }
+}
+
 Scalar GRAD_Cell_PressureCorrection()
 {
     Scalar error = 0.0;
@@ -662,6 +727,52 @@ void GRAD_Cell_Velocity_next()
     }
 }
 
+void GRAD_Face_Velocity_next()
+{
+    Vector gv[3];
+    for (auto &f : face)
+    {
+        if (f.at_boundary)
+        {
+            auto c = f.c0 ? f.c0 : f.c1;
+            const Vector &n = f.c0 ? f.n01 : f.n10;
+            const Vector d = f.c0 ? f.r0 : f.r1;
+            const Vector alpha = n / n.dot(d);
+            const Tensor beta = Tensor::Identity() - alpha * d.transpose();
+            const Tensor gamma = Tensor::Identity() - n * n.transpose();
+
+            const auto U_BC = f.parent->U_BC;
+            if (U_BC == Dirichlet)
+            {
+                gv[0] = alpha * (f.U.x() - c->U_next.x()) + beta * c->grad_U_next.col(0);
+                gv[1] = alpha * (f.U.y() - c->U_next.y()) + beta * c->grad_U_next.col(1);
+                gv[2] = alpha * (f.U.z() - c->U_next.z()) + beta * c->grad_U_next.col(2);
+            }
+            else if (U_BC == Neumann)
+            {
+                gv[0] = n * f.sn_grad_U.x() + gamma * c->grad_U_next.col(0);
+                gv[1] = n * f.sn_grad_U.y() + gamma * c->grad_U_next.col(1);
+                gv[2] = n * f.sn_grad_U.z() + gamma * c->grad_U_next.col(2);
+            }
+            else
+                throw unsupported_boundary_condition(U_BC);
+        }
+        else
+        {
+            const Vector d01 = f.c1->centroid - f.c0->centroid;
+            const Vector alpha = f.n01 / f.n01.dot(d01);
+            const Tensor beta = Tensor::Identity() - alpha * d01.transpose();
+
+            gv[0] = alpha * (f.c1->U_next.x() - f.c0->U_next.x()) + beta * (f.ksi0 * f.c0->grad_U_next.col(0) + f.ksi1 * f.c1->grad_U_next.col(0));
+            gv[1] = alpha * (f.c1->U_next.y() - f.c0->U_next.y()) + beta * (f.ksi0 * f.c0->grad_U_next.col(1) + f.ksi1 * f.c1->grad_U_next.col(1));
+            gv[2] = alpha * (f.c1->U_next.z() - f.c0->U_next.z()) + beta * (f.ksi0 * f.c0->grad_U_next.col(2) + f.ksi1 * f.c1->grad_U_next.col(2));
+        }
+        f.grad_U_next.col(0) = gv[0];
+        f.grad_U_next.col(1) = gv[1];
+        f.grad_U_next.col(2) = gv[2];
+    }
+}
+
 void GRAD_Cell_Pressure_next()
 {
     for (auto &C : cell)
@@ -676,8 +787,8 @@ void GRAD_Cell_Pressure_next()
                 const auto p_BC = f->parent->p_BC;
                 if (p_BC == Dirichlet)
                 {
-                    const Scalar d = (f->centroid - C.centroid).norm();
-                    dP(i) = (f->p - C.p_next) / d;
+                    const Scalar w = 1.0 / (f->centroid - C.centroid).norm();
+                    dP(i) = w * (f->p - C.p_next);
                 }
                 else if (p_BC == Neumann)
                     dP(i) = f->sn_grad_p;
@@ -687,8 +798,8 @@ void GRAD_Cell_Pressure_next()
             else
             {
                 auto F = C.adjCell.at(i);
-                const Scalar d = (F->centroid - C.centroid).norm();
-                dP(i) = (F->p_next - C.p_next) / d;
+                const Scalar w = 1.0 / (F->centroid - C.centroid).norm();
+                dP(i) = w * (F->p_next - C.p_next);
             }
         }
         C.grad_p_next = J_INV_p.at(C.index - 1) * dP;

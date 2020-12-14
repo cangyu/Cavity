@@ -145,7 +145,7 @@ void init()
         tick_begin = clock();
         prepare_lsq();
         prepare_gg();
-        prepare_gpc_rm();
+        prepare_TeC_operator();
         tick_end = clock();
     }
     std::cout << duration(tick_begin, tick_end) << "s" << std::endl;

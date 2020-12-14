@@ -76,6 +76,7 @@ static void step2(Scalar TimeStep)
     }
 
     /// Interpolation from cell to face & Apply B.C. for T_star
+    GRAD_Cell_Temperature_star();
     INTERP_Face_Temperature_star();
 
     /// Consistency for h_star
@@ -100,7 +101,7 @@ static void step3()
 
 static void step4()
 {
-    /// Update of temperature
+    /// Update temperature
     for (auto &c : cell)
     {
         c.h_next = c.rhoh_next / c.rho_next;
@@ -108,6 +109,7 @@ static void step4()
     }
 
     /// Interpolation from cell to face & Apply B.C. for T_next
+    GRAD_Cell_Temperature_next();
     INTERP_Face_Temperature_next();
 
     /// Consistency for h_next
@@ -187,13 +189,14 @@ static int ppe(Scalar TimeStep)
 
 static void step6(Scalar TimeStep)
 {
+    /// Corrector
     std::cout << SEP << "\nSolving pressure-correction ...";
     std::cout << SEP << "\n--------------------------------------------";
     std::cout << SEP << "\n||p'-p'_prev||    ||grad(p')-grad(p')_prev||";
     std::cout << SEP << "\n--------------------------------------------";
-    const int poisson_noc_iter = ppe(TimeStep);
+    const auto noc_iter = ppe(TimeStep);
     std::cout << SEP << "\n--------------------------------------------";
-    std::cout << SEP << "\nConverged after " << poisson_noc_iter << " iterations" << std::endl;
+    std::cout << SEP << "\nConverged after " << noc_iter << " iterations" << std::endl;
 
     /// Calculate $\frac{\partial p'}{\partial n}$ on face.
     /// Should be CONSISTENT with NOC method used in 'ppe' !!!
@@ -206,7 +209,7 @@ static void step6(Scalar TimeStep)
 
 static void step7(Scalar TimeStep)
 {
-    /// rhoU_next on interior face
+    /// Update mass flux on internal face
     for (auto& f : face)
     {
         if (!f.at_boundary)
@@ -221,36 +224,25 @@ static void step7(Scalar TimeStep)
         C.p_next = C.p_prev + C.p_prime;
     }
 
-    /// Gradient of U_next on cell
+    /// Interpolation from cell to face & Apply B.C. for U_next
     GRAD_Cell_Velocity_next();
-
-    /// Interpolation from cell to face for U_next
+    GRAD_Face_Velocity_next();
     INTERP_Face_Velocity_next();
 
-    /// rhoU_next on boundary face
+    /// Update viscous shear stress
+    CALC_Cell_ViscousShearStress_next();
+    CALC_Face_ViscousShearStress_next();
+
+    /// Update mass flux on boundary face
     for (auto& f : face)
     {
         if (f.at_boundary)
             f.rhoU_next = f.rho_next * f.U_next;
     }
 
-    /// gradient of p_next
+    /// Interpolation from cell to face & Apply B.C. for p_next
     GRAD_Cell_Pressure_next();
-
-    /// Interpolation from cell to face for p_next
     INTERP_Face_Pressure_next();
-
-    /// For next iteration
-    for(auto &C : cell)
-    {
-        C.U_prev = C.U_next;
-        C.p_prev = C.p_next;
-    }
-    for(auto &f : face)
-    {
-        f.rhoU_prev = f.rhoU_next;
-        f.p_prev = f.p_next;
-    }
 }
 
 static void step8()
@@ -305,12 +297,51 @@ void ForwardEuler(Scalar TimeStep)
     /// Semi-Implicit iteration
     for(int m = 0; m < 3; ++m)
     {
+        /// {$\rho h$} @(m+1), Cell
+        /// {$h$, $T$} @(*), Cell & Face(Boundary+Internal)
+        /// {$\nabla T$} @(*), Cell
         step2(TimeStep);
+
+        /// {$\rho$} @(m+1), Cell & Face(Boundary+Internal)
         step3();
+
+        /// {$h$, $T$} @(m+1), Cell & Face(Boundary+Internal)
+        /// {$\nabla T$} @(m+1), Cell
         step4();
+
+        /// {$\rho \vec{U}$} @(*), Cell & Face(Boundary+Internal)
         step5(TimeStep);
-        step6(TimeStep); /// Correction Step
+
+        /// {$p'$}, Cell
+        /// {$\nabla p'$}, Cell & Face(Boundary+Internal)
+        /// {$\frac{\partial p'}{\partial n}$}, Face(Boundary+Internal)
+        step6(TimeStep);
+
+        /// {$p$, $\vec{U}$, $\rho \vec{U}$} @(m+1), Cell & Face(Boundary+Internal)
+        /// {$\nabla \vec{U}$}, Cell & Face(Boundary+Internal)
+        /// {$\tau$} @(m+1), Cell & Face(Boundary+Internal)
+        /// {$\nabla p$} @(m+1), Cell
         step7(TimeStep);
+
+        /// For next iteration
+        for(auto &C : cell)
+        {
+            C.tau_prev = C.tau_next;
+            C.grad_U_prev = C.grad_U_next;
+            C.p_prev = C.p_next;
+            C.grad_p_prev = C.grad_p_next;
+            C.U_prev = C.U_next;
+            C.rho_prev = C.rho_next;
+        }
+        for(auto &f : face)
+        {
+            f.rhoU_prev = f.rhoU_next;
+            f.h_prev = f.h_next;
+            f.grad_T_prev = f.grad_T_next;
+            f.p_prev = f.p_next;
+            f.U_prev = f.U_next;
+            f.tau_prev = f.tau_next;
+        }
     }
 
     /// Store all variables for new time-step

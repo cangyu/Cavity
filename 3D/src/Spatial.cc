@@ -100,7 +100,7 @@ void INTERP_Face_Velocity_next()
             {
                 auto C = f.c0 ? f.c0 : f.c1;
                 const Vector &r = f.c0 ? f.r0 : f.r1;
-                f.U_next = C->U_star + r.transpose() * f.grad_U_next;
+                f.U_next = C->U_star + r.transpose() * f.grad_U;
             }
             else
                 throw unsupported_boundary_condition(U_BC);
@@ -128,7 +128,7 @@ void INTERP_Face_Pressure_next()
             {
                 auto C = f.c0 ? f.c0 : f.c1;
                 const Vector &d = f.c0 ? f.r0 : f.r1;
-                f.p_next = C->p_next + f.grad_p_next.dot(d);
+                f.p_next = C->p_next + f.grad_p.dot(d);
             }
             else
                 throw unsupported_boundary_condition(p_BC);
@@ -231,7 +231,7 @@ static void calcInternalFacePrimitiveValue(Face& f)
         f.rho = f.c1->rho + f.c1->grad_rho.dot(f.r1);
 }
 
-void calc_face_primitive_var()
+void INTERP_Face_Primitive()
 {
     for (auto& f : face)
     {
@@ -249,7 +249,49 @@ void calc_face_primitive_var()
     }
 }
 
-void calc_face_viscous_shear_stress()
+void CALC_Cell_ViscousShearStress_next()
+{
+    for (auto &C : cell)
+    {
+        Stokes(C.viscosity, C.grad_U_next, C.tau_next);
+    }
+}
+
+void CALC_Face_ViscousShearStress_next()
+{
+    for (auto& f : face)
+    {
+        if (f.at_boundary)
+        {
+            auto c = f.c0 ? f.c0 : f.c1;
+            const Vector& n = f.c0 ? f.n01 : f.n10;
+            const Vector& r = f.c0 ? f.r0 : f.r1;
+
+            const auto BC = f.parent->BC;
+            if (BC == BC_PHY::Wall)
+            {
+                Vector dU = c->U_next - f.U;
+                dU -= dU.dot(n) * n;
+                const Vector tw = -f.viscosity / r.dot(n) * dU;
+                f.tau_next = tw * n.transpose();
+            }
+            else if (BC == BC_PHY::Symmetry)
+            {
+                Vector dU = c->U_next.dot(n) * n;
+                const Vector t_cz = -2.0 * f.viscosity * dU / r.norm();
+                f.tau_next = t_cz * n.transpose();
+            }
+            else if (BC == BC_PHY::Inlet || BC == BC_PHY::Outlet)
+                Stokes(f.viscosity, f.grad_U_next, f.tau_next);
+            else
+                throw unsupported_boundary_condition(BC);
+        }
+        else
+            Stokes(f.viscosity, f.grad_U_next, f.tau_next);
+    }
+}
+
+void CALC_Face_ViscousShearStress()
 {
     for (auto& f : face)
     {
