@@ -1,6 +1,6 @@
+#include <iostream>
 #include <cmath>
 #include <functional>
-#include "../inc/custom_type.h"
 #include "../inc/Diagnose.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;

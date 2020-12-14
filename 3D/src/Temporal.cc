@@ -5,7 +5,7 @@
 #include "../inc/CHEM.h"
 #include "../inc/Gradient.h"
 #include "../inc/Miscellaneous.h"
-#include "../inc/Discretization.h"
+#include "../inc/Temporal.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
 extern NaturalArray<Point> pnt;
@@ -18,36 +18,6 @@ extern SX_VEC Q_dp_2;
 extern SX_VEC x_dp_2;
 extern SX_AMG dp_solver_2;
 extern std::string SEP;
-
-void interp_nodal_primitive_var()
-{
-    for (int i = 1; i <= NumOfPnt; ++i)
-    {
-        auto &n_dst = pnt(i);
-
-        const auto &dc = n_dst.dependent_cell;
-        const auto &wf = n_dst.cell_weights;
-
-        const auto N = dc.size();
-        if (N != wf.size())
-            throw std::runtime_error("Inconsistency detected!");
-
-        n_dst.rho = ZERO_SCALAR;
-        n_dst.U = ZERO_VECTOR;
-        n_dst.p = ZERO_SCALAR;
-        n_dst.T = ZERO_SCALAR;
-        for (int j = 0; j < N; ++j)
-        {
-            const auto cwf = wf.at(j);
-            n_dst.rho += cwf * dc.at(j)->rho;
-            n_dst.U += cwf * dc.at(j)->U;
-            n_dst.p += cwf * dc.at(j)->p;
-            n_dst.T += cwf * dc.at(j)->T;
-        }
-    }
-
-    BC_Nodal();
-}
 
 static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
 {
@@ -151,11 +121,6 @@ void calc_face_viscous_shear_stress()
         else
             Stokes(f.viscosity, f.grad_U, f.tau);
     }
-}
-
-void prepare_first_run()
-{
-    /// TODO
 }
 
 static void step1(Scalar TimeStep)
