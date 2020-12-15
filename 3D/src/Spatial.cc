@@ -8,6 +8,57 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
+void INTERP_BoundaryFace_Velocity()
+{
+    for (auto &f : face)
+    {
+        if(f.at_boundary)
+        {
+            const auto U_BC = f.parent->U_BC;
+            if (U_BC == Neumann)
+            {
+                auto C = f.c0 ? f.c0 : f.c1;
+                const Vector &r = f.c0 ? f.r0 : f.r1;
+                f.U = C->U + r.transpose() * f.grad_U;
+            }
+        }
+    }
+}
+
+void INTERP_BoundaryFace_Pressure()
+{
+    for (auto &f : face)
+    {
+        if(f.at_boundary)
+        {
+            const auto p_BC = f.parent->p_BC;
+            if (p_BC == Neumann)
+            {
+                auto C = f.c0 ? f.c0 : f.c1;
+                const Vector &d = f.c0 ? f.r0 : f.r1;
+                f.p = C->p + f.grad_p.dot(d);
+            }
+        }
+    }
+}
+
+void INTERP_BoundaryFace_Temperature()
+{
+    for (auto& f : face)
+    {
+        if (f.at_boundary)
+        {
+            const auto T_BC = f.parent->T_BC;
+            if (T_BC == Neumann)
+            {
+                auto c = f.c0 ? f.c0 : f.c1;
+                const Vector &r = f.c0 ? f.r0 : f.r1;
+                f.T = c->T + f.grad_T.dot(r);
+            }
+        }
+    }
+}
+
 void INTERP_Face_Temperature_star()
 {
     for (auto& f : face)
@@ -100,7 +151,7 @@ void INTERP_Face_Velocity_next()
             {
                 auto C = f.c0 ? f.c0 : f.c1;
                 const Vector &r = f.c0 ? f.r0 : f.r1;
-                f.U_next = C->U_star + r.transpose() * f.grad_U;
+                f.U_next = C->U_next + r.transpose() * f.grad_U;
             }
             else
                 throw unsupported_boundary_condition(U_BC);
@@ -249,6 +300,14 @@ void INTERP_Face_Primitive()
     }
 }
 
+void CALC_Cell_ViscousShearStress()
+{
+    for (auto &C : cell)
+    {
+        Stokes(C.viscosity, C.grad_U, C.tau);
+    }
+}
+
 void CALC_Cell_ViscousShearStress_next()
 {
     for (auto &C : cell)
@@ -353,10 +412,4 @@ void INTERP_Node_Primitive()
     }
 
     BC_Nodal();
-}
-
-void prepare_first_run()
-{
-    BC_Primitive();
-
 }

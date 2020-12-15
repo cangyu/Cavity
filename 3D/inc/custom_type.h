@@ -145,17 +145,13 @@ struct Face
 
     /// (*)
     Scalar T_star;
-    Scalar h_star;
-    Scalar rho_star;
     Vector rhoU_star;
     Vector grad_p_prime, grad_p_prime_sn;
 
     /// (m-1)
-    Scalar rho_prev;
     Vector U_prev;
     Vector rhoU_prev;
     Scalar p_prev;
-    Scalar T_prev;
     Scalar h_prev;
     Vector grad_T_prev;
     Tensor tau_prev;

@@ -35,17 +35,14 @@ static void step1(Scalar TimeStep)
         c.rho_prev = c.rho + TimeStep / c.volume * (-convection_flux);
         c.U_prev = c.U;
         c.p_prev = c.p;
-        c.T_prev = c.T;
         c.tau_prev = c.tau;
         c.grad_U_prev = c.grad_U;
         c.grad_p_prev = c.grad_p;
     }
     for (auto &f : face)
     {
-        f.rho_prev = f.rho;
         f.U_prev = f.U;
         f.p_prev = f.p;
-        f.T_prev = f.T;
         f.h_prev = f.h;
         f.rhoU_prev = f.rhoU;
         f.grad_T_prev = f.grad_T;
@@ -86,12 +83,6 @@ static void step2(Scalar TimeStep)
     /// Interpolation from cell to face & Apply B.C. for T_star
     GRAD_Cell_Temperature_star();
     INTERP_Face_Temperature_star();
-
-    /// Consistency for h_star
-    for(auto &f : face)
-    {
-        f.h_star = f.specific_heat_p * f.T_star;
-    }
 }
 
 static void step3()
