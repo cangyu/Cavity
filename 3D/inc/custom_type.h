@@ -173,7 +173,6 @@ struct Face
     Scalar rhoh_next;
 
     /// B.C. only
-    Scalar sn_grad_rho = ZERO_SCALAR;
     Vector sn_grad_U = ZERO_VECTOR;
     Scalar sn_grad_p = ZERO_SCALAR;
     Scalar sn_grad_T = ZERO_SCALAR;

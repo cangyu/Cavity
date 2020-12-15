@@ -58,7 +58,7 @@ void BC_TABLE()
     }
 }
 
-static const Vector U_UP = { 1.0, 0.0, 0.0 }; // m/s
+static const Vector U_UP(1.0, 0.0, 0.0 ); // m/s
 static const Scalar T_DOWN = 300.0, T_UP = 1500.0; // K
 
 /**

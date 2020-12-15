@@ -51,6 +51,14 @@ static void step1(Scalar TimeStep)
         f.grad_T_prev = f.grad_T;
         f.tau_prev = f.tau;
     }
+
+    /// Update physical properties at centroid of each cell.
+    for (auto& c : cell)
+    {
+        /// Dynamic viscosity
+        // c.mu = Sutherland(c.T);
+        c.viscosity = c.rho / Re;
+    }
 }
 
 static void step2(Scalar TimeStep)
@@ -247,14 +255,6 @@ static void step7(Scalar TimeStep)
 
 static void step8()
 {
-    /// Update physical properties at centroid of each cell.
-    for (auto& c : cell)
-    {
-        /// Dynamic viscosity
-        // c.mu = Sutherland(c.T);
-        c.viscosity = c.rho / Re;
-    }
-
     /// Enforce boundary conditions for primitive variables.
     BC_Primitive();
 
@@ -276,7 +276,7 @@ static void step8()
     }
 
     /// Viscous shear stress on each face.
-    calc_face_viscous_shear_stress();
+    CALC_Face_ViscousShearStress();
 
     /// rhoU on boundary
     for (const auto &e : patch)

@@ -5,8 +5,10 @@ void prepare_lsq();
 void prepare_gg();
 void prepare_TeC_operator();
 
-void calc_cell_primitive_gradient();
-void calc_face_primitive_gradient();
+void GRAD_Cell_Density();
+void GRAD_Cell_Velocity();
+void GRAD_Cell_Pressure();
+void GRAD_Cell_Temperature();
 
 void GRAD_Cell_Temperature_star();
 void GRAD_Cell_Temperature_next();

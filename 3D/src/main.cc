@@ -73,9 +73,6 @@ int solve()
     std::cout << "\nStarting calculation ... " << std::endl;
     while (!done)
     {
-        if(iter == 0)
-            prepare_first_run();
-
         std::cout << "\nIter" << ++iter << ":" << std::endl;
         if (!use_fixed_dt)
             dt = calcTimeStep();
@@ -167,7 +164,7 @@ void init()
     {
         std::cout << "\nSetting I.C. ... ";
         tick_begin = clock();
-        IC();
+        IC_Zero();
         tick_end = clock();
         std::cout << duration(tick_begin, tick_end) << "s" << std::endl;
 
@@ -183,15 +180,12 @@ void init()
     else
     {
         std::cout << "\nSetting I.C. from \"" + DATA_PATH + "\" ... ";
-        std::ifstream dts(DATA_PATH);
-        if(dts.fail())
-            throw failed_to_open_file(DATA_PATH);
         tick_begin = clock();
-        read_data(dts, iter, t);
+        IC_File(DATA_PATH, iter, t);
         tick_end = clock();
         std::cout << duration(tick_begin, tick_end) << "s" << std::endl;
-        dts.close();
     }
+
     std::cout << "Done!" << std::endl;
 }
 

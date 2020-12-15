@@ -1,5 +1,8 @@
-#include "../inc/custom_type.h"
+#include <fstream>
 #include "../inc/Spatial.h"
+#include "../inc/CHEM.h"
+#include "../inc/IO.h"
+#include "../inc/BC.h"
 #include "../inc/IC.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
@@ -8,44 +11,48 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
-static const Scalar rho0 = 1.225; /// kg/m^3
-static const Scalar P0 = 0.0; /// Pa
-static const Scalar T0 = 300.0; /// K
-
-/**
- * Initial conditions on all cells.
- */
-void IC()
+void IC_Zero()
 {
-    /// Cell
-    for (auto &c_dst : cell)
-    {
-        /// Primitive variables
-        c_dst.rho = rho0;
-        c_dst.U = ZERO_VECTOR;
-        c_dst.p = P0;
-        c_dst.T = T0;
+    const Scalar P0 = 101325.0; /// Pa
+    const Scalar T0 = 300.0; /// K
+    const Scalar rho0 = EOS(P0, T0); /// kg/m^3
 
-        /// Conservative variables
-        c_dst.rhoU = ZERO_VECTOR;
+    /// Cell
+    for (auto &C : cell)
+    {
+        C.U.setZero();
+        C.p = P0;
+        C.T = T0;
+        C.rho = rho0;
     }
 
-    /// Internal Face
+    /// Face(Internal)
     for(auto &f : face)
     {
         if(!f.at_boundary)
         {
-            /// Primitive variables
-            f.rho = rho0;
-            f.U = ZERO_VECTOR;
+            f.U.setZero();
             f.p = P0;
             f.T = T0;
-
-            /// Conservative variables
-            f.rhoU = ZERO_VECTOR;
+            f.rho = rho0;
         }
     }
 
+    BC_Primitive();
+
+
+
     /// Node
     INTERP_Node_Primitive();
+}
+
+void IC_File(const std::string &DATA_PATH, int &iter, Scalar &t)
+{
+    std::ifstream dts(DATA_PATH);
+    if(dts.fail())
+        throw failed_to_open_file(DATA_PATH);
+    read_data(dts, iter, t);
+    dts.close();
+
+    BC_Primitive();
 }

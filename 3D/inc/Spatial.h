@@ -12,7 +12,7 @@ void INTERP_Face_snGrad_PressureCorrection();
 void RECONST_Cell_Grad_PressureCorrection();
 void CALC_Cell_ViscousShearStress_next();
 void CALC_Face_ViscousShearStress_next();
+void CALC_Face_ViscousShearStress();
 void INTERP_Node_Primitive();
-void prepare_first_run();
 
 #endif

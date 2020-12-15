@@ -380,7 +380,6 @@ void read_data(std::istream &in, int &iter, Scalar &t)
         in >> e.U.x() >> e.U.y() >> e.U.z();
         in >> e.p;
         in >> e.T;
-        e.rhoU = e.rho * e.U;
     }
 
     for(auto &e : cell)
@@ -389,6 +388,5 @@ void read_data(std::istream &in, int &iter, Scalar &t)
         in >> e.U.x() >> e.U.y() >> e.U.z();
         in >> e.p;
         in >> e.T;
-        e.rhoU = e.rho * e.U;
     }
 }

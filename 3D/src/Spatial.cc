@@ -357,5 +357,6 @@ void INTERP_Node_Primitive()
 
 void prepare_first_run()
 {
-    /// TODO
+    BC_Primitive();
+
 }
