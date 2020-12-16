@@ -13,12 +13,9 @@ typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> MatXX;
 
 /// Coefficient matrix used by the least-square method
 static std::vector<Mat3X> J_INV_rho;
-static std::vector<Mat3X> J_INV_u;
-static std::vector<Mat3X> J_INV_v;
-static std::vector<Mat3X> J_INV_w;
+static std::vector<Mat3X> J_INV_U;
 static std::vector<Mat3X> J_INV_p;
 static std::vector<Mat3X> J_INV_T;
-static std::vector<Mat3X> J_INV_p_prime;
 
 /**
  * Convert Eigen's intrinsic QR decomposition matrix into R^-1 * Q^T
@@ -43,28 +40,21 @@ static void qr_inv(const MatX3 &J, Mat3X &J_INV)
 void prepare_lsq()
 {
     MatX3 J_rho;
-    std::array<MatX3, 3> J_U;
-    MatX3 J_p, J_p_prime;
+    MatX3 J_U;
+    MatX3 J_p;
     MatX3 J_T;
 
     J_INV_rho.resize(NumOfCell);
-    J_INV_u.resize(NumOfCell);
-    J_INV_v.resize(NumOfCell);
-    J_INV_w.resize(NumOfCell);
+    J_INV_U.resize(NumOfCell);
     J_INV_p.resize(NumOfCell);
     J_INV_T.resize(NumOfCell);
-    J_INV_p_prime.resize(NumOfCell);
 
     for (auto &c : cell)
     {
         const auto nF = c.surface.size();
-
         J_rho.resize(nF, Eigen::NoChange);
-        J_U[0].resize(nF, Eigen::NoChange);
-        J_U[1].resize(nF, Eigen::NoChange);
-        J_U[2].resize(nF, Eigen::NoChange);
+        J_U.resize(nF, Eigen::NoChange);
         J_p.resize(nF, Eigen::NoChange);
-        J_p_prime.resize(nF, Eigen::NoChange);
         J_T.resize(nF, Eigen::NoChange);
 
         for (int j = 0; j < nF; ++j)
@@ -81,67 +71,32 @@ void prepare_lsq()
                 /// Density
                 J_rho.row(j) << w * d.x(), w * d.y(), w * d.z();
 
-                /// Velocity-X
+                /// Velocity
                 const auto U_BC = curFace->parent->U_BC;
                 if (U_BC == Dirichlet)
-                {
-                    J_U[0].row(j) << w * d.x(), w * d.y(), w * d.z();
-                    J_U[1].row(j) << w * d.x(), w * d.y(), w * d.z();
-                    J_U[2].row(j) << w * d.x(), w * d.y(), w * d.z();
-                }
+                    J_U.row(j) << w * d.x(), w * d.y(), w * d.z();
                 else if (U_BC == Neumann)
-                {
-                    J_U[0].row(j) << n.x(), n.y(), n.z();
-                    J_U[1].row(j) << n.x(), n.y(), n.z();
-                    J_U[2].row(j) << n.x(), n.y(), n.z();
-                }
+                    J_U.row(j) << n.x(), n.y(), n.z();
                 else
                     throw unsupported_boundary_condition(U_BC);
 
                 /// Pressure
-                switch (curFace->parent->p_BC)
-                {
-                case Dirichlet:
+                const auto p_BC = curFace->parent->p_BC;
+                if (p_BC == Dirichlet)
                     J_p.row(j) << w * d.x(), w * d.y(), w * d.z();
-                    break;
-                case Neumann:
+                else if (p_BC == Neumann)
                     J_p.row(j) << n.x(), n.y(), n.z();
-                    break;
-                case Robin:
-                    throw robin_bc_is_not_supported();
-                default:
-                    break;
-                }
-
-                /// Pressure-Correction
-                switch (curFace->parent->p_BC)
-                {
-                case Dirichlet:
-                    J_p_prime.row(j) << w * d.x(), w * d.y(), w * d.z();
-                    break;
-                case Neumann:
-                    J_p_prime.row(j) << n.x(), n.y(), n.z();
-                    break;
-                case Robin:
-                    throw robin_bc_is_not_supported();
-                default:
-                    break;
-                }
+                else
+                    throw unsupported_boundary_condition(p_BC);
 
                 /// Temperature
-                switch (curFace->parent->T_BC)
-                {
-                case Dirichlet:
+                const auto T_BC = curFace->parent->T_BC;
+                if (T_BC == Dirichlet)
                     J_T.row(j) << w * d.x(), w * d.y(), w * d.z();
-                    break;
-                case Neumann:
+                else if (T_BC == Neumann)
                     J_T.row(j) << n.x(), n.y(), n.z();
-                    break;
-                case Robin:
-                    throw robin_bc_is_not_supported();
-                default:
-                    break;
-                }
+                else
+                    throw unsupported_boundary_condition(T_BC);
             }
             else
             {
@@ -153,20 +108,11 @@ void prepare_lsq()
                 /// Density
                 J_rho.row(j) << w * d.x(), w * d.y(), w * d.z();
 
-                /// Velocity-X
-                J_U[0].row(j) << w * d.x(), w * d.y(), w * d.z();
-
-                /// Velocity-Y
-                J_U[1].row(j) << w * d.x(), w * d.y(), w * d.z();
-
-                /// Velocity-Z
-                J_U[2].row(j) << w * d.x(), w * d.y(), w * d.z();
+                /// Velocity
+                J_U.row(j) << w * d.x(), w * d.y(), w * d.z();
 
                 /// Pressure
                 J_p.row(j) << w * d.x(), w * d.y(), w * d.z();
-
-                /// Pressure-Correction
-                J_p_prime.row(j) << w * d.x(), w * d.y(), w * d.z();
 
                 /// Temperature
                 J_T.row(j) << w * d.x(), w * d.y(), w * d.z();
@@ -176,23 +122,14 @@ void prepare_lsq()
         /// Density
         qr_inv(J_rho, J_INV_rho.at(c.index - 1));
 
-        /// Velocity-X
-        qr_inv(J_U[0], J_INV_u.at(c.index - 1));
-
-        /// Velocity-Y
-        qr_inv(J_U[1], J_INV_v.at(c.index - 1));
-
-        /// Velocity-Z
-        qr_inv(J_U[2], J_INV_w.at(c.index - 1));
+        /// Velocity
+        qr_inv(J_U, J_INV_U.at(c.index - 1));
 
         /// Pressure
         qr_inv(J_p, J_INV_p.at(c.index - 1));
 
         /// Temperature
         qr_inv(J_T, J_INV_T.at(c.index - 1));
-
-        /// Pressure-Correction
-        qr_inv(J_p_prime, J_INV_p_prime.at(c.index - 1));
     }
 }
 
@@ -297,9 +234,9 @@ void GRAD_Cell_Velocity()
                 dw(i) = w * (F->U.z() - C.U.z());
             }
         }
-        C.grad_U.col(0) = J_INV_u.at(C.index - 1) * du;
-        C.grad_U.col(1) = J_INV_v.at(C.index - 1) * dv;
-        C.grad_U.col(2) = J_INV_w.at(C.index - 1) * dw;
+        C.grad_U.col(0) = J_INV_U.at(C.index - 1) * du;
+        C.grad_U.col(1) = J_INV_U.at(C.index - 1) * dv;
+        C.grad_U.col(2) = J_INV_U.at(C.index - 1) * dw;
     }
 }
 
@@ -606,7 +543,7 @@ Scalar GRAD_Cell_PressureCorrection()
             }
         }
         const Vector old_gpp = c.grad_p_prime;
-        c.grad_p_prime = J_INV_p_prime.at(c.index - 1) * delta_phi;
+        c.grad_p_prime = J_INV_p.at(c.index - 1) * delta_phi;
         error += (c.grad_p_prime - old_gpp).norm();
     }
     error /= NumOfCell;
@@ -679,9 +616,9 @@ void GRAD_Cell_Velocity_next()
                 dw(i) = w * (F->U_next.z() - C.U_next.z());
             }
         }
-        C.grad_U_next.col(0) = J_INV_u.at(C.index - 1) * du;
-        C.grad_U_next.col(1) = J_INV_v.at(C.index - 1) * dv;
-        C.grad_U_next.col(2) = J_INV_w.at(C.index - 1) * dw;
+        C.grad_U_next.col(0) = J_INV_U.at(C.index - 1) * du;
+        C.grad_U_next.col(1) = J_INV_U.at(C.index - 1) * dv;
+        C.grad_U_next.col(2) = J_INV_U.at(C.index - 1) * dw;
     }
 }
 
