@@ -13,7 +13,6 @@ extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
-extern Scalar Re;
 extern SX_MAT A_dp_2;
 extern SX_VEC Q_dp_2;
 extern SX_VEC x_dp_2;
@@ -50,12 +49,7 @@ static void step1(Scalar TimeStep)
     }
 
     /// Update physical properties at centroid of each cell.
-    for (auto& c : cell)
-    {
-        /// Dynamic viscosity
-        // c.mu = Sutherland(c.T);
-        c.viscosity = c.rho / Re;
-    }
+
 }
 
 static void step2(Scalar TimeStep)

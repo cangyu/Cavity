@@ -211,6 +211,7 @@ struct Cell
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
     Scalar T = ZERO_SCALAR;
+    Scalar h = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
     Scalar rhoh = ZERO_SCALAR;
     Tensor tau = ZERO_TENSOR;

@@ -1,6 +1,13 @@
 #include <cmath>
 #include "../inc/CHEM.h"
 
+extern int NumOfPnt, NumOfFace, NumOfCell;
+extern NaturalArray<Point> pnt;
+extern NaturalArray<Face> face;
+extern NaturalArray<Cell> cell;
+extern NaturalArray<Patch> patch;
+extern Scalar Re;
+
 /**
  * Dynamic viscosity of ideal gas.
  * @param T Temperature in Kelvin.
@@ -33,23 +40,65 @@ void Stokes(Scalar mu, const Tensor &grad_U, Tensor &tau)
 static const Scalar GAMMA = 1.4;
 static const Scalar Pr = 0.72;
 static const Scalar Rg = 287.7; // J / (Kg * K)
+static const Scalar Cp = 3.5 * Rg;
+static const Scalar Cv = Cp / GAMMA;
 
 Scalar EOS(Scalar p, Scalar T)
 {
     return p / (Rg * T);
 }
 
-Scalar Cp()
+Scalar Enthalpy(Scalar SH_CP, Scalar T)
 {
-    return 3.5 * Rg;
+    return SH_CP * T;
 }
 
-Scalar Cv()
+void CALC_Cell_Viscosity()
 {
-    return Cp() / GAMMA;
+    for (auto& C : cell)
+    {
+        C.viscosity = C.rho / Re;
+    }
 }
 
-Scalar Conductivity(Scalar specific_heat_p, Scalar viscosity)
+void CALC_Face_Viscosity()
 {
-    return specific_heat_p * viscosity / Pr;
+    for (auto& f : face)
+    {
+        f.viscosity = f.rho / Re;
+    }
+}
+
+void CALC_Cell_Conductivity()
+{
+    for (auto& C : cell)
+    {
+        C.conductivity = C.specific_heat_p * C.viscosity / Pr;
+    }
+}
+
+void CALC_Face_Conductivity()
+{
+    for (auto& f : face)
+    {
+        f.conductivity = f.specific_heat_p * f.viscosity / Pr;
+    }
+}
+
+void CALC_Cell_SpecificHeat()
+{
+    for (auto &C : cell)
+    {
+        C.specific_heat_p = Cp;
+        C.specific_heat_v = Cv;
+    }
+}
+
+void CALC_Face_SpecificHeat()
+{
+    for (auto &f : face)
+    {
+        f.specific_heat_p = Cp;
+        f.specific_heat_v = Cv;
+    }
 }

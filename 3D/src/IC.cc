@@ -12,24 +12,20 @@ extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
 
-/// TODO gradient on face
-
 void IC_Zero()
 {
     const Scalar P0 = 101325.0; /// Pa
     const Scalar T0 = 300.0; /// K
-    const Scalar rho0 = EOS(P0, T0); /// kg/m^3
 
-    /// {$\rho$, $\vec{U}$, $p$, $T$} @(n), Cell
+    /// {$\vec{U}$, $p$, $T$} @(n), Cell
     for (auto &C : cell)
     {
         C.U.setZero();
         C.p = P0;
         C.T = T0;
-        C.rho = rho0;
     }
 
-    /// {$\rho$, $\vec{U}$, $p$, $T$} @(n), Face(Internal)
+    /// {$\vec{U}$, $p$, $T$} @(n), Face(Internal)
     for(auto &f : face)
     {
         if(!f.at_boundary)
@@ -37,39 +33,67 @@ void IC_Zero()
             f.U.setZero();
             f.p = P0;
             f.T = T0;
-            f.rho = rho0;
         }
     }
 
-    /// Enforce B.C. for {$\vec{U}$, $p$, $T$} @(n)
+    /// Enforce B.C. for {$\vec{U}$, $p$, $T$} @(n), Face(Boundary)
     BC_Primitive();
 
-    /// {$\nabla \rho$, $\nabla \vec{U}$, $\nabla p$, $\nabla T$} @(n), Cell
-    GRAD_Cell_Density();
+    /// {$\nabla \vec{U}$, $\nabla p$, $\nabla T$} @(n), Cell & Face(Boundary+Internal)
     GRAD_Cell_Velocity();
     GRAD_Cell_Pressure();
     GRAD_Cell_Temperature();
+    GRAD_Face_Velocity();
+    GRAD_Face_Pressure();
+    GRAD_Face_Temperature();
 
     /// {$\vec{U}$, $p$, $T$} @(n), Face(Boundary)
     INTERP_BoundaryFace_Velocity();
     INTERP_BoundaryFace_Pressure();
     INTERP_BoundaryFace_Temperature();
 
-    /// {$\rho$} @(n), Face(Boundary)
+    /// {$\rho$} @(n), Cell & Face(Boundary+Internal)
+    for (auto &C : cell)
+    {
+        C.rho = EOS(C.p, C.T);
+    }
     for (auto &f : face)
     {
-        if(f.at_boundary)
-        {
-            f.rho = EOS(f.p, f.T);
-        }
+        f.rho = EOS(f.p, f.T);
     }
+
+    /// {$\nabla \rho$} @(n), Cell & Face(Boundary+Internal)
+    GRAD_Cell_Density();
+    GRAD_Face_Density();
 
     /// {$\rho$, $\vec{U}$, $p$, $T$} @(n), Node
     INTERP_Node_Primitive();
 
-    /// {$\tau$} @(n), Cell, Face(Boundary+Internal)
+    /// Property
+    CALC_Cell_Viscosity();
+    CALC_Cell_Conductivity();
+    CALC_Cell_SpecificHeat();
+    CALC_Face_Viscosity();
+    CALC_Face_Conductivity();
+    CALC_Face_SpecificHeat();
+
+    /// {$\tau$} @(n), Cell & Face(Boundary+Internal)
     CALC_Cell_ViscousShearStress();
     CALC_Face_ViscousShearStress();
+
+    /// {$h$, $\rho h$, $\rho \vec{U}$} @(n), Cell & Face(Boundary+Internal)
+    for (auto &C : cell)
+    {
+        C.h = Enthalpy(C.specific_heat_p, C.T);
+        C.rhoh = C.rho * C.h;
+        C.rhoU = C.rho * C.U;
+    }
+    for (auto &f : face)
+    {
+        f.h = Enthalpy(f.specific_heat_p, f.T);
+        f.rhoh = f.rho * f.h;
+        f.rhoU = f.rho * f.U;
+    }
 }
 
 void IC_File(const std::string &DATA_PATH, int &iter, Scalar &t)
@@ -81,29 +105,39 @@ void IC_File(const std::string &DATA_PATH, int &iter, Scalar &t)
     read_data(dts, iter, t);
     dts.close();
 
-    BC_Primitive();
-
-    /// {$\nabla \rho$, $\nabla \vec{U}$, $\nabla p$, $\nabla T$} @(n), Cell
+    /// {$\nabla \rho$, $\nabla \vec{U}$, $\nabla p$, $\nabla T$} @(n), Cell & Face(Boundary+Internal)
     GRAD_Cell_Density();
     GRAD_Cell_Velocity();
     GRAD_Cell_Pressure();
     GRAD_Cell_Temperature();
+    GRAD_Face_Density();
+    GRAD_Face_Velocity();
+    GRAD_Face_Pressure();
+    GRAD_Face_Temperature();
 
-    /// {$\vec{U}$, $p$, $T$} @(n), Face(Boundary)
-    INTERP_BoundaryFace_Velocity();
-    INTERP_BoundaryFace_Pressure();
-    INTERP_BoundaryFace_Temperature();
+    /// Property
+    CALC_Cell_Viscosity();
+    CALC_Cell_Conductivity();
+    CALC_Cell_SpecificHeat();
+    CALC_Face_Viscosity();
+    CALC_Face_Conductivity();
+    CALC_Face_SpecificHeat();
 
-    /// {$\rho$} @(n), Face(Boundary)
-    for (auto &f : face)
-    {
-        if(f.at_boundary)
-        {
-            f.rho = EOS(f.p, f.T);
-        }
-    }
-
-    /// {$\tau$} @(n), Cell, Face(Boundary+Internal)
+    /// {$\tau$} @(n), Cell & Face(Boundary+Internal)
     CALC_Cell_ViscousShearStress();
     CALC_Face_ViscousShearStress();
+
+    /// {$h$, $\rho h$, $\rho \vec{U}$} @(n), Cell & Face(Boundary+Internal)
+    for (auto &C : cell)
+    {
+        C.h = Enthalpy(C.specific_heat_p, C.T);
+        C.rhoh = C.rho * C.h;
+        C.rhoU = C.rho * C.U;
+    }
+    for (auto &f : face)
+    {
+        f.h = Enthalpy(f.specific_heat_p, f.T);
+        f.rhoh = f.rho * f.h;
+        f.rhoU = f.rho * f.U;
+    }
 }

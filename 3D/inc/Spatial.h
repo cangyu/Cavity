@@ -5,16 +5,16 @@
 
 /* Node */
 /// @(n)
+void INTERP_Node_Velocity();
+void INTERP_Node_Pressure();
+void INTERP_Node_Temperature();
 void INTERP_Node_Primitive();
 
-/* Face(Boundary) */
+/* Face */
 /// @(n)
 void INTERP_BoundaryFace_Velocity();
 void INTERP_BoundaryFace_Pressure();
 void INTERP_BoundaryFace_Temperature();
-
-/* Face(Boundary+Internal) */
-/// @(n)
 void CALC_Face_ViscousShearStress();
 
 /// @(*)

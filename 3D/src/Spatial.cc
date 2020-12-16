@@ -384,32 +384,69 @@ void CALC_Face_ViscousShearStress()
     }
 }
 
+void INTERP_Node_Velocity()
+{
+    for (auto &v : pnt)
+    {
+        v.U.setZero();
+        const size_t N = v.dependent_cell.size();
+        for (size_t j = 0; j < N; ++j)
+        {
+            const auto w = v.cell_weights.at(j);
+            v.U += w * v.dependent_cell.at(j)->U;
+        }
+    }
+}
+
+void INTERP_Node_Pressure()
+{
+    for (auto &v : pnt)
+    {
+        v.p = 0.0;
+        const size_t N = v.dependent_cell.size();
+        for (size_t j = 0; j < N; ++j)
+        {
+            const auto w = v.cell_weights.at(j);
+            v.p += w * v.dependent_cell.at(j)->p;
+        }
+    }
+}
+
+void INTERP_Node_Temperature()
+{
+    for (auto &v : pnt)
+    {
+        v.T = 0.0;
+        const size_t N = v.dependent_cell.size();
+        for (size_t j = 0; j < N; ++j)
+        {
+            const auto w = v.cell_weights.at(j);
+            v.T += w * v.dependent_cell.at(j)->T;
+        }
+    }
+}
+
 void INTERP_Node_Primitive()
 {
-    for (int i = 1; i <= NumOfPnt; ++i)
+    for (auto &v : pnt)
     {
-        auto &n_dst = pnt(i);
-
-        const auto &dc = n_dst.dependent_cell;
-        const auto &wf = n_dst.cell_weights;
-
-        const auto N = dc.size();
-        if (N != wf.size())
-            throw std::runtime_error("Inconsistency detected!");
-
-        n_dst.rho = ZERO_SCALAR;
-        n_dst.U = ZERO_VECTOR;
-        n_dst.p = ZERO_SCALAR;
-        n_dst.T = ZERO_SCALAR;
-        for (int j = 0; j < N; ++j)
+        v.U.setZero();
+        v.p = 0.0;
+        v.T = 0.0;
+        const size_t N = v.dependent_cell.size();
+        for (size_t j = 0; j < N; ++j)
         {
-            const auto cwf = wf.at(j);
-            n_dst.rho += cwf * dc.at(j)->rho;
-            n_dst.U += cwf * dc.at(j)->U;
-            n_dst.p += cwf * dc.at(j)->p;
-            n_dst.T += cwf * dc.at(j)->T;
+            const auto w = v.cell_weights.at(j);
+            v.U += w * v.dependent_cell.at(j)->U;
+            v.p += w * v.dependent_cell.at(j)->p;
+            v.T += w * v.dependent_cell.at(j)->T;
         }
     }
 
     BC_Nodal();
+
+    for (auto &v : pnt)
+    {
+        v.rho = EOS(v.p, v.T);
+    }
 }
