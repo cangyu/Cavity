@@ -94,7 +94,6 @@ struct Point
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
-    Scalar T = ZERO_SCALAR;
 };
 struct Face
 {
@@ -125,39 +124,27 @@ struct Face
     /// Possible connection to high-level
     Patch *parent = nullptr;
 
-    /// Physical properties
+    /// @(n)
     Scalar mu = ZERO_SCALAR;
-
-    /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
-    Scalar T = ZERO_SCALAR;
-    Tensor tau = ZERO_TENSOR;
     Vector rhoU = ZERO_VECTOR;
-
-    /// Gradient of physical variables
-    Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
-    Vector grad_T = ZERO_VECTOR;
+    Tensor tau = ZERO_TENSOR;
+
+    /// @(*)
+    Vector rhoU_star = ZERO_VECTOR;
+    Scalar p_prime = ZERO_SCALAR;
+    Vector grad_p_prime_sn = ZERO_VECTOR;
+    Vector grad_p_prime = ZERO_VECTOR;
 
     /// Gradient of physical variables
     /// in surface outward normal direction
     /// Only used on boundary faces
-    Scalar sn_grad_rho = ZERO_SCALAR;
     Vector sn_grad_U = ZERO_VECTOR;
     Scalar sn_grad_p = ZERO_SCALAR;
-    Scalar sn_grad_T = ZERO_SCALAR;
-
-    /// Fractional-Step Method
-    Vector rhoU_star = ZERO_VECTOR;
-
-    /// Pressure-Correction
-    Scalar p_prime = ZERO_SCALAR;
-    Scalar sn_grad_p_prime = ZERO_SCALAR;
-    Vector grad_p_prime_sn = ZERO_VECTOR;
-    Vector grad_p_prime = ZERO_VECTOR;
 };
 struct Cell
 {
@@ -186,28 +173,19 @@ struct Cell
     /// Surface vectors related to non-orthogonality
     /// Follow the order in "S"
     NaturalArray<Vector> Se;
-    NaturalArray<Vector> St;
+    NaturalArray<Vector> St;  
 
-    /// Physical properties
+    /// @(n)
     Scalar mu = ZERO_SCALAR;
-
-    /// Physical variables
     Scalar rho = ZERO_SCALAR;
     Vector U = ZERO_VECTOR;
     Scalar p = ZERO_SCALAR;
-    Scalar T = ZERO_SCALAR;
     Vector rhoU = ZERO_VECTOR;
-
-    /// Gradient of physical variables
-    Vector grad_rho = ZERO_VECTOR;
     Tensor grad_U = ZERO_TENSOR;
     Vector grad_p = ZERO_VECTOR;
-    Vector grad_T = ZERO_VECTOR;
 
-    /// Used by the Fractional-Step Method
+    /// @(*)
     Vector rhoU_star = ZERO_VECTOR;
-
-    /// Used by pressure-correction
     Scalar p_prime = ZERO_SCALAR;
     Vector grad_p_prime = ZERO_VECTOR;
     Tensor grad_p_prime_rm = ZERO_TENSOR; /// Reconstruction matrix
@@ -225,10 +203,8 @@ struct Patch
     BC_PHY BC;
 
     /// B.C. specification for each variable
-    BC_CATEGORY rho_BC;
-    std::array<BC_CATEGORY, 3> U_BC;
-    BC_CATEGORY p_BC, p_prime_BC;
-    BC_CATEGORY T_BC;
+    BC_CATEGORY U_BC;
+    BC_CATEGORY p_BC;
 };
 
 /********************************************** Errors and Exceptions *************************************************/

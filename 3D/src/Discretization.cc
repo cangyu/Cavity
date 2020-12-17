@@ -23,22 +23,8 @@ static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
 {
     auto p = f.parent;
 
-    /// density
-    switch (p->rho_BC)
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
-        f.rho = c->rho + f.grad_rho.dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
-
     /// velocity-x
-    switch (p->U_BC[0])
+    switch (p->U_BC)
     {
     case Dirichlet:
         break;
@@ -52,7 +38,7 @@ static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
     }
 
     /// velocity-y
-    switch (p->U_BC[1])
+    switch (p->U_BC)
     {
     case Dirichlet:
         break;
@@ -66,7 +52,7 @@ static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
     }
 
     /// velocity-z
-    switch (p->U_BC[2])
+    switch (p->U_BC)
     {
     case Dirichlet:
         break;
@@ -92,20 +78,6 @@ static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
     default:
         break;
     }
-
-    /// temperature
-    switch (p->T_BC)
-    {
-    case Dirichlet:
-        break;
-    case Neumann:
-        f.T = c->T + f.grad_T.dot(d);
-        break;
-    case Robin:
-        throw robin_bc_is_not_supported();
-    default:
-        break;
-    }
 }
 
 static void calcInternalFacePrimitiveValue(Face& f)
@@ -114,11 +86,6 @@ static void calcInternalFacePrimitiveValue(Face& f)
     const Scalar p_0 = f.c0->p + f.c0->grad_p.dot(f.r0);
     const Scalar p_1 = f.c1->p + f.c1->grad_p.dot(f.r1);
     f.p = 0.5 * (p_0 + p_1);
-
-    /// temperature
-    const Scalar T_0 = f.c0->T + f.c0->grad_T.dot(f.r0);
-    const Scalar T_1 = f.c1->T + f.c1->grad_T.dot(f.r1);
-    f.T = f.ksi0 * T_0 + f.ksi1 * T_1;
 
     /// velocity
     if (f.rhoU.dot(f.n01) > 0)
@@ -135,12 +102,6 @@ static void calcInternalFacePrimitiveValue(Face& f)
         const Scalar w_1 = f.c1->U.z() + f.c1->grad_U.col(2).dot(f.r1);
         f.U = { u_1, v_1, w_1 };
     }
-
-    /// density
-    if (f.rhoU.dot(f.n01) > 0)
-        f.rho = f.c0->rho + f.c0->grad_rho.dot(f.r0);
-    else
-        f.rho = f.c1->rho + f.c1->grad_rho.dot(f.r1);
 }
 
 void calc_face_primitive_var()
@@ -229,8 +190,6 @@ void reconstruction()
     calc_face_viscous_shear_stress();
 
     set_bc_of_conservative_var();
-
-    set_bc_of_pressure_correction();
 }
 
 static int ppe(Scalar TimeStep)

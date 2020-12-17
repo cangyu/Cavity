@@ -44,7 +44,7 @@ static void gen_coef_triplets(std::list<Eigen::Triplet<Scalar>> &coef)
 
             if (curFace->at_boundary) /// Boundary Case.
             {
-                switch (curFace->parent->p_prime_BC)
+                switch (curFace->parent->p_BC)
                 {
                 case Dirichlet:
                     cur_coef[C.index] +=E_f.norm() / (curFace->centroid - C.centroid).norm() ; /// When p is given on boundary, p' is 0-value there.
@@ -120,7 +120,7 @@ void calcPressureCorrectionEquationRHS
             /// Additional contribution due to cross-diffusion
             if(curFace->at_boundary)
             {
-                if(curFace->parent->p_prime_BC == Dirichlet)
+                if(curFace->parent->p_BC == Dirichlet)
                     cur_rhs += curFace->grad_p_prime.dot(T_f);
             }
             else

@@ -331,12 +331,13 @@ void write_data(std::ostream &out, int iter, Scalar t)
     out << iter << SEP << t << std::endl;
     out << NumOfPnt << SEP << NumOfFace << SEP << NumOfCell << std::endl;
 
+    const Scalar T0 = 300.0;
     for(const auto &e : pnt)
     {
         out << e.rho << SEP;
         out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
         out << e.p << SEP;
-        out << e.T << std::endl;
+        out << T0 << std::endl;
     }
 
     for(const auto &e : face)
@@ -344,7 +345,7 @@ void write_data(std::ostream &out, int iter, Scalar t)
         out << e.rho << SEP;
         out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
         out << e.p << SEP;
-        out << e.T << std::endl;
+        out << T0 << std::endl;
     }
 
     for(const auto &e : cell)
@@ -352,7 +353,7 @@ void write_data(std::ostream &out, int iter, Scalar t)
         out << e.rho << SEP;
         out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
         out << e.p << SEP;
-        out << e.T << std::endl;
+        out << T0 << std::endl;
     }
 }
 
@@ -371,7 +372,8 @@ void read_data(std::istream &in, int &iter, Scalar &t)
         in >> e.rho;
         in >> e.U.x() >> e.U.y() >> e.U.z();
         in >> e.p;
-        in >> e.T;
+        Scalar T;
+        in >> T;
     }
 
     for(auto &e : face)
@@ -379,7 +381,8 @@ void read_data(std::istream &in, int &iter, Scalar &t)
         in >> e.rho;
         in >> e.U.x() >> e.U.y() >> e.U.z();
         in >> e.p;
-        in >> e.T;
+        Scalar T;
+        in >> T;
         e.rhoU = e.rho * e.U;
     }
 
@@ -388,7 +391,8 @@ void read_data(std::istream &in, int &iter, Scalar &t)
         in >> e.rho;
         in >> e.U.x() >> e.U.y() >> e.U.z();
         in >> e.p;
-        in >> e.T;
+        Scalar T;
+        in >> T;
         e.rhoU = e.rho * e.U;
     }
 }

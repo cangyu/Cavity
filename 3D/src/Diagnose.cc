@@ -76,7 +76,6 @@ void diagnose(bool &diverge_flag)
     stat_min_max("U_Z", [](const Cell &c) { return c.U.z(); });
     stat_min_max("p", [](const Cell &c) { return c.p; });
     stat_min_max("p'", [](const Cell &c) { return c.p_prime; });
-    stat_min_max("T", [](const Cell &c) { return c.T; });
     LOG_OUT << std::endl;
 
     stat_min_max("CFL", stat_cfl);

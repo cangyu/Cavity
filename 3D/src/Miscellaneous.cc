@@ -38,14 +38,12 @@ void interp_nodal_primitive_var()
         n_dst.rho = ZERO_SCALAR;
         n_dst.U = ZERO_VECTOR;
         n_dst.p = ZERO_SCALAR;
-        n_dst.T = ZERO_SCALAR;
         for (int j = 0; j < N; ++j)
         {
             const auto cwf = wf.at(j);
             n_dst.rho += cwf * dc.at(j)->rho;
             n_dst.U += cwf * dc.at(j)->U;
             n_dst.p += cwf * dc.at(j)->p;
-            n_dst.T += cwf * dc.at(j)->T;
         }
     }
 
