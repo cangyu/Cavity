@@ -19,7 +19,7 @@ void INTERP_BoundaryFace_Velocity()
             {
                 auto C = f.c0 ? f.c0 : f.c1;
                 const Vector &r = f.c0 ? f.r0 : f.r1;
-                f.U = C->U + r.transpose() * f.grad_U;
+                f.U = C->U + (r.transpose() * f.grad_U).transpose();
             }
         }
     }
@@ -119,7 +119,7 @@ void INTERP_Face_MassFlux_star(Scalar TimeStep)
             {
                 auto c = f.c0 ? f.c0 : f.c1;
                 const Vector &r = f.c0 ? f.r0 : f.r1;
-                U_star = c->U_star + r.transpose() * f.grad_U;
+                U_star = c->U_star + (r.transpose() * f.grad_U).transpose();
             }
             else
                 throw unsupported_boundary_condition(U_BC);
@@ -151,7 +151,7 @@ void INTERP_Face_Velocity_next()
             {
                 auto C = f.c0 ? f.c0 : f.c1;
                 const Vector &r = f.c0 ? f.r0 : f.r1;
-                f.U_next = C->U_next + r.transpose() * f.grad_U;
+                f.U_next = C->U_next + (r.transpose() * f.grad_U).transpose();
             }
             else
                 throw unsupported_boundary_condition(U_BC);
@@ -159,9 +159,9 @@ void INTERP_Face_Velocity_next()
         else
         {
             if (f.rhoU_next.dot(f.n01) > 0)
-                f.U_next = f.c0->U_next + f.r0.transpose() * f.c0->grad_U_next;
+                f.U_next = f.c0->U_next + (f.r0.transpose() * f.c0->grad_U_next).transpose();
             else
-                f.U_next = f.c1->U_next + f.r1.transpose() * f.c1->grad_U_next;
+                f.U_next = f.c1->U_next + (f.r1.transpose() * f.c1->grad_U_next).transpose();
         }
     }
 }
@@ -236,7 +236,7 @@ static void calcBoundaryFacePrimitiveValue(Face& f, Cell* c, const Vector& d)
 
     /// velocity
     if(p->U_BC == Neumann)
-        f.U = c->U + d.transpose() * f.grad_U;
+        f.U = c->U + (d.transpose() * f.grad_U).transpose();
 
     /// pressure
     if (p->p_BC == Neumann)

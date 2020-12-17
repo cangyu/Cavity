@@ -47,9 +47,6 @@ static void step1(Scalar TimeStep)
         f.grad_T_prev = f.grad_T;
         f.tau_prev = f.tau;
     }
-
-    /// Update physical properties at centroid of each cell.
-
 }
 
 static void step2(Scalar TimeStep)
@@ -238,35 +235,109 @@ static void step7(Scalar TimeStep)
     INTERP_Face_Pressure_next();
 }
 
+static void aux()
+{
+    for(auto &C : cell)
+    {
+        C.tau_prev = C.tau_next;
+        C.grad_U_prev = C.grad_U_next;
+        C.p_prev = C.p_next;
+        C.grad_p_prev = C.grad_p_next;
+        C.U_prev = C.U_next;
+        C.rho_prev = C.rho_next;
+    }
+    for(auto &f : face)
+    {
+        f.rhoU_prev = f.rhoU_next;
+        f.h_prev = f.h_next;
+        f.grad_T_prev = f.grad_T_next;
+        f.p_prev = f.p_next;
+        f.U_prev = f.U_next;
+        f.tau_prev = f.tau_next;
+    }
+}
+
 static void step8()
 {
-    /// Enforce boundary conditions for primitive variables.
-    BC_Primitive();
-
-    /// Gradients of primitive variables at centroid of each cell.
-    calc_cell_primitive_gradient();
-
-    /// Gradients of primitive variables at centroid of each face.
-    calc_face_primitive_gradient();
-
-    /// Interpolate values of primitive variables on each face.
-    calc_face_primitive_var();
-
-    /// Update physical properties at centroid of each face.
-    for (auto& f : face)
+    for (auto &f : face)
     {
-        /// Dynamic viscosity
-        // f.mu = Sutherland(f.T);
-        f.viscosity = f.rho / Re;
+        if (!f.at_boundary)
+        {
+            f.rho = f.rho_next;
+            f.U = f.U_next;
+            f.p = f.p_next;
+            f.T = f.T_next;
+            f.h = f.h_next;
+            f.rhoU = f.rhoU_next;
+            f.rhoh = f.rhoh_next;
+        }
     }
 
-    /// Viscous shear stress on each face.
+    for (auto &C : cell)
+    {
+        C.rho = C.rho_next;
+        C.U = C.U_next;
+        C.p = C.p_next;
+        C.T = C.T_next;
+        C.h = C.h_next;
+        C.rhoU = C.rhoU_next;
+        C.rhoh = C.rhoh_next;
+    }
+
+    /// Enforce B.C. for {$\vec{U}$, $p$, $T$} @(n+1), Face(Boundary)
+    BC_Primitive();
+
+    /// {$\nabla \vec{U}$, $\nabla p$, $\nabla T$} @(n+1), Cell & Face(Boundary+Internal)
+    GRAD_Cell_Velocity();
+    GRAD_Cell_Pressure();
+    GRAD_Cell_Temperature();
+    GRAD_Face_Velocity();
+    GRAD_Face_Pressure();
+    GRAD_Face_Temperature();
+
+    /// {$\vec{U}$, $p$, $T$} @(n+1), Face(Boundary)
+    INTERP_BoundaryFace_Velocity();
+    INTERP_BoundaryFace_Pressure();
+    INTERP_BoundaryFace_Temperature();
+
+    /// {$\rho$} @(n+1), Face(Boundary)
+    for (auto &f : face)
+    {
+        if(f.at_boundary)
+        {
+            f.rho = EOS(f.p, f.T);
+        }
+    }
+
+    /// {$\nabla \rho$} @(n+1), Cell & Face(Boundary+Internal)
+    GRAD_Cell_Density();
+    GRAD_Face_Density();
+
+    /// {$\rho$, $\vec{U}$, $p$, $T$} @(n+1), Node
+    INTERP_Node_Primitive();
+
+    /// Property @(n+1), Cell & Face(Boundary+Internal)
+    CALC_Cell_Viscosity();
+    CALC_Cell_SpecificHeat();
+    CALC_Cell_Conductivity();
+    CALC_Face_Viscosity();
+    CALC_Face_SpecificHeat();
+    CALC_Face_Conductivity();
+
+    /// {$\tau$} @(n+1), Cell & Face(Boundary+Internal)
+    CALC_Cell_ViscousShearStress();
     CALC_Face_ViscousShearStress();
 
-    /// rhoU on boundary
-    for (const auto &e : patch)
-        for (auto f : e.surface)
-            f->rhoU = f->rho * f->U;
+    /// {$h$, $\rho h$, $\rho \vec{U}$} @(n+1), Face(Boundary)
+    for (auto &f : face)
+    {
+        if (f.at_boundary)
+        {
+            f.h = Enthalpy(f.specific_heat_p, f.T);
+            f.rhoh = f.rho * f.h;
+            f.rhoU = f.rho * f.U;
+        }
+    }
 }
 
 /**
@@ -309,24 +380,7 @@ void ForwardEuler(Scalar TimeStep)
         step7(TimeStep);
 
         /// For next iteration
-        for(auto &C : cell)
-        {
-            C.tau_prev = C.tau_next;
-            C.grad_U_prev = C.grad_U_next;
-            C.p_prev = C.p_next;
-            C.grad_p_prev = C.grad_p_next;
-            C.U_prev = C.U_next;
-            C.rho_prev = C.rho_next;
-        }
-        for(auto &f : face)
-        {
-            f.rhoU_prev = f.rhoU_next;
-            f.h_prev = f.h_next;
-            f.grad_T_prev = f.grad_T_next;
-            f.p_prev = f.p_next;
-            f.U_prev = f.U_next;
-            f.tau_prev = f.tau_next;
-        }
+        aux();
     }
 
     /// Store all variables for new time-step

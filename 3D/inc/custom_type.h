@@ -162,11 +162,12 @@ struct Face
     Scalar p_next;
     Scalar T_next;
     Scalar h_next;
-    Tensor grad_U_next, tau_next;
-    Vector grad_p_next;
-    Vector grad_T_next;
     Vector rhoU_next;
     Scalar rhoh_next;
+    Tensor grad_U_next;
+    Vector grad_p_next;
+    Vector grad_T_next;
+    Tensor tau_next;
 
     /// B.C. only
     Vector sn_grad_U = ZERO_VECTOR;
@@ -246,12 +247,13 @@ struct Cell
     Scalar p_next;
     Scalar T_next;
     Scalar h_next;
-    Vector grad_rho_next;
-    Tensor grad_U_next, tau_next;
-    Vector grad_p_next;
-    Vector grad_T_next;
     Vector rhoU_next;
     Scalar rhoh_next;
+    Vector grad_rho_next;
+    Tensor grad_U_next;
+    Vector grad_p_next;
+    Vector grad_T_next;
+    Tensor tau_next;
 };
 struct Patch
 {

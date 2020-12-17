@@ -9,7 +9,6 @@
 #include "../inc/BC.h"
 #include "../inc/Gradient.h"
 #include "../inc/PoissonEqn.h"
-#include "../inc/Spatial.h"
 #include "../inc/Temporal.h"
 #include "../inc/Diagnose.h"
 #include "../inc/MISC.h"
@@ -97,7 +96,6 @@ int solve()
         done = iter > MAX_ITER || t > MAX_TIME;
         if (done || !(iter % OUTPUT_GAP))
         {
-            INTERP_Node_Primitive();
             std::string fn;
             data_file_path(iter, fn);
             std::ofstream dts(fn);

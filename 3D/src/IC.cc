@@ -49,11 +49,11 @@ static void prepare()
 
     /// Property
     CALC_Cell_Viscosity();
-    CALC_Cell_Conductivity();
     CALC_Cell_SpecificHeat();
+    CALC_Cell_Conductivity();
     CALC_Face_Viscosity();
-    CALC_Face_Conductivity();
     CALC_Face_SpecificHeat();
+    CALC_Face_Conductivity();
 
     /// {$\tau$} @(n), Cell & Face(Boundary+Internal)
     CALC_Cell_ViscousShearStress();

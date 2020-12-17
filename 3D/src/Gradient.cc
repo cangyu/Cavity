@@ -1,4 +1,3 @@
-#include "../inc/custom_type.h"
 #include "../inc/Gradient.h"
 
 extern int NumOfPnt, NumOfFace, NumOfCell;
