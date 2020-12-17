@@ -5,7 +5,7 @@ void prepare_lsq();
 
 void prepare_gg();
 
-void prepare_gpc_rm();
+void prepare_TeC_operator();
 
 void calc_cell_primitive_gradient();
 

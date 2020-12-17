@@ -139,7 +139,7 @@ void prepare_gg()
 }
 
 
-void prepare_gpc_rm()
+void prepare_TeC_operator()
 {
     for (auto &c : cell)
     {
@@ -152,7 +152,7 @@ void prepare_gpc_rm()
             const Vector &Sf = c.S.at(j);
             A += Sf * Sf.transpose() / f->area;
         }
-        c.grad_p_prime_rm = A.inverse();
+        c.TeC_INV = A.inverse();
     }
 }
 
@@ -334,27 +334,19 @@ void calc_face_primitive_gradient()
             const Tensor beta = Tensor::Identity() - alpha * d.transpose();
             const Tensor gamma = Tensor::Identity() - n * n.transpose();
 
-            /// velocity-x
+            /// velocity
             if (f.parent->U_BC == Dirichlet)
-                gv[0]= alpha * (f.U.x() - c->U.x()) + beta * c->grad_U.col(0);
-            else if (f.parent->U_BC == Neumann)
-                gv[0] = n * f.sn_grad_U.x() + gamma * c->grad_U.col(0);
-            else
-                throw unsupported_boundary_condition(f.parent->U_BC);
-
-            /// velocity-y
-            if (f.parent->U_BC == Dirichlet)
+            {
+                gv[0] = alpha * (f.U.x() - c->U.x()) + beta * c->grad_U.col(0);
                 gv[1] = alpha * (f.U.y() - c->U.y()) + beta * c->grad_U.col(1);
-            else if (f.parent->U_BC == Neumann)
-                gv[1] = n * f.sn_grad_U.y() + beta * c->grad_U.col(1);
-            else
-                throw unsupported_boundary_condition(f.parent->U_BC);
-
-            /// velocity-z
-            if (f.parent->U_BC == Dirichlet)
                 gv[2] = alpha * (f.U.z() - c->U.z()) + beta * c->grad_U.col(2);
+            }
             else if (f.parent->U_BC == Neumann)
+            {
+                gv[0] = n * f.sn_grad_U.x() + gamma * c->grad_U.col(0);
+                gv[1] = n * f.sn_grad_U.y() + gamma * c->grad_U.col(1);
                 gv[2] = n * f.sn_grad_U.z() + gamma * c->grad_U.col(2);
+            }
             else
                 throw unsupported_boundary_condition(f.parent->U_BC);
 
@@ -376,14 +368,10 @@ void calc_face_primitive_gradient()
             const Vector alpha = f.n01 / f.n01.dot(d01);
             const Tensor beta = Tensor::Identity() - alpha * d01.transpose();
 
-            /// velocity-x
+            /// velocity
             gv[0] = alpha * (f.c1->U.x() - f.c0->U.x()) + beta * (f.ksi0 * f.c0->grad_U.col(0) + f.ksi1 * f.c1->grad_U.col(0));
-
-            /// velocity-y
             gv[1] = alpha * (f.c1->U.y() - f.c0->U.y()) + beta * (f.ksi0 * f.c0->grad_U.col(1) + f.ksi1 * f.c1->grad_U.col(1));
-
-            /// velocity-z
-            gv[2] = alpha * (f.c1->U.z() - f.c0->U.z())  + beta * (f.ksi0 * f.c0->grad_U.col(2) + f.ksi1 * f.c1->grad_U.col(2));
+            gv[2] = alpha * (f.c1->U.z() - f.c0->U.z()) + beta * (f.ksi0 * f.c0->grad_U.col(2) + f.ksi1 * f.c1->grad_U.col(2));
 
             f.grad_U.col(0) = gv[0];
             f.grad_U.col(1) = gv[1];

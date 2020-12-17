@@ -188,7 +188,7 @@ struct Cell
     Vector rhoU_star = ZERO_VECTOR;
     Scalar p_prime = ZERO_SCALAR;
     Vector grad_p_prime = ZERO_VECTOR;
-    Tensor grad_p_prime_rm = ZERO_TENSOR; /// Reconstruction matrix
+    Tensor TeC_INV = ZERO_TENSOR; /// Reconstruction matrix
 };
 struct Patch
 {

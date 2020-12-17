@@ -335,7 +335,7 @@ void ForwardEuler(Scalar TimeStep)
             const Vector &Sf = c.S.at(j);
             b += f->grad_p_prime_sn.dot(Sf) * Sf / f->area;
         }
-        c.grad_p_prime = c.grad_p_prime_rm * b;
+        c.grad_p_prime = c.TeC_INV * b;
 
         /// Velocity
         c.rhoU = c.rhoU_star - TimeStep * c.grad_p_prime;
