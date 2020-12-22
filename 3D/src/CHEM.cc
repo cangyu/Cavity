@@ -73,7 +73,7 @@ void CALC_Cell_Conductivity()
 {
     for (auto& C : cell)
     {
-        C.conductivity = C.specific_heat_p * C.viscosity / Pr;
+        C.conductivity = 0.11; //C.specific_heat_p * C.viscosity / Pr;
     }
 }
 
@@ -81,7 +81,7 @@ void CALC_Face_Conductivity()
 {
     for (auto& f : face)
     {
-        f.conductivity = f.specific_heat_p * f.viscosity / Pr;
+        f.conductivity = 0.11; //f.specific_heat_p * f.viscosity / Pr;
     }
 }
 

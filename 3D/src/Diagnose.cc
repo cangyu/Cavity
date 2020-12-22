@@ -8,7 +8,6 @@ extern NaturalArray<Point> pnt;
 extern NaturalArray<Face> face;
 extern NaturalArray<Cell> cell;
 extern NaturalArray<Patch> patch;
-extern std::string SEP;
 extern Scalar dt;
 extern Scalar Re;
 
@@ -29,11 +28,11 @@ static void stat_min_max(const std::string& var_name, const std::function<Scalar
     if (var_name == "p" || var_name == "p'")
     {
         auto w = std::cout.precision(10);
-        std::cout << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
+        std::cout << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
         std::cout.precision(w);
     }
     else
-        std::cout << SEP << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
+        std::cout << "Min(" << var_name << ") = " << var_min << ", Max(" << var_name << ") = " << var_max << std::endl;
 }
 
 static Scalar max_div;

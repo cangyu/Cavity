@@ -29,9 +29,6 @@ Scalar Re = 1000.0;
 Scalar dt = 1e-3; /// s
 bool use_fixed_dt = false;
 
-/* Global I/O style and redirection */
-std::string SEP;
-
 /* Pressure-Correction equation coefficients */
 SX_MAT A_dp_2; /// The coefficient matrix
 SX_VEC Q_dp_2; /// The RHS
@@ -72,10 +69,11 @@ int solve()
     std::cout << "\nStarting calculation ... " << std::endl;
     while (!done)
     {
-        std::cout << "\nIter" << ++iter << ":" << std::endl;
         if (!use_fixed_dt)
+        {
             dt = calcTimeStep();
-        std::cout << SEP << "t=" << t << "s, dt=" << dt << "s" << std::endl;
+        }
+        std::cout << "\nIter" << ++iter << ":  t=" << t << "s, dt=" << dt << "s" << std::endl;
         {
             tick_begin = clock();
             ForwardEuler(dt);
@@ -90,7 +88,7 @@ int solve()
             std::cerr << "Diverged!" << std::endl;
             return -1;
         }
-        std::cout << "\n" << SEP << "CPU time: current=" << single_cpu_time << "s, total=" << total_cpu_time << "s" << std::endl;
+        std::cout << "\nCPU time: current=" << single_cpu_time << "s, total=" << total_cpu_time << "s" << std::endl;
 
         t += dt;
         done = iter > MAX_ITER || t > MAX_TIME;
@@ -195,7 +193,6 @@ void init()
  */
 int main(int argc, char *argv[])
 {
-    SEP = "  ";
     bool need_to_create_folder = true;
     bool resume_mode = false;
 
