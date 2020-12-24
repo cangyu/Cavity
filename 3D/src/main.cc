@@ -149,12 +149,10 @@ void init()
         x_dp_2 = sx_vec_create(NumOfCell);
 
         tick_begin = clock();
-        calcPressureCorrectionEquationCoef(A_dp_2);
+
         tick_end = clock();
     }
     std::cout << duration(tick_begin, tick_end) << "s" << std::endl;
-
-    prepare_dp_solver(A_dp_2, dp_solver_2);
 
     if(DATA_PATH.empty())
     {
@@ -269,7 +267,6 @@ int main(int argc, char *argv[])
     /* Finalize */
     sx_vec_destroy(&x_dp_2);
     sx_vec_destroy(&Q_dp_2);
-    sx_mat_destroy(&A_dp_2);
     sx_amg_data_destroy(&dp_solver_2);
 
     return 0;

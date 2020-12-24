@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include "../inc/MISC.h"
 #include "../inc/BC.h"
@@ -85,8 +86,8 @@ static void step2(Scalar TimeStep)
             convection_flux += f->rhoU_prev.dot(Sf) * f->h_prev;
             diffusion_flux += f->conductivity * f->grad_T_prev.dot(Sf);
         }
-        const Scalar viscous_dissipation = 0;//double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
-        const Scalar DpDt = 0;// ((c.p_prev - c.p) / TimeStep + c.U_prev.dot(c.grad_p_prev))* c.volume;
+        const Scalar viscous_dissipation = double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
+        const Scalar DpDt = ((c.p_prev - c.p) / TimeStep + c.U_prev.dot(c.grad_p_prev))* c.volume;
         c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convection_flux + diffusion_flux + viscous_dissipation + DpDt);
         c.h_star = c.rhoh_next / c.rho_prev;
         c.T_star = c.h_star / c.specific_heat_p;
@@ -164,6 +165,58 @@ static int ppe(Scalar TimeStep)
     for(auto &f : face)
         f.grad_p_prime.setZero();
 
+    //std::vector<Scalar> steady_diagonal(NumOfCell, 0.0);
+    std::vector<Scalar> unsteady_diagonal(NumOfCell, 0.0);
+    //std::vector<Scalar> ratio_diagonal(NumOfCell, 0.0);
+    //SX_VEC tmp = sx_mat_get_diag(&A_dp_2, 0);
+    for(size_t i = 0; i < NumOfCell; ++i)
+    {
+        const auto &C = cell.at(i);
+        //steady_diagonal.at(i) = sx_vec_get_entry(&tmp, i);
+        unsteady_diagonal.at(i) = C.volume / (TimeStep * TimeStep * 287.7 * C.T);
+        //ratio_diagonal.at(i) = unsteady_diagonal.at(i) / steady_diagonal.at(i);
+    }
+    //sx_vec_destroy(&tmp);
+
+//    Scalar steady_diagonal_min = steady_diagonal.at(0);
+//    Scalar steady_diagonal_max = steady_diagonal_min;
+//    for (size_t i = 1; i < NumOfCell; ++i)
+//    {
+//        const Scalar val = steady_diagonal.at(i);
+//        if(val < steady_diagonal_min)
+//            steady_diagonal_min = val;
+//        if(val > steady_diagonal_max)
+//            steady_diagonal_max = val;
+//    }
+//    std::cout << "\nsteady_diagonal: " << steady_diagonal_min << " ~ " << steady_diagonal_max;
+
+//    Scalar unsteady_diagonal_min = unsteady_diagonal.at(0);
+//    Scalar unsteady_diagonal_max = unsteady_diagonal_min;
+//    for (size_t i = 1; i < NumOfCell; ++i)
+//    {
+//        const Scalar val = unsteady_diagonal.at(i);
+//        if(val < unsteady_diagonal_min)
+//            unsteady_diagonal_min = val;
+//        if(val > unsteady_diagonal_max)
+//            unsteady_diagonal_max = val;
+//    }
+//    std::cout << "\nunsteady_diagonal: " << unsteady_diagonal_min << " ~ " << unsteady_diagonal_max;
+
+//    Scalar ratio_diagonal_min = ratio_diagonal.at(0);
+//    Scalar ratio_diagonal_max = ratio_diagonal_min;
+//    for (size_t i = 1; i < NumOfCell; ++i)
+//    {
+//        const Scalar val = ratio_diagonal.at(i);
+//        if(val < ratio_diagonal_min)
+//            ratio_diagonal_min = val;
+//        if(val > ratio_diagonal_max)
+//            ratio_diagonal_max = val;
+//    }
+//    std::cout << "\nratio_diagonal: " << ratio_diagonal_min << " ~ " << ratio_diagonal_max;
+
+    calcPressureCorrectionEquationCoef(A_dp_2, unsteady_diagonal);
+    prepare_dp_solver(A_dp_2, dp_solver_2);
+
     int cnt = 0; /// Iteration counter
     Scalar l1 = 1.0, l2 = 1.0; /// Convergence monitor
     while (l1 > 1e-10 || l2 > 1e-8)
@@ -196,6 +249,9 @@ static int ppe(Scalar TimeStep)
         if (cnt > 20)
             break;
     }
+
+    sx_mat_destroy(&A_dp_2);
+
     return cnt;
 }
 
@@ -406,7 +462,7 @@ void ForwardEuler(Scalar TimeStep)
     step1(TimeStep);
 
     /// Semi-Implicit iteration
-    for(int m = 1; m <= 1; ++m)
+    for(int m = 1; m <= 3; ++m)
     {
         std::cout << "\nm=" << m << std::endl;
         check_bound<Cell>("rho_C@(m-1)", cell, [](const Cell &c) { return c.rho_prev; });
