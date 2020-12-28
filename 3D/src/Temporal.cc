@@ -86,8 +86,8 @@ static void step2(Scalar TimeStep)
             convection_flux += f->rhoU_prev.dot(Sf) * f->h_prev;
             diffusion_flux += f->conductivity * f->grad_T_prev.dot(Sf);
         }
-        const Scalar viscous_dissipation = double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
-        const Scalar DpDt = ((c.p_prev - c.p) / TimeStep + c.U_prev.dot(c.grad_p_prev))* c.volume;
+        const Scalar viscous_dissipation = 0.0; // double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
+        const Scalar DpDt = 0.0; // ((c.p_prev - c.p) / TimeStep + c.U_prev.dot(c.grad_p_prev))* c.volume;
         c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convection_flux + diffusion_flux + viscous_dissipation + DpDt);
         c.h_star = c.rhoh_next / c.rho_prev;
         c.T_star = c.h_star / c.specific_heat_p;
@@ -173,7 +173,7 @@ static int ppe(Scalar TimeStep)
     {
         const auto &C = cell.at(i);
         //steady_diagonal.at(i) = sx_vec_get_entry(&tmp, i);
-        unsteady_diagonal.at(i) = C.volume / (TimeStep * TimeStep * 287.7 * C.T);
+        unsteady_diagonal.at(i) = C.volume / (TimeStep * TimeStep * 287.7 * C.T_next);
         //ratio_diagonal.at(i) = unsteady_diagonal.at(i) / steady_diagonal.at(i);
     }
     //sx_vec_destroy(&tmp);
@@ -246,8 +246,6 @@ static int ppe(Scalar TimeStep)
 
         /// Next loop if needed
         ++cnt;
-        if (cnt > 20)
-            break;
     }
 
     sx_mat_destroy(&A_dp_2);
@@ -289,8 +287,9 @@ static void step7(Scalar TimeStep)
     for (auto& C : cell)
     {
         C.rhoU_next = C.rhoU_star - TimeStep * C.grad_p_prime;
-        C.U_next = C.rhoU_next / C.rho_next;
         C.p_next = C.p_prev + C.p_prime;
+        C.rho_next = EOS(C.p_next, C.T_next);
+        C.U_next = C.rhoU_next / C.rho_next;
     }
 
     /// Interpolation from cell to face & Apply B.C. for U_next
@@ -302,16 +301,18 @@ static void step7(Scalar TimeStep)
     CALC_Cell_ViscousShearStress_next();
     CALC_Face_ViscousShearStress_next();
 
-    /// Update mass flux on boundary face
-    for (auto& f : face)
-    {
-        if (f.at_boundary)
-            f.rhoU_next = f.rho_next * f.U_next;
-    }
-
     /// Interpolation from cell to face & Apply B.C. for p_next
     GRAD_Cell_Pressure_next();
     INTERP_Face_Pressure_next();
+
+    /// Update mass flux on boundary face
+    for (auto& f : face)
+    {
+        f.rho_next = EOS(f.p_next, f.T_next);
+
+        if (f.at_boundary)
+            f.rhoU_next = f.rho_next * f.U_next;
+    }
 }
 
 static void aux()
@@ -350,6 +351,7 @@ static void step8()
             f.rhoU = f.rhoU_next;
             f.rhoh = f.rhoh_next;
         }
+
     }
 
     for (auto &C : cell)
@@ -460,12 +462,12 @@ void ForwardEuler(Scalar TimeStep)
     check_bound<Face>("rhow_f@(n)", face, [](const Face &f) { return f.rhoU.z(); });
     check_bound<Face>("rhoh_f@(n)", face, [](const Face &f) { return f.rhoh; });
     step1(TimeStep);
+    check_bound<Cell>("rho_C@(m-1)", cell, [](const Cell &c) { return c.rho_prev; });
 
     /// Semi-Implicit iteration
     for(int m = 1; m <= 3; ++m)
     {
         std::cout << "\nm=" << m << std::endl;
-        check_bound<Cell>("rho_C@(m-1)", cell, [](const Cell &c) { return c.rho_prev; });
 
         /// {$\rho h$} @(m+1), Cell
         /// {$h$, $T$} @(*), Cell & Face(Boundary+Internal)
@@ -491,44 +493,44 @@ void ForwardEuler(Scalar TimeStep)
 
         /// {$\rho \vec{U}$} @(*), Cell & Face(Boundary+Internal)
         step5(TimeStep);
-        check_bound<Cell>("rhou_C@(*)", cell, [](const Cell &c) { return c.rhoU_star.x(); });
-        check_bound<Cell>("rhov_C@(*)", cell, [](const Cell &c) { return c.rhoU_star.y(); });
-        check_bound<Cell>("rhow_C@(*)", cell, [](const Cell &c) { return c.rhoU_star.z(); });
-        check_bound<Face>("rhou_f@(*)", face, [](const Face &f) { return f.rhoU_star.x(); });
-        check_bound<Face>("rhov_f@(*)", face, [](const Face &f) { return f.rhoU_star.y(); });
-        check_bound<Face>("rhow_f@(*)", face, [](const Face &f) { return f.rhoU_star.z(); });
+//        check_bound<Cell>("rhou_C@(*)", cell, [](const Cell &c) { return c.rhoU_star.x(); });
+//        check_bound<Cell>("rhov_C@(*)", cell, [](const Cell &c) { return c.rhoU_star.y(); });
+//        check_bound<Cell>("rhow_C@(*)", cell, [](const Cell &c) { return c.rhoU_star.z(); });
+//        check_bound<Face>("rhou_f@(*)", face, [](const Face &f) { return f.rhoU_star.x(); });
+//        check_bound<Face>("rhov_f@(*)", face, [](const Face &f) { return f.rhoU_star.y(); });
+//        check_bound<Face>("rhow_f@(*)", face, [](const Face &f) { return f.rhoU_star.z(); });
 
         /// {$p'$}, Cell
         /// {$\nabla p'$}, Cell & Face(Boundary+Internal)
         /// {$\frac{\partial p'}{\partial n}$}, Face(Boundary+Internal)
         step6(TimeStep);
         check_bound<Cell>("p'_C", cell, [](const Cell &c) { return c.p_prime; });
-        check_bound<Cell>("grad_x(p')_C", cell, [](const Cell &c) { return c.grad_p_prime.x(); });
-        check_bound<Cell>("grad_y(p')_C", cell, [](const Cell &c) { return c.grad_p_prime.y(); });
-        check_bound<Cell>("grad_z(p')_C", cell, [](const Cell &c) { return c.grad_p_prime.z(); });
-        check_bound<Face>("grad_x(p')_f", face, [](const Face &f) { return f.grad_p_prime.x(); });
-        check_bound<Face>("grad_y(p')_f", face, [](const Face &f) { return f.grad_p_prime.y(); });
-        check_bound<Face>("grad_z(p')_f", face, [](const Face &f) { return f.grad_p_prime.z(); });
+//        check_bound<Cell>("grad_x(p')_C", cell, [](const Cell &c) { return c.grad_p_prime.x(); });
+//        check_bound<Cell>("grad_y(p')_C", cell, [](const Cell &c) { return c.grad_p_prime.y(); });
+//        check_bound<Cell>("grad_z(p')_C", cell, [](const Cell &c) { return c.grad_p_prime.z(); });
+//        check_bound<Face>("grad_x(p')_f", face, [](const Face &f) { return f.grad_p_prime.x(); });
+//        check_bound<Face>("grad_y(p')_f", face, [](const Face &f) { return f.grad_p_prime.y(); });
+//        check_bound<Face>("grad_z(p')_f", face, [](const Face &f) { return f.grad_p_prime.z(); });
 
         /// {$p$, $\vec{U}$, $\rho \vec{U}$} @(m+1), Cell & Face(Boundary+Internal)
         /// {$\nabla \vec{U}$}, Cell & Face(Boundary+Internal)
         /// {$\tau$} @(m+1), Cell & Face(Boundary+Internal)
         /// {$\nabla p$} @(m+1), Cell
         step7(TimeStep);
-        check_bound<Cell>("rhou_C@(m+1)", cell, [](const Cell &c) { return c.rhoU_next.x(); });
-        check_bound<Cell>("rhov_C@(m+1)", cell, [](const Cell &c) { return c.rhoU_next.y(); });
-        check_bound<Cell>("rhow_C@(m+1)", cell, [](const Cell &c) { return c.rhoU_next.z(); });
-        check_bound<Cell>("u_C@(m+1)", cell, [](const Cell &c) { return c.U_next.x(); });
-        check_bound<Cell>("v_C@(m+1)", cell, [](const Cell &c) { return c.U_next.y(); });
-        check_bound<Cell>("w_C@(m+1)", cell, [](const Cell &c) { return c.U_next.z(); });
-        check_bound<Cell>("p_C@(m+1)", cell, [](const Cell &c) { return c.p_next; });
-        check_bound<Face>("rhou_f@(m+1)", face, [](const Face &f) { return f.rhoU_next.x(); });
-        check_bound<Face>("rhov_f@(m+1)", face, [](const Face &f) { return f.rhoU_next.y(); });
-        check_bound<Face>("rhow_f@(m+1)", face, [](const Face &f) { return f.rhoU_next.z(); });
-        check_bound<Face>("u_f@(m+1)", face, [](const Face &f) { return f.U_next.x(); });
-        check_bound<Face>("v_f@(m+1)", face, [](const Face &f) { return f.U_next.y(); });
-        check_bound<Face>("w_f@(m+1)", face, [](const Face &f) { return f.U_next.z(); });
-        check_bound<Face>("p_f@(m+1)", face, [](const Face &f) { return f.p_next; });
+//        check_bound<Cell>("rhou_C@(m+1)", cell, [](const Cell &c) { return c.rhoU_next.x(); });
+//        check_bound<Cell>("rhov_C@(m+1)", cell, [](const Cell &c) { return c.rhoU_next.y(); });
+//        check_bound<Cell>("rhow_C@(m+1)", cell, [](const Cell &c) { return c.rhoU_next.z(); });
+//        check_bound<Cell>("u_C@(m+1)", cell, [](const Cell &c) { return c.U_next.x(); });
+//        check_bound<Cell>("v_C@(m+1)", cell, [](const Cell &c) { return c.U_next.y(); });
+//        check_bound<Cell>("w_C@(m+1)", cell, [](const Cell &c) { return c.U_next.z(); });
+//        check_bound<Cell>("p_C@(m+1)", cell, [](const Cell &c) { return c.p_next; });
+//        check_bound<Face>("rhou_f@(m+1)", face, [](const Face &f) { return f.rhoU_next.x(); });
+//        check_bound<Face>("rhov_f@(m+1)", face, [](const Face &f) { return f.rhoU_next.y(); });
+//        check_bound<Face>("rhow_f@(m+1)", face, [](const Face &f) { return f.rhoU_next.z(); });
+//        check_bound<Face>("u_f@(m+1)", face, [](const Face &f) { return f.U_next.x(); });
+//        check_bound<Face>("v_f@(m+1)", face, [](const Face &f) { return f.U_next.y(); });
+//        check_bound<Face>("w_f@(m+1)", face, [](const Face &f) { return f.U_next.z(); });
+//        check_bound<Face>("p_f@(m+1)", face, [](const Face &f) { return f.p_next; });
 
         /// For next iteration
         aux();

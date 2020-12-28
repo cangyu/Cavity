@@ -78,7 +78,12 @@ void INTERP_Face_Temperature_star()
                 throw unsupported_boundary_condition(T_BC);
         }
         else
-            f.T_star = f.ksi0 * f.c0->T_star + f.ksi1 * f.c1->T_star; /// Less accurate, but bounded
+        {
+            const Scalar T0 = f.c0->T_star + f.c0->grad_T_star.dot(f.r0);
+            const Scalar T1 = f.c1->T_star + f.c1->grad_T_star.dot(f.r1);
+            //f.T_star = f.ksi0 * f.c0->T_star + f.ksi1 * f.c1->T_star; /// Less accurate, but bounded
+            f.T_next = f.ksi0 * T0 + f.ksi1 * T1;
+        }
     }
 }
 
@@ -101,7 +106,12 @@ void INTERP_Face_Temperature_next()
                 throw unsupported_boundary_condition(T_BC);
         }
         else
-            f.T_next = f.ksi0 * f.c0->T_next + f.ksi1 * f.c1->T_next; /// Less accurate, but bounded
+        {
+            const Scalar T0 = f.c0->T_next + f.c0->grad_T_next.dot(f.r0);
+            const Scalar T1 = f.c1->T_next + f.c1->grad_T_next.dot(f.r1);
+            //f.T_next = f.ksi0 * f.c0->T_next + f.ksi1 * f.c1->T_next; /// Less accurate, but bounded
+            f.T_next = f.ksi0 * T0 + f.ksi1 * T1;
+        }
     }
 }
 

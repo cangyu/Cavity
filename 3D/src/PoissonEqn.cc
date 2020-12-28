@@ -147,7 +147,7 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
         if(val > p1_max)
             p1_max = val;
     }
-    std::cout << "\np1: " << p1_min << " ~ " << p1_max << std::endl;
+    //std::cout << "\np1: " << p1_min << " ~ " << p1_max << std::endl;
     double p2_min = p2.at(0);
     double p2_max = p2_min;
     for (size_t i = 1; i < NumOfCell; ++i)
@@ -158,7 +158,7 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
         if(val > p2_max)
             p2_max = val;
     }
-    std::cout << "p2: " << p2_min << " ~ " << p2_max << std::endl;
+    //std::cout << "p2: " << p2_min << " ~ " << p2_max << std::endl;
 
     /// Set reference
     //rhs(ref_cell) = ref_val;
@@ -260,7 +260,7 @@ void prepare_dp_solver(SX_MAT &A, SX_AMG &mg)
     pars.strong_threshold = 0.3;
     pars.trunc_threshold = 0.2;
 
-    sx_amg_pars_print(&pars);
+    //sx_amg_pars_print(&pars);
 
     sx_amg_setup(&mg, &A, &pars);
 }
