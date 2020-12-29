@@ -52,7 +52,7 @@ static void step1(Scalar TimeStep)
             const auto& Sf = c.S.at(j);
             convection_flux += f->rhoU.dot(Sf);
         }
-        c.rho_prev = c.rho + TimeStep / c.volume * (-convection_flux);
+        c.rho_prev = c.rho;// + TimeStep / c.volume * (-convection_flux);
         c.U_prev = c.U;
         c.p_prev = c.p;
         c.tau_prev = c.tau;
@@ -71,24 +71,37 @@ static void step1(Scalar TimeStep)
     }
 }
 
+template<typename T>
+static void write_binary(T *val, std::ostream &fout)
+{
+    fout.write(reinterpret_cast<char *>(val), sizeof(T));
+}
+
+template<typename T>
+static void read_binary(std::istream &fin, T *val)
+{
+    fin.read(reinterpret_cast<char *>(val), sizeof(T));
+}
+
 static void step2(Scalar TimeStep)
 {
     /// Prediction of energy
     for(auto &c : cell)
     {
-        Scalar convection_flux = 0.0;
-        Scalar diffusion_flux = 0.0;
+        c.energy_convective_flux = 0.0;
+        c.energy_diffusive_flux = 0.0;
         const auto Nf = c.S.size();
         for (int j = 0; j < Nf; ++j)
         {
             auto f = c.surface.at(j);
             const auto &Sf = c.S.at(j);
-            convection_flux += f->rhoU_prev.dot(Sf) * f->h_prev;
-            diffusion_flux += f->conductivity * f->grad_T_prev.dot(Sf);
+            c.energy_convective_flux += f->rhoU_prev.dot(Sf) * f->h_prev;
+            c.energy_diffusive_flux += f->conductivity * f->grad_T_prev.dot(Sf);
         }
-        const Scalar viscous_dissipation = 0.0; // double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
-        const Scalar DpDt = 0.0; // ((c.p_prev - c.p) / TimeStep + c.U_prev.dot(c.grad_p_prev))* c.volume;
-        c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convection_flux + diffusion_flux + viscous_dissipation + DpDt);
+        //const Scalar viscous_dissipation = double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
+        //const Scalar DpDt = ((c.p_prev - c.p) / TimeStep + c.U_prev.dot(c.grad_p_prev))* c.volume;
+        //const Scalar total_flux = -c.energy_convective_flux + c.energy_diffusive_flux + viscous_dissipation + DpDt;
+        c.rhoh_next = c.rhoh + TimeStep / c.volume * (-c.energy_convective_flux + c.energy_diffusive_flux);
         c.h_star = c.rhoh_next / c.rho_prev;
         c.T_star = c.h_star / c.specific_heat_p;
     }
@@ -129,6 +142,8 @@ static void step4()
     {
         f.h_next = f.specific_heat_p * f.T_next;
     }
+
+    GRAD_Face_Temperature_next();
 }
 
 static void step5(Scalar TimeStep)
@@ -430,6 +445,7 @@ void ForwardEuler(Scalar TimeStep)
 {
     /// Prepare m=0
     std::cout << "\nm=0" << std::endl;
+    /*
     check_bound<Cell>("mu_C@(n)", cell, [](const Cell &c) { return c.viscosity; });
     check_bound<Cell>("lambda_C@(n)", cell, [](const Cell &c) { return c.conductivity; });
     check_bound<Cell>("Cp_C@(n)", cell, [](const Cell &c) { return c.specific_heat_p; });
@@ -461,8 +477,9 @@ void ForwardEuler(Scalar TimeStep)
     check_bound<Face>("rhov_f@(n)", face, [](const Face &f) { return f.rhoU.y(); });
     check_bound<Face>("rhow_f@(n)", face, [](const Face &f) { return f.rhoU.z(); });
     check_bound<Face>("rhoh_f@(n)", face, [](const Face &f) { return f.rhoh; });
+    */
     step1(TimeStep);
-    check_bound<Cell>("rho_C@(m-1)", cell, [](const Cell &c) { return c.rho_prev; });
+//    check_bound<Cell>("rho_C@(m-1)", cell, [](const Cell &c) { return c.rho_prev; });
 
     /// Semi-Implicit iteration
     for(int m = 1; m <= 3; ++m)

@@ -203,6 +203,10 @@ struct Cell
     NaturalArray<Vector> Se;
     NaturalArray<Vector> St;
 
+    /// debug
+    Scalar energy_convective_flux;
+    Scalar energy_diffusive_flux;
+
     /// (n)
     Scalar viscosity = ZERO_SCALAR;
     Scalar conductivity = ZERO_SCALAR;

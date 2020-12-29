@@ -90,14 +90,29 @@ void diagnose(bool &diverge_flag)
  */
 Scalar calcTimeStep()
 {
-    Scalar g_max_dt = std::numeric_limits<Scalar>::max();
+    static const Scalar CFL = 0.5;
+    Scalar momentum_max_dt = std::numeric_limits<Scalar>::max();
+    Scalar energy_max_dt = std::numeric_limits<Scalar>::max();
 
     for(const auto &c : cell)
     {
         const Scalar L = std::pow(c.volume, 1.0 / 3);
-        Scalar loc_dt = 1.0 / (3.0 * c.U.norm() / L + 2.0 / Re * 3 / (L * L));
-        if(loc_dt < g_max_dt)
-            g_max_dt = loc_dt;
+        const Scalar L2 = L * L;
+
+        /// Momentum
+        Scalar momentum_dt = 1.0 / (3.0 * c.U.norm() / L + 2.0 / Re * 3 / L2);
+        if(momentum_dt < momentum_max_dt)
+            momentum_max_dt = momentum_dt;
+
+        /// Energy
+        Scalar energy_dt = 1.0 / (3.0 * c.U.norm() / L + 2.0 * c.conductivity / (c.rho * c.specific_heat_p) * 3 / (L * L));
+        if(energy_dt < energy_max_dt)
+            energy_max_dt = energy_dt;
     }
-    return 0.5 * g_max_dt;
+    momentum_max_dt *= CFL;
+    energy_max_dt *= CFL;
+    std::cout << "\nMomentum max time-step:" << momentum_max_dt;
+    std::cout << "\nEnergy max time-step:" << energy_max_dt;
+    std::cout << std::endl;
+    return std::min(momentum_max_dt, energy_max_dt);
 }

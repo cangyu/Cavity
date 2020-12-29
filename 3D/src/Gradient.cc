@@ -445,6 +445,41 @@ void GRAD_Face_Temperature()
     }
 }
 
+void GRAD_Face_Temperature_next()
+{
+    for (auto &f : face)
+    {
+        if (f.at_boundary)
+        {
+            auto c = f.c0 ? f.c0 : f.c1;
+            const Vector &n = f.c0 ? f.n01 : f.n10;
+            const Vector d = f.c0 ? f.r0 : f.r1;
+
+            const auto T_BC = f.parent->T_BC;
+            if (T_BC == Dirichlet)
+            {
+                const Vector alpha = n / n.dot(d);
+                const Tensor beta = Tensor::Identity() - alpha * d.transpose();
+                f.grad_T_next = alpha * (f.T - c->T_next) + beta * c->grad_T_next;
+            }
+            else if (T_BC == Neumann)
+            {
+                const Tensor gamma = Tensor::Identity() - n * n.transpose();
+                f.grad_T_next = n * f.sn_grad_T + gamma * c->grad_T_next;
+            }
+            else
+                throw unsupported_boundary_condition(T_BC);
+        }
+        else
+        {
+            const Vector d01 = f.c1->centroid - f.c0->centroid;
+            const Vector alpha = f.n01 / f.n01.dot(d01);
+            const Tensor beta = Tensor::Identity() - alpha * d01.transpose();
+            f.grad_T_next = alpha * (f.c1->T_next - f.c0->T_next)  + beta * (f.ksi0 * f.c0->grad_T_next + f.ksi1 * f.c1->grad_T_next);
+        }
+    }
+}
+
 void GRAD_Cell_Temperature_star()
 {
     for (auto &C : cell)
