@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(IncompressibleFlow VERSION 1.3.1)
+project(CompressibleFlow VERSION 2.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,7 +28,7 @@ add_executable(CAVITY
 	src/IC.cc
 	src/BC.cc
 	src/CHEM.cc
-	src/Temporal.cc
+	src/Temporal-fluent.cc
 	src/Spatial.cc
 	src/Gradient.cc
 	src/PoissonEqn.cc

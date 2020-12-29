@@ -335,7 +335,7 @@ void write_data(std::ostream &out, int iter, Scalar t)
     {
         out << e.rho << SEP;
         out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
-        out << e.p << SEP;
+        out << e.p-101325.0 << SEP;
         out << e.T << std::endl;
     }
 
@@ -343,7 +343,7 @@ void write_data(std::ostream &out, int iter, Scalar t)
     {
         out << e.rho << SEP;
         out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
-        out << e.p << SEP;
+        out << e.p-101325.0 << SEP;
         out << e.T << std::endl;
     }
 
@@ -351,7 +351,7 @@ void write_data(std::ostream &out, int iter, Scalar t)
     {
         out << e.rho << SEP;
         out << e.U.x() << SEP << e.U.y() << SEP << e.U.z() << SEP;
-        out << e.p << SEP;
+        out << e.p-101325.0 << SEP;
         out << e.T << std::endl;
     }
 }

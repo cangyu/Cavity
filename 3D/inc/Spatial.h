@@ -16,6 +16,9 @@ void INTERP_BoundaryFace_Velocity();
 void INTERP_BoundaryFace_Pressure();
 void INTERP_BoundaryFace_Temperature();
 void CALC_Face_ViscousShearStress();
+void INTERP_Face_Pressure();
+void INTERP_Face_Velocity();
+void INTERP_Face_Temperature();
 
 /// @(*)
 void INTERP_Face_Temperature_star();

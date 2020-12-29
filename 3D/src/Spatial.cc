@@ -59,6 +59,30 @@ void INTERP_BoundaryFace_Temperature()
     }
 }
 
+void INTERP_Face_Temperature()
+{
+    for (auto& f : face)
+    {
+        if (f.at_boundary)
+        {
+            const auto T_BC = f.parent->T_BC;
+            if (T_BC == Neumann)
+            {
+                auto c = f.c0 ? f.c0 : f.c1;
+                const Vector &r = f.c0 ? f.r0 : f.r1;
+                f.T = c->T + f.grad_T.dot(r);
+            }
+        }
+        else
+        {
+            const Scalar T0 = f.c0->T + f.c0->grad_T.dot(f.r0);
+            const Scalar T1 = f.c1->T + f.c1->grad_T.dot(f.r1);
+            //f.T = f.ksi0 * f.c0->T + f.ksi1 * f.c1->T; /// Less accurate, but bounded
+            f.T = f.ksi0 * T0 + f.ksi1 * T1;
+        }
+    }
+}
+
 void INTERP_Face_Temperature_star()
 {
     for (auto& f : face)
@@ -148,6 +172,34 @@ void INTERP_Face_MassFlux_star(Scalar TimeStep)
     }
 }
 
+void INTERP_Face_Velocity()
+{
+    for (auto &f : face)
+    {
+        if(f.at_boundary)
+        {
+            const auto U_BC = f.parent->U_BC;
+            if(U_BC == Dirichlet)
+                f.U = f.U;
+            else if (U_BC == Neumann)
+            {
+                auto C = f.c0 ? f.c0 : f.c1;
+                const Vector &r = f.c0 ? f.r0 : f.r1;
+                f.U = C->U + (r.transpose() * f.grad_U).transpose();
+            }
+            else
+                throw unsupported_boundary_condition(U_BC);
+        }
+        else
+        {
+            if (f.rhoU.dot(f.n01) > 0)
+                f.U = f.c0->U + (f.r0.transpose() * f.c0->grad_U).transpose();
+            else
+                f.U = f.c1->U + (f.r1.transpose() * f.c1->grad_U).transpose();
+        }
+    }
+}
+
 void INTERP_Face_Velocity_next()
 {
     for (auto &f : face)
@@ -172,6 +224,33 @@ void INTERP_Face_Velocity_next()
                 f.U_next = f.c0->U_next + (f.r0.transpose() * f.c0->grad_U_next).transpose();
             else
                 f.U_next = f.c1->U_next + (f.r1.transpose() * f.c1->grad_U_next).transpose();
+        }
+    }
+}
+
+void INTERP_Face_Pressure()
+{
+    for (auto &f : face)
+    {
+        if(f.at_boundary)
+        {
+            const auto p_BC = f.parent->p_BC;
+            if (p_BC == Dirichlet)
+                f.p = f.p;
+            else if (p_BC == Neumann)
+            {
+                auto C = f.c0 ? f.c0 : f.c1;
+                const Vector &d = f.c0 ? f.r0 : f.r1;
+                f.p = C->p + f.grad_p.dot(d);
+            }
+            else
+                throw unsupported_boundary_condition(p_BC);
+        }
+        else
+        {
+            const Scalar p_0 = f.c0->p + f.c0->grad_p.dot(f.r0);
+            const Scalar p_1 = f.c1->p + f.c1->grad_p.dot(f.r1);
+            f.p = 0.5 * (p_0 + p_1); /// CDS
         }
     }
 }
