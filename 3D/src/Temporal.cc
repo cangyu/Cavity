@@ -88,20 +88,20 @@ static void step2(Scalar TimeStep)
     /// Prediction of energy
     for(auto &c : cell)
     {
-        c.energy_convective_flux = 0.0;
-        c.energy_diffusive_flux = 0.0;
+        Scalar convective_flux = 0.0;
+        Scalar diffusive_flux = 0.0;
         const auto Nf = c.S.size();
         for (int j = 0; j < Nf; ++j)
         {
             auto f = c.surface.at(j);
             const auto &Sf = c.S.at(j);
-            c.energy_convective_flux += f->rhoU_prev.dot(Sf) * f->h_prev;
-            c.energy_diffusive_flux += f->conductivity * f->grad_T_prev.dot(Sf);
+            convective_flux += f->rhoU_prev.dot(Sf) * f->h_prev;
+            diffusive_flux += f->conductivity * f->grad_T_prev.dot(Sf);
         }
         //const Scalar viscous_dissipation = double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
         //const Scalar DpDt = ((c.p_prev - c.p) / TimeStep + c.U_prev.dot(c.grad_p_prev))* c.volume;
         //const Scalar total_flux = -c.energy_convective_flux + c.energy_diffusive_flux + viscous_dissipation + DpDt;
-        c.rhoh_next = c.rhoh + TimeStep / c.volume * (-c.energy_convective_flux + c.energy_diffusive_flux);
+        c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux);
         c.h_star = c.rhoh_next / c.rho_prev;
         c.T_star = c.h_star / c.specific_heat_p;
     }

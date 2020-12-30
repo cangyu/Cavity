@@ -40,37 +40,6 @@ static void check_bound
     std::cout << nm << " : " << var_min << " ~ " << var_max << std::endl;
 }
 
-static void step1(Scalar TimeStep)
-{
-    for (auto &c : cell)
-    {
-        Scalar convection_flux = 0.0;
-        const auto Nf = c.S.size();
-        for (int j = 0; j < Nf; ++j)
-        {
-            auto f = c.surface.at(j);
-            const auto& Sf = c.S.at(j);
-            convection_flux += f->rhoU.dot(Sf);
-        }
-        c.rho_prev = c.rho;// + TimeStep / c.volume * (-convection_flux);
-        c.U_prev = c.U;
-        c.p_prev = c.p;
-        c.tau_prev = c.tau;
-        c.grad_U_prev = c.grad_U;
-        c.grad_p_prev = c.grad_p;
-    }
-
-    for (auto &f : face)
-    {
-        f.U_prev = f.U;
-        f.p_prev = f.p;
-        f.h_prev = f.h;
-        f.rhoU_prev = f.rhoU;
-        f.grad_T_prev = f.grad_T;
-        f.tau_prev = f.tau;
-    }
-}
-
 static int ppe(Scalar TimeStep)
 {
     int cnt = 0; /// Iteration counter
@@ -97,6 +66,30 @@ static int ppe(Scalar TimeStep)
         /// Boundary + Internal
         GRAD_Face_PressureCorrection();
 
+//        for (auto &f : face)
+//        {
+//            if (f.at_boundary)
+//            {
+//                auto p_BC = f.parent->p_BC;
+//                if(p_BC == Dirichlet)
+//                    f.p_prime = 0.0;
+//                else if(p_BC == Neumann)
+//                {
+//                    auto C = f.c0 ? f.c0 : f.c1;
+//                    const Vector &r = f.c0 ? f.r0 : f.r1;
+//                    f.p_prime = C->p_prime + f.grad_p_prime.dot(r);
+//                }
+//                else
+//                    throw unsupported_boundary_condition(p_BC);
+//            }
+//            else
+//            {
+//                const Scalar pp0 = f.c0->p_prime;// + f.c0->grad_p_prime.dot(f.r0);
+//                const Scalar pp1 = f.c1->p_prime;// + f.c1->grad_p_prime.dot(f.r1);
+//                f.p_prime = 0.5 * (pp0 + pp1);
+//            }
+//        }
+
         /// Report
         std::cout << "\n" << std::left << std::setw(14) << l1 << "    " << std::setw(26) << l2;
 
@@ -109,84 +102,6 @@ static int ppe(Scalar TimeStep)
     return cnt;
 }
 
-static void step8()
-{
-    for (auto &f : face)
-    {
-        if (!f.at_boundary)
-        {
-            f.rho = f.rho_next;
-            f.U = f.U_next;
-            f.p = f.p_next;
-            f.T = f.T_next;
-            f.h = f.h_next;
-            f.rhoU = f.rhoU_next;
-            f.rhoh = f.rhoh_next;
-        }
-
-    }
-
-    for (auto &C : cell)
-    {
-        C.rho = C.rho_next;
-        C.U = C.U_next;
-        C.p = C.p_next;
-        C.T = C.T_next;
-        C.h = C.h_next;
-        C.rhoU = C.rhoU_next;
-        C.rhoh = C.rhoh_next;
-    }
-
-    /// Enforce B.C. for {$\vec{U}$, $p$, $T$} @(n+1), Face(Boundary)
-    BC_Primitive();
-
-    /// {$\nabla \vec{U}$, $\nabla p$, $\nabla T$} @(n+1), Cell & Face(Boundary+Internal)
-    GRAD_Cell_Velocity();
-    GRAD_Cell_Pressure();
-    GRAD_Cell_Temperature();
-    GRAD_Face_Velocity();
-    GRAD_Face_Pressure();
-    GRAD_Face_Temperature();
-
-    /// {$\vec{U}$, $p$, $T$} @(n+1), Face(Boundary)
-    INTERP_BoundaryFace_Velocity();
-    INTERP_BoundaryFace_Pressure();
-    INTERP_BoundaryFace_Temperature();
-
-    /// {$\rho$} @(n+1), Face(Boundary)
-    for (auto &f : face)
-    {
-        if(f.at_boundary)
-        {
-            f.rho = EOS(f.p, f.T);
-        }
-    }
-
-    /// {$\nabla \rho$} @(n+1), Cell & Face(Boundary+Internal)
-    GRAD_Cell_Density();
-    GRAD_Face_Density();
-
-    /// {$\rho$, $\vec{U}$, $p$, $T$} @(n+1), Node
-
-
-
-
-    /// {$\tau$} @(n+1), Cell & Face(Boundary+Internal)
-    CALC_Cell_ViscousShearStress();
-    CALC_Face_ViscousShearStress();
-
-    /// {$h$, $\rho h$, $\rho \vec{U}$} @(n+1), Face(Boundary)
-    for (auto &f : face)
-    {
-        if (f.at_boundary)
-        {
-            f.h = Enthalpy(f.specific_heat_p, f.T);
-            f.rhoh = f.rho * f.h;
-            f.rhoU = f.rho * f.U;
-        }
-    }
-}
-
 /**
  * 1st-order explicit time-marching.
  * Pressure-Velocity coupling is solved using Fractional-Step Method.
@@ -194,8 +109,6 @@ static void step8()
  */
 void ForwardEuler(Scalar TimeStep)
 {
-    BC_Primitive();
-
     /// Prediction of momentum
     for (auto& c : cell)
     {
@@ -263,7 +176,10 @@ void ForwardEuler(Scalar TimeStep)
         c.grad_p_prime.setZero();
     }
     for(auto &f : face)
+    {
+        f.p_prime = 0.0;
         f.grad_p_prime.setZero();
+    }
 
     std::cout << "\nSolving pressure-correction ...";
     std::cout << "\n--------------------------------------------";
@@ -280,51 +196,51 @@ void ForwardEuler(Scalar TimeStep)
 
     /// Smooth gradient of $p'$ on cell.
     /// For stability reason mostly.
-    RECONST_Cell_Grad_PressureCorrection();
+    //RECONST_Cell_Grad_PressureCorrection();
 
-    /// Update mass flux on internal face
-    for (auto& f : face)
-    {
-        if (!f.at_boundary)
-            f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
-    }
-
-    /// Update pressure-velocity coupling on cell
+    /// Update pressure
     for (auto& C : cell)
-    {
-        C.rhoU = C.rhoU_star - TimeStep * C.grad_p_prime;
         C.p += C.p_prime;
-        C.rho = EOS(C.p, C.T);
-        C.U = C.rhoU / C.rho;
-    }
+
+//    for (auto &f : face)
+//        f.p += f.p_prime;
 
     /// Interpolation from cell to face & Apply B.C. for p
     GRAD_Cell_Pressure();
     GRAD_Face_Pressure();
     INTERP_Face_Pressure();
 
+    /// Update density
+    for (auto& C : cell)
+        C.rho = EOS(C.p, C.T);
+
     for (auto& f : face)
-    {
         f.rho = EOS(f.p, f.T);
-        if (!f.at_boundary)
-            f.U = f.rhoU / f.rho;
+
+    /// Update mass flux on cell
+    for (auto& C : cell)
+    {
+        C.rhoU = C.rhoU_star - TimeStep * C.grad_p_prime;
+        C.U = C.rhoU / C.rho;
     }
 
     /// Interpolation from cell to face & Apply B.C. for U
     GRAD_Cell_Velocity();
     GRAD_Face_Velocity();
-    INTERP_BoundaryFace_Velocity();
+    INTERP_Face_Velocity();
 
-    /// Update viscous shear stress
-    CALC_Cell_ViscousShearStress();
-    CALC_Face_ViscousShearStress();
-
-    /// Update mass flux on boundary face
+    /// Update mass flux on face
     for (auto& f : face)
     {
         if (f.at_boundary)
             f.rhoU = f.rho * f.U;
+        else
+            f.rhoU = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
     }
+
+    /// Update viscous shear stress
+    CALC_Cell_ViscousShearStress();
+    CALC_Face_ViscousShearStress();
 
     /// Prediction of energy
     for(auto &c : cell)
@@ -352,21 +268,24 @@ void ForwardEuler(Scalar TimeStep)
     GRAD_Face_Temperature();
     INTERP_Face_Temperature();
 
+    check_bound<Face>("|grad(T)|_f", face, [](const Face& f){return f.grad_T.norm();});
+    check_bound<Cell>("|grad(T)|_C", cell, [](const Cell& C){return C.grad_T.norm();});
+
     /// Consistency for h
     for(auto &f : face)
     {
         f.h = f.specific_heat_p * f.T;
+        f.rhoh = f.rho * f.h;
     }
 
-    /// Update density
+    /// Update density and velocity
     for (auto &c : cell)
-    {
         c.rho = EOS(c.p, c.T);
-    }
+
     for(auto &f : face)
-    {
         f.rho = EOS(f.p, f.T);
-    }
+
+    BC_Primitive();
 
     /// Property @(n+1), Cell & Face(Boundary+Internal)
     CALC_Cell_Viscosity();

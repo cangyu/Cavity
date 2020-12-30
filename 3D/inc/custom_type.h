@@ -146,6 +146,7 @@ struct Face
     /// (*)
     Scalar T_star;
     Vector rhoU_star;
+    Scalar p_prime;
     Vector grad_p_prime, grad_p_prime_sn;
 
     /// (m-1)

@@ -584,6 +584,26 @@ Scalar GRAD_Cell_PressureCorrection()
     return error;
 }
 
+Scalar GRAD_Cell_PressureCorrection_GG()
+{
+    Scalar error = 0.0;
+    for (auto &C : cell)
+    {
+        const size_t nF = C.surface.size();
+        Vector flux(0.0, 0.0, 0.0);
+        for (size_t i = 0; i < nF; ++i)
+        {
+            auto f = C.surface.at(i);
+            flux += f->p_prime * C.S.at(i);
+        }
+        const Vector old_gpp = C.grad_p_prime;
+        C.grad_p_prime = flux / C.volume;
+        error += (C.grad_p_prime - old_gpp).norm();
+    }
+    error /= NumOfCell;
+    return error;
+}
+
 void GRAD_Face_PressureCorrection()
 {
     for (auto &f : face)

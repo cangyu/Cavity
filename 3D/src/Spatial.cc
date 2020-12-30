@@ -78,7 +78,9 @@ void INTERP_Face_Temperature()
             const Scalar T0 = f.c0->T + f.c0->grad_T.dot(f.r0);
             const Scalar T1 = f.c1->T + f.c1->grad_T.dot(f.r1);
             //f.T = f.ksi0 * f.c0->T + f.ksi1 * f.c1->T; /// Less accurate, but bounded
-            f.T = f.ksi0 * T0 + f.ksi1 * T1;
+            //f.T = f.ksi0 * T0 + f.ksi1 * T1; /// CDS
+            //f.T = (f.rhoU.dot(f.n01) > 0) ? T0 : T1; /// SOU
+            f.T = (f.rhoU.dot(f.n01) > 0) ? f.c0->T : f.c1->T; /// FOU
         }
     }
 }

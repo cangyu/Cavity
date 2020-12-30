@@ -31,6 +31,7 @@ void GRAD_Cell_Temperature();
 /// @(*)
 void GRAD_Cell_Temperature_star();
 Scalar GRAD_Cell_PressureCorrection();
+Scalar GRAD_Cell_PressureCorrection_GG();
 
 /// @(m+1)
 void GRAD_Cell_Velocity_next();
