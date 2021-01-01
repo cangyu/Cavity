@@ -475,7 +475,7 @@ void GRAD_Face_Temperature_next()
             const Vector d01 = f.c1->centroid - f.c0->centroid;
             const Vector alpha = f.n01 / f.n01.dot(d01);
             const Tensor beta = Tensor::Identity() - alpha * d01.transpose();
-            f.grad_T_next = alpha * (f.c1->T_next - f.c0->T_next)  + beta * (f.ksi0 * f.c0->grad_T_next + f.ksi1 * f.c1->grad_T_next);
+            f.grad_T_next = alpha * (f.c1->T_next - f.c0->T_next) + beta * (f.ksi0 * f.c0->grad_T_next + f.ksi1 * f.c1->grad_T_next);
         }
     }
 }
@@ -752,5 +752,40 @@ void GRAD_Cell_Pressure_next()
             }
         }
         C.grad_p_next = J_INV_p.at(C.index - 1) * dP;
+    }
+}
+
+void GRAD_Face_Pressure_next()
+{
+    for (auto &f : face)
+    {
+        if (f.at_boundary)
+        {
+            auto c = f.c0 ? f.c0 : f.c1;
+            const Vector &n = f.c0 ? f.n01 : f.n10;
+            const Vector d = f.c0 ? f.r0 : f.r1;
+
+            const auto p_BC = f.parent->p_BC;
+            if (p_BC == Dirichlet)
+            {
+                const Vector alpha = n / n.dot(d);
+                const Tensor beta = Tensor::Identity() - alpha * d.transpose();
+                f.grad_p_next = alpha * (f.p - c->p_next) + beta * c->grad_p_next;
+            }
+            else if (p_BC == Neumann)
+            {
+                const Tensor gamma = Tensor::Identity() - n * n.transpose();
+                f.grad_p_next = n * f.sn_grad_p + gamma * c->grad_p_next;
+            }
+            else
+                throw unsupported_boundary_condition(p_BC);
+        }
+        else
+        {
+            const Vector d01 = f.c1->centroid - f.c0->centroid;
+            const Vector alpha = f.n01 / f.n01.dot(d01);
+            const Tensor beta = Tensor::Identity() - alpha * d01.transpose();
+            f.grad_p_next = alpha * (f.c1->p_next - f.c0->p_next) + beta * (f.ksi0 * f.c0->grad_p_next + f.ksi1 * f.c1->grad_p_next);
+        }
     }
 }

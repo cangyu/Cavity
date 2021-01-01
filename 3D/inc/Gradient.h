@@ -20,6 +20,7 @@ void GRAD_Face_PressureCorrection();
 /// @(m+1)
 void GRAD_Face_Velocity_next();
 void GRAD_Face_Temperature_next();
+void GRAD_Face_Pressure_next();
 
 /* Cell */
 /// @(n)
