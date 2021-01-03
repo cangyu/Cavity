@@ -52,7 +52,7 @@ static void step1(Scalar TimeStep)
             const auto& Sf = c.S.at(j);
             convection_flux += f->rhoU.dot(Sf);
         }
-        c.rho_prev = c.rho;// + TimeStep / c.volume * (-convection_flux);
+        c.rho_prev = c.rho + TimeStep / c.volume * (-convection_flux);
         c.U_prev = c.U;
         c.p_prev = c.p;
         c.tau_prev = c.tau;

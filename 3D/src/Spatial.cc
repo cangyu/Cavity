@@ -135,8 +135,16 @@ void INTERP_Face_Temperature_next()
         {
             const Scalar T0 = f.c0->T_next + f.c0->grad_T_next.dot(f.r0);
             const Scalar T1 = f.c1->T_next + f.c1->grad_T_next.dot(f.r1);
+            const Scalar T_min = std::min(f.c0->T_next, f.c1->T_next);
+            const Scalar T_max = std::max(f.c0->T_next, f.c1->T_next);
             //f.T_next = f.ksi0 * f.c0->T_next + f.ksi1 * f.c1->T_next; /// Less accurate, but bounded
-            f.T_next = f.ksi0 * T0 + f.ksi1 * T1;
+            //f.T_next = f.ksi0 * T0 + f.ksi1 * T1; /// CDS
+            //f.T_next = (f.rhoU_next.dot(f.n01) > 0) ? f.c0->T : f.c1->T; /// FOU
+            f.T_next = (f.rhoU_next.dot(f.n01) > 0) ? T0 : T1; /// SOU
+            if(f.T_next < T_min)
+                f.T_next = T_min;
+            if(f.T_next > T_max)
+                f.T_next = T_max;
         }
     }
 }

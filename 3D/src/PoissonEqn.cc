@@ -109,7 +109,7 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
         Scalar tmp1 = 0.0;
         tmp1 -= C.volume / dt * (C.rho_next - C.rho) / dt;
         p1.at(C.index-1) = tmp1;
-        tmp1 = 0.0;
+        //tmp1 = 0.0;
 
         /// Part2
         Scalar tmp2 = 0.0;
@@ -147,7 +147,7 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
         if(val > p1_max)
             p1_max = val;
     }
-    //std::cout << "\np1: " << p1_min << " ~ " << p1_max << std::endl;
+    //std::cout << "\np1: " << p1_min << " ~ " << p1_max;
     double p2_min = p2.at(0);
     double p2_max = p2_min;
     for (size_t i = 1; i < NumOfCell; ++i)
@@ -158,7 +158,7 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
         if(val > p2_max)
             p2_max = val;
     }
-    //std::cout << "p2: " << p2_min << " ~ " << p2_max << std::endl;
+    //std::cout << "\np2: " << p2_min << " ~ " << p2_max << std::endl;
 
     /// Set reference
     //rhs(ref_cell) = ref_val;
