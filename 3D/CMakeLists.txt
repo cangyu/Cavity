@@ -28,8 +28,7 @@ add_executable(CAVITY
 	src/IC.cc
 	src/BC.cc
 	src/CHEM.cc
-	src/Temporal-fluent_loop.cc
-	#src/Temporal-pierce_new.cc
+	src/Temporal.cc
 	src/Spatial.cc
 	src/Gradient.cc
 	src/PoissonEqn.cc
