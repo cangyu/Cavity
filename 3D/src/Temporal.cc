@@ -119,6 +119,7 @@ void ForwardEuler(Scalar TimeStep)
         C.rhoh_next = C.rhoh;
         C.h_next = C.h;
         C.tau_next = C.tau;
+        C.grad_U_next = C.grad_U;
     }
 
     for (int m=1; m <= 6; ++m)
@@ -196,6 +197,7 @@ void ForwardEuler(Scalar TimeStep)
         const auto noc_iter = ppe(TimeStep);
         std::cout << "\n--------------------------------------------";
         std::cout << "\nConverged after " << noc_iter << " iterations" << std::endl;
+        sx_amg_data_destroy(&dp_solver_2);
 
         check_bound<Cell>("p'_C", cell, [](const Cell& C){return C.p_prime;});
 
@@ -215,13 +217,6 @@ void ForwardEuler(Scalar TimeStep)
         GRAD_Cell_Pressure_next();
         GRAD_Face_Pressure_next();
         INTERP_Face_Pressure_next();
-
-        /// Update density
-//        for (auto& C : cell)
-//            C.rho_next = EOS(C.p_next, C.T_next);
-//
-//        for (auto& f : face)
-//            f.rho_next = EOS(f.p_next, f.T_next);
 
         /// Update mass flux on cell
         for (auto& C : cell)
@@ -261,10 +256,10 @@ void ForwardEuler(Scalar TimeStep)
                 convective_flux += f->rhoU_next.dot(Sf) * f->h_next;
                 diffusive_flux += f->conductivity * f->grad_T_next.dot(Sf);
             }
-            //const Scalar viscous_dissipation = double_dot(c.tau_prev, c.grad_U_prev) * c.volume;
-            //const Scalar DpDt = ((c.p_prev - c.p) / TimeStep + c.U_prev.dot(c.grad_p_prev))* c.volume;
-            //c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux + viscous_dissipation + DpDt);
-            c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux);
+            const Scalar viscous_dissipation = double_dot(c.tau_next, c.grad_U_next) * c.volume;
+            const Scalar DpDt = ((c.p_next - c.p) / TimeStep + c.U_next.dot(c.grad_p_next))* c.volume;
+            c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux + viscous_dissipation + DpDt);
+            //c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux);
             c.h_next = c.rhoh_next / c.rho_next;
             c.T_next = c.h_next / c.specific_heat_p;
         }
@@ -311,6 +306,7 @@ void ForwardEuler(Scalar TimeStep)
         C.h = C.h_next;
         C.grad_T = C.grad_T_next;
         C.tau = C.tau_next;
+        C.grad_U = C.grad_U_next;
     }
 
     BC_Primitive();
