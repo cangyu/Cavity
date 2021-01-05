@@ -37,7 +37,7 @@ static void check_bound
         if (cur_var > var_max)
             var_max = cur_var;
     }
-    std::cout << nm << " : " << var_min << " ~ " << var_max << std::endl;
+    std::cout << nm << ": " << var_min << " ~ " << var_max << std::endl;
 }
 
 static int ppe(Scalar TimeStep)
@@ -122,33 +122,92 @@ void ForwardEuler(Scalar TimeStep)
         C.grad_U_next = C.grad_U;
     }
 
-    for (int m=1; m <= 6; ++m)
+    for (int m=1; m <= 3; ++m)
     {
         std::cout << "\nm=" << m << std::endl;
 
+        /// Prediction of density
+        for (auto &C : cell)
+        {
+            Scalar convective_flux = 0.0;
+            const auto Nf = C.S.size();
+            for (int j = 0; j < Nf; ++j)
+            {
+                auto f = C.surface.at(j);
+                const auto &Sf = C.S.at(j);
+                convective_flux += f->rhoU_next.dot(Sf);
+            }
+            C.rho_star = C.rho + TimeStep / C.volume * (-convective_flux);
+        }
+
+        /// Prediction of energy
+        for(auto &C : cell)
+        {
+            Scalar convective_flux = 0.0;
+            Scalar diffusive_flux = 0.0;
+            const auto Nf = C.S.size();
+            for (int j = 0; j < Nf; ++j)
+            {
+                auto f = C.surface.at(j);
+                const auto &Sf = C.S.at(j);
+                convective_flux += f->rhoU_next.dot(Sf) * f->h_next;
+                diffusive_flux += f->conductivity * f->grad_T_next.dot(Sf);
+            }
+            const Scalar viscous_dissipation = double_dot(C.tau_next, C.grad_U_next) * C.volume;
+            const Scalar DpDt = ((C.p_next - C.p) / TimeStep + C.U_next.dot(C.grad_p_next)) * C.volume;
+            C.rhoh_next = C.rhoh + TimeStep / C.volume * (-convective_flux + diffusive_flux + viscous_dissipation + DpDt);
+            C.h_next = C.rhoh_next / C.rho_star;
+            C.T_next = C.h_next / C.specific_heat_p;
+        }
+
+        /// Interpolation from cell to face & Apply B.C. for T
+        GRAD_Cell_Temperature_next();
+        GRAD_Face_Temperature_next();
+        INTERP_Face_Temperature_next();
+
         /// Update density
-        for (auto &c : cell)
-            c.rho_next = EOS(c.p_next, c.T_next);
+        for (auto &C : cell)
+        {
+            C.rho_next = EOS(C.p_next, C.T_next);
+            C.h_next = C.rhoh_next / C.rho_next;
+            C.T_next = C.h_next / C.specific_heat_p;
+        }
+
+        GRAD_Cell_Temperature_next();
+        GRAD_Face_Temperature_next();
+        INTERP_Face_Temperature_next();
 
         for (auto &f : face)
+        {
             f.rho_next = EOS(f.p_next, f.T_next);
+            f.h_next = f.specific_heat_p * f.T_next;
+            f.rhoh_next = f.rho_next * f.h_next;
+        }
+
+        check_bound<Cell>("Continuity error", cell, [](const Cell& C){return C.rho_next - C.rho_star;});
+
+        check_bound<Face>("T_f@(next)", face, [](const Face& f){return f.T_next;});
+        check_bound<Cell>("T_C@(next)", cell, [](const Cell& C){return C.T_next;});
+
+        check_bound<Face>("|grad(T)|_f@(next)", face, [](const Face& f){return f.grad_T_next.norm();});
+        check_bound<Cell>("|grad(T)|_C@(next)", cell, [](const Cell& C){return C.grad_T_next.norm();});
 
         /// Prediction of momentum
-        for (auto& c : cell)
+        for (auto& C : cell)
         {
             Vector pressure_flux(0.0, 0.0, 0.0);
             Vector convection_flux(0.0, 0.0, 0.0);
             Vector viscous_flux(0.0, 0.0, 0.0);
-            const auto Nf = c.S.size();
+            const auto Nf = C.S.size();
             for (int j = 0; j < Nf; ++j)
             {
-                auto f = c.surface.at(j);
-                const auto& Sf = c.S.at(j);
+                auto f = C.surface.at(j);
+                const auto& Sf = C.S.at(j);
                 convection_flux += f->rhoU_next.dot(Sf) * f->U_next;
                 pressure_flux += f->p_next * Sf;
                 viscous_flux += f->tau_next * Sf;
             }
-            c.rhoU_star = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
+            C.rhoU_star = C.rhoU + TimeStep / C.volume * (-convection_flux - pressure_flux + viscous_flux);
         }
 
         /// Interpolation from cell to face & Apply B.C. for rhoU*
@@ -242,44 +301,6 @@ void ForwardEuler(Scalar TimeStep)
         /// Update viscous shear stress
         CALC_Cell_ViscousShearStress_next();
         CALC_Face_ViscousShearStress_next();
-
-        /// Prediction of energy
-        for(auto &c : cell)
-        {
-            Scalar convective_flux = 0.0;
-            Scalar diffusive_flux = 0.0;
-            const auto Nf = c.S.size();
-            for (int j = 0; j < Nf; ++j)
-            {
-                auto f = c.surface.at(j);
-                const auto &Sf = c.S.at(j);
-                convective_flux += f->rhoU_next.dot(Sf) * f->h_next;
-                diffusive_flux += f->conductivity * f->grad_T_next.dot(Sf);
-            }
-            const Scalar viscous_dissipation = double_dot(c.tau_next, c.grad_U_next) * c.volume;
-            const Scalar DpDt = ((c.p_next - c.p) / TimeStep + c.U_next.dot(c.grad_p_next))* c.volume;
-            c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux + viscous_dissipation + DpDt);
-            //c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux);
-            c.h_next = c.rhoh_next / c.rho_next;
-            c.T_next = c.h_next / c.specific_heat_p;
-        }
-
-        /// Interpolation from cell to face & Apply B.C. for T
-        GRAD_Cell_Temperature_next();
-        GRAD_Face_Temperature_next();
-        INTERP_Face_Temperature_next();
-
-        for (auto &f : face)
-        {
-            f.h_next = f.specific_heat_p * f.T;
-            f.rhoh_next = f.rho_next * f.h_next;
-        }
-
-        check_bound<Face>("T_f@(next)", face, [](const Face& f){return f.T_next;});
-        check_bound<Cell>("T_C@(next)", cell, [](const Cell& C){return C.T_next;});
-
-        check_bound<Face>("|grad(T)|_f@(next)", face, [](const Face& f){return f.grad_T_next.norm();});
-        check_bound<Cell>("|grad(T)|_C@(next)", cell, [](const Cell& C){return C.grad_T_next.norm();});
     }
 
     for(auto &f : face)
