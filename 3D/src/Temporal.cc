@@ -122,7 +122,7 @@ void ForwardEuler(Scalar TimeStep)
         C.grad_U_next = C.grad_U;
     }
 
-    for (int m=1; m <= 3; ++m)
+    for (int m=1; m <= 6; ++m)
     {
         std::cout << "\nm=" << m << std::endl;
 

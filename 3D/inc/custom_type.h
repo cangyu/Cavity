@@ -223,7 +223,7 @@ struct Cell
     Vector grad_T = ZERO_VECTOR;
 
     /// (*)
-    Scalar rho_star, drhodt;
+    Scalar rho_star;
     Vector rhoU_star = ZERO_VECTOR;
     Vector U_star;
     Scalar p_prime = ZERO_SCALAR;
