@@ -126,13 +126,6 @@ void ForwardEuler(Scalar TimeStep)
     {
         std::cout << "\nm=" << m << std::endl;
 
-        /// Update density
-        for (auto &c : cell)
-            c.rho_next = EOS(c.p_next, c.T_next);
-
-        for (auto &f : face)
-            f.rho_next = EOS(f.p_next, f.T_next);
-
         /// Prediction of momentum
         for (auto& c : cell)
         {
@@ -271,7 +264,7 @@ void ForwardEuler(Scalar TimeStep)
 
         for (auto &f : face)
         {
-            f.h_next = f.specific_heat_p * f.T;
+            f.h_next = f.specific_heat_p * f.T_next;
             f.rhoh_next = f.rho_next * f.h_next;
         }
 
@@ -280,6 +273,13 @@ void ForwardEuler(Scalar TimeStep)
 
         check_bound<Face>("|grad(T)|_f@(next)", face, [](const Face& f){return f.grad_T_next.norm();});
         check_bound<Cell>("|grad(T)|_C@(next)", cell, [](const Cell& C){return C.grad_T_next.norm();});
+
+        /// Update density
+        for (auto &c : cell)
+            c.rho_next = EOS(c.p_next, c.T_next);
+
+        for (auto &f : face)
+            f.rho_next = EOS(f.p_next, f.T_next);
     }
 
     for(auto &f : face)
