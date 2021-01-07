@@ -167,19 +167,14 @@ void ForwardEuler(Scalar TimeStep)
 
         /// Update density
         for (auto &C : cell)
-        {
             C.rho_next = EOS(C.p_next, C.T_next);
-            C.h_next = C.rhoh_next / C.rho_next;
-            C.T_next = C.h_next / C.specific_heat_p;
-        }
-
-        GRAD_Cell_Temperature_next();
-        GRAD_Face_Temperature_next();
-        INTERP_Face_Temperature_next();
 
         for (auto &f : face)
-        {
             f.rho_next = EOS(f.p_next, f.T_next);
+
+        /// Consistency of enthalpy on faces.
+        for (auto &f : face)
+        {
             f.h_next = f.specific_heat_p * f.T_next;
             f.rhoh_next = f.rho_next * f.h_next;
         }

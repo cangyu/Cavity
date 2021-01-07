@@ -108,9 +108,8 @@ void calcPressureCorrectionEquationRHS(Eigen::Matrix<Scalar, Eigen::Dynamic, 1> 
         /// Part1
         Scalar tmp1 = 0.0;
         tmp1 -= C.volume / dt * (C.rho_next - C.rho) / dt;
-        //tmp1 += C.volume / dt * C.rho / C.T * (C.T_next - C.T) / dt;
+        //tmp1 += C.volume / dt * C.rho / C.T * (C.T_next - C.T) / dt; /// Diverge rapidly! 2021-01-05
         p1.at(C.index-1) = tmp1;
-        //tmp1 = 0.0;
 
         /// Part2
         Scalar tmp2 = 0.0;
