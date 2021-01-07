@@ -126,22 +126,39 @@ void ForwardEuler(Scalar TimeStep)
     {
         std::cout << "\nm=" << m << std::endl;
 
+        /// Prediction of density
+        for (auto &C : cell)
+        {
+            Scalar convective_flux = 0.0;
+            const auto Nf = C.S.size();
+            for (int j = 0; j < Nf; ++j)
+            {
+                auto f = C.surface.at(j);
+                const auto &Sf = C.S.at(j);
+                convective_flux += f->rhoU_next.dot(Sf);
+            }
+            C.rho_star = C.rho + TimeStep / C.volume * (-convective_flux);
+        }
+
+        check_bound<Cell>("Continuity error", cell, [](const Cell& C){return C.rho_next - C.rho_star;});
+
         /// Prediction of momentum
-        for (auto& c : cell)
+        for (auto& C : cell)
         {
             Vector pressure_flux(0.0, 0.0, 0.0);
             Vector convection_flux(0.0, 0.0, 0.0);
             Vector viscous_flux(0.0, 0.0, 0.0);
-            const auto Nf = c.S.size();
+            const auto Nf = C.S.size();
             for (int j = 0; j < Nf; ++j)
             {
-                auto f = c.surface.at(j);
-                const auto& Sf = c.S.at(j);
+                auto f = C.surface.at(j);
+                const auto& Sf = C.S.at(j);
                 convection_flux += f->rhoU_next.dot(Sf) * f->U_next;
                 pressure_flux += f->p_next * Sf;
                 viscous_flux += f->tau_next * Sf;
             }
-            c.rhoU_star = c.rhoU + TimeStep / c.volume * (-convection_flux - pressure_flux + viscous_flux);
+            C.rhoU_star = C.rhoU + TimeStep / C.volume * (-convection_flux - pressure_flux + viscous_flux);
+            C.U_star = C.rhoU_star / C.rho_next;
         }
 
         /// Interpolation from cell to face & Apply B.C. for rhoU*
@@ -151,15 +168,17 @@ void ForwardEuler(Scalar TimeStep)
             {
                 const auto U_BC = f.parent->U_BC;
                 if (U_BC == Dirichlet)
-                    f.rhoU_star = f.rho_next * f.U;
+                    f.U_star = f.U;
                 else if(U_BC == Neumann)
                 {
                     auto c = f.c0 ? f.c0 : f.c1;
                     const Vector &r = f.c0 ? f.r0 : f.r1;
-                    f.rhoU_star = c->rhoU_star + f.rho_next * (r.transpose() * f.grad_U).transpose();
+                    f.U_star = c->U_star + (r.transpose() * f.grad_U).transpose();
                 }
                 else
                     throw unsupported_boundary_condition(U_BC);
+
+                f.rhoU_star = f.rho_next * f.U_star;
             }
             else
             {
@@ -169,18 +188,40 @@ void ForwardEuler(Scalar TimeStep)
                 const Vector compact_grad_p = (f.c1->p_next - f.c0->p_next) / (d01.dot(d01)) * d01;
                 const Vector mean_grad_p = 0.5 * (f.c1->grad_p_next + f.c0->grad_p_next);
                 f.rhoU_star -= TimeStep * (compact_grad_p - mean_grad_p);
+
+                f.U_star = f.rhoU_star / f.rho_next;
             }
         }
 
+        for (auto &C : cell)
+        {
+            Scalar convective_flux = 0.0;
+            const auto Nf = C.S.size();
+            for (int j = 0; j < Nf; ++j)
+            {
+                auto f = C.surface.at(j);
+                const auto &Sf = C.S.at(j);
+                convective_flux += f->rhoU_star.dot(Sf);
+            }
+            C.delta_mdot = (C.rho_next - C.rho) / TimeStep + convective_flux / C.volume;
+        }
+
         /// Perturbation of EOS
-        std::vector<Scalar> unsteady_diagonal(NumOfCell, 0.0);
+        std::vector<Scalar> unsteady_diagonal(NumOfCell);
         for(size_t i = 0; i < NumOfCell; ++i)
         {
             const auto &C = cell.at(i);
             unsteady_diagonal.at(i) = C.volume / (TimeStep * TimeStep * 287.7 * C.T_next);
         }
 
-        calcPressureCorrectionEquationCoef(A_dp_2, unsteady_diagonal);
+        std::vector<Vector> convection_surrounding(NumOfFace);
+        for(size_t i = 0; i < NumOfFace; ++i)
+        {
+            const auto &f = face.at(i);
+            convection_surrounding.at(i) = f.U_star / (TimeStep * 287.7 * f.T_next);
+        }
+
+        calcPressureCorrectionEquationCoef(A_dp_2, unsteady_diagonal, convection_surrounding);
         prepare_dp_solver(A_dp_2, dp_solver_2);
 
         std::cout << "\nSolving pressure-correction ...";
@@ -204,7 +245,10 @@ void ForwardEuler(Scalar TimeStep)
 
         /// Update pressure
         for (auto& C : cell)
+        {
             C.p_next += + C.p_prime;
+            C.rho_star = C.rho_next + C.p_prime / (287.7 * C.T_next);
+        }
 
         /// Interpolation from cell to face & Apply B.C. for p
         GRAD_Cell_Pressure_next();
@@ -253,7 +297,7 @@ void ForwardEuler(Scalar TimeStep)
             const Scalar DpDt = ((c.p_next - c.p) / TimeStep + c.U_next.dot(c.grad_p_next))* c.volume;
             c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux + viscous_dissipation + DpDt);
             //c.rhoh_next = c.rhoh + TimeStep / c.volume * (-convective_flux + diffusive_flux);
-            c.h_next = c.rhoh_next / c.rho_next;
+            c.h_next = c.rhoh_next / c.rho_star;
             c.T_next = c.h_next / c.specific_heat_p;
         }
 

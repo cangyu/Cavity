@@ -145,7 +145,7 @@ struct Face
 
     /// (*)
     Scalar T_star;
-    Vector rhoU_star;
+    Vector rhoU_star, U_star;
     Scalar p_prime;
     Vector grad_p_prime, grad_p_prime_sn;
 
@@ -223,7 +223,8 @@ struct Cell
     Vector grad_T = ZERO_VECTOR;
 
     /// (*)
-    Scalar rho_star, drhodt;
+    Scalar delta_mdot;
+    Scalar rho_star;
     Vector rhoU_star = ZERO_VECTOR;
     Vector U_star;
     Scalar p_prime = ZERO_SCALAR;
