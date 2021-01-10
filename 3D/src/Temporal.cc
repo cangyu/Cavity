@@ -77,6 +77,29 @@ static int ppe(Scalar TimeStep)
         /// Boundary + Internal
         GRAD_Face_PressureCorrection();
 
+        for(auto &f : face)
+        {
+            if(f.at_boundary)
+            {
+                auto dp_BC =f.parent->p_BC;
+                switch(dp_BC)
+                {
+                case Dirichlet:
+                    f.p_prime = 0.0;
+                    break;
+                case Neumann:
+                    f.p_prime = f.c0 ? f.c0->p_prime : f.c1->p_prime;
+                    break;
+                default:
+                    throw unsupported_boundary_condition(dp_BC);
+                }
+            }
+            else
+            {
+                f.p_prime = 0.5 * (f.c0->p_prime + f.c1->p_prime);
+            }
+        }
+
         /// Report
         std::cout << "\n" << std::left << std::setw(14) << l1 << "    " << std::setw(26) << l2;
 
@@ -122,7 +145,7 @@ void ForwardEuler(Scalar TimeStep)
         C.grad_U_next = C.grad_U;
     }
 
-    for (int m=1; m <= 6; ++m)
+    for (int m=1; m <= 3; ++m)
     {
         std::cout << "\nm=" << m << std::endl;
 
@@ -246,14 +269,19 @@ void ForwardEuler(Scalar TimeStep)
         /// Update pressure
         for (auto& C : cell)
         {
-            C.p_next += + C.p_prime;
+            C.p_next += C.p_prime;
             C.rho_star = C.rho_next + C.p_prime / (287.7 * C.T_next);
         }
 
         /// Interpolation from cell to face & Apply B.C. for p
         GRAD_Cell_Pressure_next();
         GRAD_Face_Pressure_next();
-        INTERP_Face_Pressure_next();
+        //INTERP_Face_Pressure_next();
+        for(auto &f : face)
+        {
+            f.p_next += f.p_prime;
+            f.rho_star = f.rho_next + f.p_prime / (287.7 * f.T_next);
+        }
 
         /// Update mass flux on cell
         for (auto& C : cell)
@@ -271,7 +299,7 @@ void ForwardEuler(Scalar TimeStep)
         for (auto& f : face)
         {
             if (f.at_boundary)
-                f.rhoU_next = f.rho_next * f.U_next;
+                f.rhoU_next = f.rho_star * f.U_next;
             else
                 f.rhoU_next = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
         }

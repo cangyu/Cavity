@@ -144,6 +144,7 @@ struct Face
     Vector grad_T = ZERO_VECTOR;
 
     /// (*)
+    Scalar rho_star;
     Scalar T_star;
     Vector rhoU_star, U_star;
     Scalar p_prime;
