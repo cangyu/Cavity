@@ -145,7 +145,7 @@ void ForwardEuler(Scalar TimeStep)
         C.grad_U_next = C.grad_U;
     }
 
-    for (int m=1; m <= 3; ++m)
+    for (int m=1; m <= 6; ++m)
     {
         std::cout << "\nm=" << m << std::endl;
 
@@ -286,7 +286,7 @@ void ForwardEuler(Scalar TimeStep)
         /// Update mass flux on cell
         for (auto& C : cell)
         {
-            C.rhoU_next = C.rhoU_star - TimeStep * C.grad_p_prime;
+            C.rhoU_next = C.rhoU_star - TimeStep * C.grad_p_prime + (C.rho_star - C.rho_next) * C.U_star;
             C.U_next = C.rhoU_next / C.rho_next;
         }
 
@@ -301,7 +301,7 @@ void ForwardEuler(Scalar TimeStep)
             if (f.at_boundary)
                 f.rhoU_next = f.rho_star * f.U_next;
             else
-                f.rhoU_next = f.rhoU_star - TimeStep * f.grad_p_prime_sn;
+                f.rhoU_next = f.rhoU_star - TimeStep * f.grad_p_prime_sn + (f.rho_star - f.rho_next) * f.U_star;
         }
 
         /// Update viscous shear stress
