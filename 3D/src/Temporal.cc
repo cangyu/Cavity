@@ -89,6 +89,14 @@ static int ppe(Scalar TimeStep)
     return cnt;
 }
 
+static void check_mass()
+{
+    double total = 0.0;
+    for(auto &C : cell)
+        total += C.rho_next * C.volume;
+    std::cout << "Total mass: " << total << "kg" << std::endl;
+}
+
 /**
  * 1st-order explicit time-marching.
  * Pressure-Velocity coupling is solved using Fractional-Step Method.
@@ -125,6 +133,7 @@ void ForwardEuler(Scalar TimeStep)
     for (int m=1; m <= 6; ++m)
     {
         std::cout << "\nm=" << m << std::endl;
+        check_mass();
 
         /// Prediction of density
         for (auto &C : cell)
